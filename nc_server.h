@@ -37,6 +37,8 @@ class NcServerApp
 {
   public:
 
+    NcServerApp();
+
     /**
      * Parse the runstring parameters.
      * If the runstring parameters are not OK, then DSMEngine::usage()
@@ -513,7 +515,6 @@ class Variable
     int _isCnts;
 
     std::map <std::string, std::string> _strAttrs;
-    std::vector <std::string> _attrNames;
 
     Variable & operator=(const Variable &);     // prevent assignment
 
@@ -541,14 +542,9 @@ class Variable
 
     void add_att(const std::string& name, const std::string& val);
 
-    std::vector<std::string> get_attr_names() const
-    {
-        return _attrNames;
-    }
+    std::vector<std::string> get_attr_names() const;
 
     const std::string& att_val(const std::string& n) const;
-
-    void copy_atts(const Variable& v);
 
 };
 

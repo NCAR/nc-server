@@ -58,8 +58,8 @@ namespace {
 
 /*
 #define VARNAME_DEBUG
-#define DEBUG
 */
+#define DEBUG
 
 unsigned long heap()
 {
@@ -772,22 +772,35 @@ int FileGroup::check_file(const string & fileName) const
 
     try {
         vector < string > args;
-        args.push_back("nccheck");
+        args.push_back("nc_check");
         args.push_back(fileName);
-        nidas::util::Process nccheck =
-            nidas::util::Process::spawn("nccheck", args);
+        nidas::util::Process proc =
+            nidas::util::Process::spawn("nc_check", args);
         int status;
+        char buf[512];
         string errmsg;
-        nccheck.errStream() >> errmsg;
-        nccheck.wait(true, &status);
+        for (;;) {
+            ssize_t l = read(proc.getErrFd(),buf,sizeof(buf));
+            if (l == 0) break;
+            if (l < 0) {
+                WLOG(("error reading nc_check error output: %m"));
+                break;
+            }
+            errmsg += string(buf,0,l);
+            if (errmsg.length() > 1024) break;
+        }
+        proc.wait(true, &status);
         if (WIFEXITED(status)) {
             if (WEXITSTATUS(status))
-                WLOG(("nccheck exited with status=%d, err output=",
+                WLOG(("nc_check exited with status=%d, err output=",
                       WEXITSTATUS(status)) << errmsg);
-            else
+            else {
+                DLOG(("nc_check exited with status=%d, err output=",
+                      WEXITSTATUS(status)) << errmsg);
                 fileok = true;
+            }
         } else if (WIFSIGNALED(status))
-            WLOG(("nccheck received signal=%d, err output=",
+            WLOG(("nc_check received signal=%d, err output=",
                   WTERMSIG(status)) << errmsg);
     }
     catch(const nidas::util::IOException & e)
@@ -807,12 +820,22 @@ int FileGroup::ncgen_file(const string & CDLFileName,
         args.push_back("-o");
         args.push_back(fileName);
         args.push_back(CDLFileName);
-        nidas::util::Process ncgen =
+        nidas::util::Process proc =
             nidas::util::Process::spawn("ncgen", args);
         int status;
+        char buf[512];
         string errmsg;
-        ncgen.errStream() >> errmsg;
-        ncgen.wait(true, &status);
+        for (;;) {
+            ssize_t l = read(proc.getErrFd(),buf,sizeof(buf));
+            if (l == 0) break;
+            if (l < 0) {
+                WLOG(("error reading nc_check error output: %m"));
+                break;
+            }
+            errmsg += string(buf,0,l);
+            if (errmsg.length() > 1024) break;
+        }
+        proc.wait(true, &status);
         if (WIFEXITED(status)) {
             if (WEXITSTATUS(status))
                 WLOG(("ncgen exited with status=%d, err output=",
@@ -955,7 +978,7 @@ NS_NcFile *FileGroup::put_rec(const datarec_float * writerec,
             return 0;
     }
 #ifdef DEBUG
-    DLOG(("Writing Record, ngroup=%d,f=%x", ngroup, f));
+    DLOG(("Writing Record, ngroup=%d,f=%s", ngroup, f->getName().c_str()));
 #endif
 
     if (!f->put_rec(writerec, _vargroups[ngroup], dtime))
@@ -1043,7 +1066,7 @@ VariableGroup::VariableGroup(const struct datadef * dd, int igroup, double finte
         _invars.push_back(v =
                           new Variable(dd->fields.fields_val[i].name));
 #ifdef DEBUG
-        DLOG(("%s: %d", v->name(), i));
+        DLOG(("%s: %d", v->name().c_str(), i));
 #endif
         char *cp = dd->fields.fields_val[i].units;
 
@@ -1131,10 +1154,13 @@ void VariableGroup::create_outvariables(void) throw(BadVariableName)
         v1 = _invars[i];
         dtype = _datatype;
 
+        DLOG(("v1=") << v1->name());
+
         // Check each variable to see if it is actually a counts variable
         for (j = 0; j < nv; j++) {
             if (j != i) {
                 v2 = _invars[j];
+                DLOG(("v2=") << v1->name());
                 if ((cntsattr = v2->att_val("counts")).length() > 0 &&
                     cntsattr == v1->name()) {
                     iscnts = 1;
@@ -1146,6 +1172,7 @@ void VariableGroup::create_outvariables(void) throw(BadVariableName)
         _outvars.push_back(ov =
                            new OutVariable(*v1, dtype, _floatFill,
                                            _intFill));
+        DLOG(("ov=") << ov->name());
         if (iscnts) {
             ov->isCnts() = iscnts;
             // delete short_name attr if it exists
@@ -1246,9 +1273,9 @@ Variable::Variable(const string& vname): _name(vname),_isCnts(0)
 {
 }
 
-Variable::Variable(const Variable & v):_name(v._name),_isCnts(v._isCnts)
+Variable::Variable(const Variable & v):
+    _name(v._name),_isCnts(v._isCnts),_strAttrs(v._strAttrs)
 {
-    copy_atts(v);
 }
 
 void Variable::set_name(const string& n)
@@ -1256,36 +1283,29 @@ void Variable::set_name(const string& n)
     _name = n;
 }
 
+std::vector<std::string> Variable::get_attr_names() const
+{
+    vector<string> names;
+    map<string,string>::const_iterator mi = _strAttrs.begin();
+    for ( ; mi != _strAttrs.end(); ++mi) names.push_back(mi->first);
+    return names;
+}
+
 void Variable::add_att(const string& name, const string& val)
 {
     map<string,string>::iterator mi = _strAttrs.find(name);
-
-    if (val.length() > 0) {
-        if (mi == _strAttrs.end()) _attrNames.push_back(name);
-        _strAttrs[name] = val;
-    }
-    else {
-        if (mi != _strAttrs.end()) {
-            vector<string>::iterator vi =
-                std::find(_attrNames.begin(),_attrNames.end(),name);
-            if (vi != _attrNames.end()) _attrNames.erase(vi);
-            _strAttrs.erase(mi);
-        }
-    }
+    if (val.length() > 0) _strAttrs[name] = val;
+    else if (mi != _strAttrs.end()) _strAttrs.erase(mi);
 }
 
 const string& Variable::att_val(const string& name) const
 {
+    // could just do _return _strAttrs[name], and make
+    // this a non-const method, or make _strAttrs mutable.
     static string empty;
     map<string,string>::const_iterator mi = _strAttrs.find(name);
     if (mi != _strAttrs.end()) return mi->second;
     return empty;
-}
-
-void Variable::copy_atts(const Variable& v)
-{
-    _strAttrs = v._strAttrs;
-    _attrNames = v._attrNames;
 }
 
 OutVariable::OutVariable(const Variable& v, NS_datatype dtype,
@@ -1302,11 +1322,11 @@ OutVariable::OutVariable(const Variable& v, NS_datatype dtype,
 
     // convert dots, tics, commas, parens to underscores so that
     // it is a legal NetCDL name
-    while((ic = namestr.find_first_of(".'(),*"),0) != string::npos)
+    while((ic = namestr.find_first_of(".'(),*",0)) != string::npos)
         namestr[ic] = '_';
 
     // convert double underscores to one
-    while((ic = namestr.find("__"),0) != string::npos)
+    while((ic = namestr.find("__",0)) != string::npos)
         namestr = namestr.substr(0,ic) + namestr.substr(ic+1);
 
     // remove trailing _, unless name less than 3 chars
@@ -1352,7 +1372,6 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         _baseTime = (int) (floor(dtime / _lengthSecs) * _lengthSecs);
 
     _timeOffset = -_interval * .5;      // _interval may be 0
-
     _nrecs = 0;
 
     /*
@@ -1430,6 +1449,8 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
             if (_ttType == FIXED_DELTAT) {
                 _timesAreMidpoints = fabs(fmod(_timeOffset, _interval) - _interval * .5) <
                     _interval * 1.e-3;
+                DLOG(("_timeOffset=") << _timeOffset << " interval=" << _interval <<
+                    " timesAreMidpoints=" << _timesAreMidpoints);
                 if (_timesAreMidpoints) {
                     if (fabs(((nrec + .5) * _interval) - _timeOffset) > _interval * 1.e-3) {
                         PLOG(("%s: Invalid timeOffset (NS_NcFile) = %f, nrec=%d,_nrecs=%d,interval=%f",
@@ -1445,7 +1466,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
                         _fileName.c_str(), _timeOffset, nrec, _nrecs, _interval));
                         // rewrite them all
                         _nrecs = 0;
-                        _timeOffset = -_interval * .5;
+                        _timeOffset = -_interval;
                     }
                 }
             }
@@ -1469,9 +1490,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     if (_ttType == FIXED_DELTAT) {
         NcAtt *intervalAtt;
         if (!(intervalAtt = _timeOffsetVar->get_att("interval(sec)"))) {
-            char val[16];
-            sprintf(val,"%f",_interval);
-            if (!_timeOffsetVar->add_att("interval(sec)",val)) {
+            if (!_timeOffsetVar->add_att("interval(sec)",_interval)) {
                 PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
                       _timeOffsetVar->name(), "interval(sec)",
                       nc_strerror(ncerror.get_err())));
@@ -1567,11 +1586,17 @@ const std::string & NS_NcFile::getName() const
 
 NcBool NS_NcFile::sync()
 {
+#ifdef DEBUG
+    DLOG(("doing sync"));
+#endif
     _lastSync = time(0);
-    int res = NcFile::sync();
+    NcBool res = NcFile::sync();
     if (!res)
         PLOG(("sync %s: %s", _fileName.c_str(),
               nc_strerror(ncerror.get_err())));
+#ifdef DEBUG
+    DLOG(("did sync"));
+#endif
     return res;
 }
 
@@ -1593,10 +1618,6 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
     // variables have been initialzed for this VariableGroup
     if ((vars = _vars[igroup]))
         return vars;
-
-#ifdef DEBUG
-    DLOG(("calling get_vars"));
-#endif
 
     _ndims_req = vgroup->num_dims();
 
@@ -1624,8 +1645,8 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
     //
     for (int i = _ndims = 0; i < _ndims_req; i++) {
 #ifdef DEBUG
-        DLOG(("prior group dimension number %d %s, size=%d",
-              i, _dimNames[i], _dimSizes[i]));
+        DLOG(("VariableGroup %d dimension number %d %s, size=%d",
+              igroup,i,_dimNames[i], _dimSizes[i]));
 #endif
 
         // The _dims array is only used when creating a new variable
@@ -1642,9 +1663,9 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
         }
     }
 #ifdef DEBUG
-    for (int i = 0; i < _ndims; i++)
-        DLOG(("file dimension %s, size=%d",
-              _dims[i]->name(), _dims[i]->size()));
+    for (unsigned int i = 0; i < _ndims; i++)
+        DLOG(("%s: dimension %s, size=%d",
+              getName().c_str(),_dims[i]->name(), _dims[i]->size()));
 
     DLOG(("creating outvariables"));
 #endif
@@ -1656,49 +1677,50 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
     int countsIndex = -1;
     string countsAttrNameFromFile;
     string countsAttrNameFromOVs;
+    bool countsAttrNameMisMatch = false;
 
     for (int iv = 0; iv < nv; iv++) {
         vars[iv] = 0;
         OutVariable *ov = vgroup->get_var(iv);
 #ifdef DEBUG
-        DLOG(("checking %s", ov->name()));
+        DLOG(("checking %s", ov->name().c_str()));
 #endif
         if (!ov->isCnts()) {
             string cntsAttr;
             if ((cntsAttr = ov->att_val("counts")).length() > 0) {
                 if (countsAttrNameFromOVs.length() > 0) {
                     if (countsAttrNameFromOVs != cntsAttr)
-                        PLOG(("multiple counts attributes for group with %s: %s and %s",
-                            ov->name().c_str(), countsAttrNameFromOVs.c_str(), cntsAttr.c_str()));
+                        PLOG(("var %s: counts attribute=%s, no match with %s",
+                            ov->name().c_str(),cntsAttr.c_str(),countsAttrNameFromOVs.c_str()));
                 } else
                     countsAttrNameFromOVs = cntsAttr;
             }
-            NcVar *ncv;
-            if ((ncv = find_var(ov))) {
-                NcAtt *att = ncv->get_att("counts");
-                if (att) {
-                    if (att->type() == ncChar && att->num_vals() > 0) {
-                        const char *cname = att->as_string(0);
-                        if (countsAttrNameFromFile.length() == 0)
-                            countsAttrNameFromFile = cname;
-                        else {
-                            // this shouldn't happen - there should be one counts var per grp
-                            if (countsAttrNameFromFile != string(cname))
-                                PLOG(("multiple counts variables for group with %s: %s and %s",
-                                    ov->name().c_str(), countsAttrNameFromFile.c_str(), cname));
-                        }
-                        delete [] cname;
-                    }
-                    delete att;
-                }
-            }
-
             NS_NcVar *nsv;
             if ((nsv = add_var(ov)) == 0) {
                 PLOG(("Failed to add variable %s to %s",
                       ov->name().c_str(),_fileName.c_str()));
                 continue;
             }
+
+            NcAtt *att = nsv->get_att("counts");
+            if (att) {
+                if (att->type() == ncChar && att->num_vals() > 0) {
+                    const char *cname = att->as_string(0);
+                    if (countsAttrNameFromFile.length() == 0)
+                        countsAttrNameFromFile = cname;
+                    else {
+                        // this shouldn't happen - there should be one counts var per grp
+                        if (countsAttrNameFromFile != string(cname)) {
+                            PLOG(("%s: var %s counts attribute=%s, no match with %s",
+                                getName().c_str(),nsv->name(),cname,countsAttrNameFromFile.c_str()));
+                            countsAttrNameMisMatch = true;
+                        }
+                    }
+                    delete [] cname;
+                }
+                delete att;
+            }
+
             vars[iv] = nsv;
         } else {
             // a counts variable
@@ -1735,8 +1757,8 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
         cerr << "counts var=" << cv->name() << endl;
 #endif
 
-        if (countsAttrNameFromFile.length() == 0) {
-            // no counts attributes found in file
+        if (countsAttrNameFromFile.length() == 0 || countsAttrNameMisMatch) {
+            // no counts attributes found in file for variables in group
             // check that OutVariable counts attributes
             // matches OutVariable name
             if (cv->name() != countsAttrNameFromOVs)
@@ -1788,7 +1810,8 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
             }
         } else {
             // counts attributes found in file
-            cv->set_name(countsAttrNameFromFile.c_str());
+            if (cv->name() != countsAttrNameFromFile)
+                cv->set_name(countsAttrNameFromFile.c_str());
             if ((vars[countsIndex] = add_var(cv)) == 0)
                 PLOG(("failed to create counts variable %s", cv->name().c_str()));
             for (int iv = 0; iv < nv; iv++) {
@@ -1805,16 +1828,9 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
 #ifdef DEBUG
     DLOG(("added vars"));
 #endif
-
     _vars[igroup] = vars;
     _nvars[igroup] = nv;
-#ifdef DEBUG
-    DLOG(("doing sync"));
-#endif
     sync();
-#ifdef DEBUG
-    DLOG(("did sync"));
-#endif
     return vars;
 }
 
@@ -1871,7 +1887,6 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
 
     // No matching variables found, create new one
     if (!(var = find_var(v))) {
-
         if (!(var =
              NcFile::add_var(varName.c_str(), (NcType) v->data_type(), _ndims,
                              _dims)) || !var->is_valid()) {
@@ -1886,27 +1901,15 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
                       _dims[i]->size()));
             goto error;
         }
-        if (shortName.length() > 0 && !var->add_att("short_name", shortName.c_str())) {
-            DLOG(("add_att %s: %s %s %s", _fileName.c_str(), varName.c_str(),
-                  "short_name", nc_strerror(ncerror.get_err())));
-            goto error;
-        }
     }
 
     if (add_attrs(v, var) < 0)
         goto error;
 
-#ifdef DEBUG
-    DLOG(("var %s has %d dimensions", varName, var->num_dims()));
-    for (i = 0; i < var->num_dims(); i++) {
-        const NcDim *dim = var->get_dim(i);
-        DLOG(("dim name=%s,size=%d", dim->name(), dim->size()));
-    }
-#endif
     // double check ourselves
     if (!check_var_dims(var)) {
-        PLOG(("wrong dimensions for variable %s: %s", _fileName.c_str(),
-              varName.c_str()));
+        PLOG(("%s: wrong dimensions for variable %s",
+              getName().c_str(),varName.c_str()));
         goto error;
     }
     fsv = new NS_NcVar(var, _dimIndices, _ndims_req, v->floatFill(),
@@ -1934,17 +1937,19 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
         switch (v->data_type()) {
         case NS_INT:
             if (!var->add_att("_FillValue",v->intFill())) {
-                PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
-                      var->name(), "_FillValue",
+                PLOG(("%s: %s: add_att %s: %s %s",
+                      getName().c_str(),var->name(), "_FillValue",
                       nc_strerror(ncerror.get_err())));
+                delete nca;
                 return -1;
             }
             break;
         case NS_FLOAT:
             if (!var->add_att("_FillValue", v->floatFill())) {
-                PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
-                      var->name(), "_FillValue",
+                PLOG(("%s: %s: add_att %s: %s",
+                      getName().c_str(),var->name(), "_FillValue",
                       nc_strerror(ncerror.get_err())));
+                delete nca;
                 return -1;
             }
             break;
@@ -1952,46 +1957,64 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
     } else
         delete nca;
 
+#ifdef DO_UNITS_SEPARATELY
     if (v->units().length() > 0) {
-        nca = var->get_att("units");
         NcValues *uvals = 0;
         char *units = 0;
-        if (nca)
+        NcBool res = 1;
+        nca = var->get_att("units");
+        if (nca) {
             uvals = nca->values();
-        if (uvals && nca->num_vals() >= 1 && nca->type() == ncChar)
-            units = uvals->as_string(0);
+            if (uvals && nca->num_vals() >= 1 && nca->type() == ncChar)
+                units = uvals->as_string(0);
+        }
         if (!units || strcmp(units, v->units().c_str())) {
 #ifdef DEBUG
             DLOG(("new units=%s, old units=%s,len=%d",
-                  v->units(),
+                  v->units().c_str(),
                   (units ? units : "none"), (nca ? nca->num_vals() : 0)));
 #endif
-            if (!var->add_att("units", v->units().c_str())) {
-                PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
-                      var->name(), "units",
+            if (!(res = var->add_att("units", v->units().c_str()))) {
+                PLOG(("%s: %s: add_att: %s=%s %s",
+                      getName().c_str(),var->name(),
+                      "units",v->units().c_str(),
                       nc_strerror(ncerror.get_err())));
-                return -1;
             }
         }
         delete nca;
         delete uvals;
         delete [] units;
+        if (!res) return -1;
     }
-    // all other attributes
+#endif
+
+    // all string attributes
     vector<string> attrNames = v->get_attr_names();
     for (unsigned int i = 0; i < attrNames.size(); i++) {
         string aname = attrNames[i];
         string aval = v->att_val(aname);
         if (aval.length() > 0) {
-            if (!(nca = var->get_att(aname.c_str()))) {
-                if (!var->add_att(aname.c_str(), aval.c_str())) {
-                    PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
-                          var->name(), aname.c_str(),
+            NcValues *uvals = 0;
+            char* faval = 0;
+            NcBool res = 1;
+            nca = var->get_att(aname.c_str());
+            if (nca) {
+                uvals = nca->values();
+                if (uvals && nca->num_vals() >= 1 && nca->type() == ncChar)
+                    faval = uvals->as_string(0);
+            }
+            if (!faval || string(faval) != aval) {
+                if (!(res = var->add_att(aname.c_str(), aval.c_str()))) {
+                    PLOG(("%s: %s: add_att: %s=%s: %s",
+                          getName().c_str(),var->name(),
+                          aname.c_str(),aval.c_str(),
                           nc_strerror(ncerror.get_err())));
-                    return -1;
                 }
-            } else
-                delete nca;
+            }
+            delete nca;
+            delete uvals;
+            delete [] faval;
+            if (!res) return -1;
         }
     }
 
@@ -2171,14 +2194,25 @@ NcBool NS_NcFile::put_rec(const struct datarec_float * writerec,
          * attribute:  "sampleInterval(secs)"  "300"
          */
 
-        if (_timesAreMidpoints < 0)
+        if (_timesAreMidpoints < 0) {
             _timesAreMidpoints = fabs(fmod(dtime, groupInt) - groupInt * .5) <
                 groupInt * 1.e-3;
+            if (_timesAreMidpoints) _timeOffset = -_interval * .5;
+            else _timeOffset = -_interval;
 
-        nsample = (int) floor(fmod(dtime, _interval) / groupInt);
+        }
 
-        if (_timesAreMidpoints) tdiff = nsample * groupInt;
-        else tdiff = (nsample + .5) * groupInt - .5 * _interval;
+        if (_timesAreMidpoints) {
+            nsample = (int) floor(fmod(dtime, _interval) / groupInt);
+            tdiff = (nsample + .5) * groupInt - .5 * _interval;
+        }
+        else {
+            nsample = (int) floor((fmod(dtime, _interval) + groupInt/2) / groupInt);
+            tdiff = nsample * groupInt;
+        }
+
+        DLOG(("dtime=") << dtime << " nsample=" << nsample <<
+            " tdiff=" << tdiff);
 
         dtime -= tdiff;
 
@@ -2282,13 +2316,25 @@ NcBool NS_NcFile::put_rec(const struct datarec_int * writerec,
     dtime -= _baseTime;
     if (_ttType == FIXED_DELTAT && vgroup->num_samples() > 1) {
 
-        if (_timesAreMidpoints < 0)
+        if (_timesAreMidpoints < 0) {
             _timesAreMidpoints = fabs(fmod(dtime, groupInt) - groupInt * .5) <
                 groupInt * 1.e-3;
-        nsample = (int) floor(fmod(dtime, _interval) / groupInt);
+            if (_timesAreMidpoints) _timeOffset = -_interval * .5;
+            else _timeOffset = -_interval;
 
-        if (_timesAreMidpoints) tdiff = nsample * groupInt;
-        else tdiff = (nsample + .5) * groupInt - .5 * _interval;
+        }
+
+        if (_timesAreMidpoints) {
+            nsample = (int) floor(fmod(dtime, _interval) / groupInt);
+            tdiff = (nsample + .5) * groupInt - .5 * _interval;
+        }
+        else {
+            nsample = (int) floor((fmod(dtime, _interval) + groupInt/2) / groupInt);
+            tdiff = nsample * groupInt;
+        }
+
+        DLOG(("dtime=") << dtime << " nsample=" << nsample <<
+            " tdiff=" << tdiff);
 
         dtime -= tdiff;
     } else
@@ -2357,14 +2403,13 @@ long NS_NcFile::put_time(double timeoffset, const char *varname)
      */
     if (_ttType == VARIABLE_DELTAT)
         nrec = _nrecs;
+    else if (_timesAreMidpoints)
+        nrec = (long) rint(timeoffset / _interval);
     else
-        if (_timesAreMidpoints)
-            nrec = (long) (timeoffset / _interval);
-        else
-            nrec = (long) rint(timeoffset / _interval);
+        nrec = (long) ((timeoffset + _interval/2) / _interval);
 
 #ifdef DEBUG
-    DLOG(("timeoffset=%f, timeOffset=%f,nrec=%d, nrecs=%d,interval=%f",
+    DLOG(("timeoffset=%f, _timeOffset=%f,nrec=%d, nrecs=%d,interval=%f",
           (double) timeoffset, (double) _timeOffset, nrec, _nrecs,
           _interval));
 #endif
@@ -2425,7 +2470,8 @@ long NS_NcFile::put_time(double timeoffset, const char *varname)
         }
     }
 #ifdef DEBUG
-    DLOG(("after fill timeoffset = %f, timeOffset=%f,nrec=%d, _nrecs=%d,interval=%f", (double) timeoffset, (double) _timeOffset, nrec, _nrecs, _interval));
+    DLOG(("after fill timeoffset = %f, timeOffset=%f,nrec=%d, _nrecs=%d,interval=%f",
+        (double)timeoffset,(double)_timeOffset, nrec, _nrecs, (double)_interval));
 #endif
 
 #ifdef LAST_TIME_CHECK
@@ -2452,7 +2498,7 @@ int NS_NcFile::put_history(string val)
         history = htmp;
         delete [] htmp;
 #ifdef DEBUG
-        DLOG(("history len=%d, history=%.40s", hlen, history));
+        DLOG(("history=%.40s", history.c_str()));
 #endif
         delete historyAtt;
     }
@@ -2495,7 +2541,7 @@ int NS_NcFile::put_history(string val)
     _lastAccess = time(0);
 
 #ifdef DEBUG
-    DLOG(("NS_NcFile::put_history: l=%d", l));
+    DLOG(("NS_NcFile::put_history"));
 #endif
 
     // Don't sync;
@@ -2583,6 +2629,8 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
               _fileName.c_str(), var->name()));
         return 0;
     }
+
+    // do the dimension checks only for time series variables
     if (!var->get_dim(0)->is_unlimited())
         return 0;
 
@@ -2590,34 +2638,37 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
         dim = var->get_dim(i);
 
 #ifdef DEBUG
-        DLOG(("req dim[%d] = %s, size=%d ndimin=%d",
-              ireq, _dimNames[ireq], _dimSizes[ireq], _ndims_req));
-        DLOG(("dim[%d] = %s, size=%d ndims=%d",
-              i, dim->name(), dim->size(), ndims));
+        DLOG(("%s: dim[%d] = %s, size=%d ndims=%d",
+              var->name(),i, dim->name(), dim->size(), ndims));
+        DLOG(("%s: req dim[%d] = %s, size=%d ndimin=%d",
+              getName().c_str(),ireq, _dimNames[ireq], _dimSizes[ireq], _ndims_req));
 #endif
         if (_dimSizes[ireq] == NC_UNLIMITED) {
             if (dim->is_unlimited())
                 _dimIndices[ireq++] = i++;
             else
                 return 0;
-        } else
-            if (!strncmp
+        } else if (!strncmp
                 (dim->name(), _dimNames[ireq], strlen(_dimNames[ireq]))) {
             // name match
+            if (dim->size() != _dimSizes[ireq]) {
 #ifdef DEBUG
-            DLOG(("name match"));
+                DLOG(("dimension size mismatch for var=%s, dim %s=%d, expected size=%d",
+                    var->name(),dim->name(),dim->size(),_dimSizes[ireq]));
 #endif
-            if (dim->size() != _dimSizes[ireq])
                 return 0;
+            }
             _dimIndices[ireq++] = i++;
         }
         // If no name match, then the requested dimension must be 1.
         else {
+            if (_dimSizes[ireq] != 1) {
 #ifdef DEBUG
-            DLOG(("no name match"));
+                DLOG(("no dimension name match for var=%s, dim %s=%d",
+                    var->name(),dim->name(),dim->size()));
 #endif
-            if (_dimSizes[ireq] != 1)
                 return 0;
+            }
             _dimIndices[ireq++] = -1;
         }
     }
@@ -2710,8 +2761,10 @@ NcBool NS_NcVar::set_cur(long nrec, int nsample, const long *start)
 {
     int i, j, k;
     _start[0] = nrec;
-    if ((k = _dimIndices[1]) > 0)
+    if ((k = _dimIndices[1]) > 0) {
+        DLOG(("k=") << k << " nsample=" << nsample);
         _start[k] = nsample;
+    }
 
     for (i = 0, j = 2; j < _ndimIndices; i++, j++)
         if ((k = _dimIndices[j]) > 0)
@@ -2770,6 +2823,11 @@ int NS_NcVar::put_len(const long *counts)
             nout *= _count[k];
         }
     return nout;
+}
+
+NcServerApp::NcServerApp(): 
+    _userid(0),_groupid(0),_daemon(false),_logLevel(defaultLogLevel)
+{
 }
 
 void NcServerApp::usage(const char *argv0)
@@ -2866,7 +2924,7 @@ void NcServerApp::run(void)
         exit(1);
     }
 
-    if (_userid != getuid())
+    if (_userid != 0 && _userid != getuid())
         setuid(_userid);
 
     svc_run();
