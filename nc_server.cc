@@ -58,8 +58,8 @@ namespace {
 
 /*
 #define VARNAME_DEBUG
-*/
 #define DEBUG
+*/
 
 unsigned long heap()
 {
@@ -405,14 +405,18 @@ void AllFiles::close()
                 delete _filegroups[i];
                 _filegroups[i] = 0;
             } else {
+#ifdef DEBUG
                 DLOG(("filegroup %d has %d open files, %d var groups",
                       n, _filegroups[i]->num_files(),
                       _filegroups[i]->num_var_groups()));
+#endif
                 n++;
             }
         }
     }
+#ifdef DEBUG
     DLOG(("%d current file groups, heap=%d", n, heap()));
+#endif
 }
 
 void AllFiles::sync()
@@ -435,14 +439,18 @@ void AllFiles::close_old_files(void)
                 delete _filegroups[i];
                 _filegroups[i] = 0;
             } else {
+#ifdef DEBUG
                 DLOG(("filegroup %d has %d open files, %d var groups",
                       n, _filegroups[i]->num_files(),
                       _filegroups[i]->num_var_groups()));
+#endif
                 n++;
             }
         }
     }
+#ifdef DEBUG
     DLOG(("%d current file groups, heap=%d", n, heap()));
+#endif
 }
 
 void AllFiles::close_oldest_file(void)
@@ -695,7 +703,7 @@ NS_NcFile *FileGroup::open_file(double dtime)
     if (fileExists) {
         if (!check_file(fileName)) {
             string badName = fileName + ".bad";
-            DLOG(("Renaming corrupt file: %s to %s", fileName.c_str(),
+            WLOG(("Renaming corrupt file: %s to %s", fileName.c_str(),
                   badName.c_str()));
             if (!access(badName.c_str(), F_OK)
                 && unlink(badName.c_str()) < 0)
@@ -795,8 +803,10 @@ int FileGroup::check_file(const string & fileName) const
                 WLOG(("nc_check exited with status=%d, err output=",
                       WEXITSTATUS(status)) << errmsg);
             else {
+#ifdef DEBUG
                 DLOG(("nc_check exited with status=%d, err output=",
                       WEXITSTATUS(status)) << errmsg);
+#endif
                 fileok = true;
             }
         } else if (WIFSIGNALED(status))
@@ -1083,13 +1093,10 @@ void VariableGroup::create_outvariables(void) throw(BadVariableName)
         v1 = _invars[i];
         dtype = _datatype;
 
-        DLOG(("v1=") << v1->name());
-
         // Check each variable to see if it is actually a counts variable
         for (j = 0; j < nv; j++) {
             if (j != i) {
                 v2 = _invars[j];
-                DLOG(("v2=") << v1->name());
                 if ((cntsattr = v2->att_val("counts")).length() > 0 &&
                     cntsattr == v1->name()) {
                     iscnts = 1;
@@ -1101,7 +1108,6 @@ void VariableGroup::create_outvariables(void) throw(BadVariableName)
         _outvars.push_back(ov =
                            new OutVariable(*v1, dtype, _floatFill,
                                            _intFill));
-        DLOG(("ov=") << ov->name());
         if (iscnts) {
             ov->isCnts() = iscnts;
             // delete short_name attr if it exists
@@ -1378,8 +1384,10 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
             if (_ttType == FIXED_DELTAT) {
                 _timesAreMidpoints = fabs(fmod(_timeOffset, _interval) - _interval * .5) <
                     _interval * 1.e-3;
+#ifdef DEBUG
                 DLOG(("_timeOffset=") << _timeOffset << " interval=" << _interval <<
                     " timesAreMidpoints=" << _timesAreMidpoints);
+#endif
                 if (_timesAreMidpoints) {
                     if (fabs(((nrec + .5) * _interval) - _timeOffset) > _interval * 1.e-3) {
                         PLOG(("%s: Invalid timeOffset (NS_NcFile) = %f, nrec=%d,_nrecs=%d,interval=%f",
@@ -1515,17 +1523,12 @@ const std::string & NS_NcFile::getName() const
 
 NcBool NS_NcFile::sync()
 {
-#ifdef DEBUG
-    DLOG(("doing sync"));
-#endif
     _lastSync = time(0);
     NcBool res = NcFile::sync();
     if (!res)
-        PLOG(("sync %s: %s", _fileName.c_str(),
-              nc_strerror(ncerror.get_err())));
-#ifdef DEBUG
-    DLOG(("did sync"));
-#endif
+        PLOG(("%s: sync: %s",
+            getName().c_str(),nc_strerror(ncerror.get_err())));
+    else ILOG(("%s: sync'd",getName().c_str()));
     return res;
 }
 
@@ -1806,7 +1809,6 @@ void VariableGroup::check_counts_variable()
 
 NS_NcVar *NS_NcFile::add_var(OutVariable * v)
 {
-    unsigned int i;
     NcVar *var;
     NS_NcVar *fsv;
     int isCnts = v->isCnts();
@@ -1825,9 +1827,11 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
             PLOG(("define_mode=%d", define_mode()));
             PLOG(("data_type=%d", v->data_type()));
             PLOG(("ndims=%d", _ndims));
-            for (i = 0; i < _ndims; i++)
+#ifdef DEBUG
+            for (unsigned int i = 0; i < _ndims; i++)
                 DLOG(("dims=%d id=%d size=%d", i, _dims[i]->id(),
                       _dims[i]->size()));
+#endif
             goto error;
         }
     }
@@ -2012,13 +2016,13 @@ NcVar *NS_NcFile::find_var(OutVariable * v)
     }
 
     if (var && var->type() != (NcType) v->data_type()) {
-        DLOG(("%s: variable %s is of wrong type",
+        WLOG(("%s: variable %s is of wrong type",
               _fileName.c_str(), var->name()));
         var = 0;
     }
 
     if (var && !check_var_dims(var)) {
-        DLOG(("%s: variable %s has incorrect dimensions",
+        WLOG(("%s: variable %s has incorrect dimensions",
               _fileName.c_str(), var->name()));
         ostringstream ost;
 
@@ -2028,7 +2032,7 @@ NcVar *NS_NcFile::find_var(OutVariable * v)
             ost << _dimNames[i] << '=' << _dimSizes[i];
         }
         ost << ')';
-        DLOG(("%s: should be declared %s", _fileName.c_str(), ost.str().c_str()));
+        WLOG(("%s: should be declared %s", _fileName.c_str(), ost.str().c_str()));
 
         if (shortName.length() > 0) {
             //
@@ -2061,8 +2065,10 @@ NcVar *NS_NcFile::find_var(OutVariable * v)
             if (!(get_var(newname.c_str())))
                 break;
         }
+#ifdef DEBUG
         DLOG(("%s: %s new name= %s\n",
               _fileName.c_str(), var->name(), newname.c_str()));
+#endif
         v->set_name(newname.c_str());
     }
     return var;
@@ -2082,9 +2088,9 @@ long NS_NcFile::put_time(double timeoffset, const char *varname)
     if (_ttType == VARIABLE_DELTAT)
         nrec = _nrecs;
     else if (_timesAreMidpoints)
-        nrec = (long) rint(timeoffset / _interval);
+        nrec = (long) floor(timeoffset / _interval);
     else
-        nrec = (long) ((timeoffset + _interval/2) / _interval);
+        nrec = (long) floor((timeoffset + _interval/2) / _interval);
 
 #ifdef DEBUG
     DLOG(("timeoffset=%f, _timeOffset=%f,nrec=%d, nrecs=%d,interval=%f",
@@ -2223,8 +2229,6 @@ int NS_NcFile::put_history(string val)
 #endif
 
     // Don't sync;
-    // sync();
-
     return 0;
 }
 
@@ -2439,10 +2443,7 @@ NcBool NS_NcVar::set_cur(long nrec, int nsample, const long *start)
 {
     int i, j, k;
     _start[0] = nrec;
-    if ((k = _dimIndices[1]) > 0) {
-        DLOG(("k=") << k << " nsample=" << nsample);
-        _start[k] = nsample;
-    }
+    if ((k = _dimIndices[1]) > 0) _start[k] = nsample;
 
     for (i = 0, j = 2; j < _ndimIndices; i++, j++)
         if ((k = _dimIndices[j]) > 0)

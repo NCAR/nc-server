@@ -635,7 +635,7 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
                           VariableGroup * vgroup, double dtime)
 {
     long nrec;
-    long nsample;
+    long nsample = 0;
     NS_NcVar **vars;
     NS_NcVar *var;
     int i, iv, nv;
@@ -656,7 +656,7 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
 #endif
 
     dtime -= _baseTime;
-    if (_ttType == FIXED_DELTAT && vgroup->num_samples() > 1) {
+    if (_ttType == FIXED_DELTAT) {
         /* Examples:
          * times fall on even intervals
          * _interval = 1 sec (time interval of the file)
@@ -692,24 +692,30 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
             if (_timesAreMidpoints) _timeOffset = -_interval * .5;
             else _timeOffset = -_interval;
 
+// #define DEBUG
+#ifdef DEBUG
+            DLOG(("dtime=") << dtime << " groupInt=" << groupInt <<
+                    " timesAreMidpoints=" << _timesAreMidpoints);
+#endif
+// #undef DEBUG
         }
+        if (vgroup->num_samples() > 1) {
+            if (_timesAreMidpoints) {
+                nsample = (int) floor(fmod(dtime, _interval) / groupInt);
+                tdiff = (nsample + .5) * groupInt - .5 * _interval;
+            }
+            else {
+                nsample = (int) floor((fmod(dtime, _interval) + groupInt/2) / groupInt);
+                tdiff = nsample * groupInt;
+            }
 
-        if (_timesAreMidpoints) {
-            nsample = (int) floor(fmod(dtime, _interval) / groupInt);
-            tdiff = (nsample + .5) * groupInt - .5 * _interval;
+#ifdef DEBUG
+            DLOG(("dtime=") << dtime << " nsample=" << nsample <<
+                " tdiff=" << tdiff);
+#endif
+            dtime -= tdiff;
         }
-        else {
-            nsample = (int) floor((fmod(dtime, _interval) + groupInt/2) / groupInt);
-            tdiff = nsample * groupInt;
-        }
-
-        DLOG(("dtime=") << dtime << " nsample=" << nsample <<
-            " tdiff=" << tdiff);
-
-        dtime -= tdiff;
-
-    } else
-        nsample = 0;
+    }
 
     if ((nrec = put_time(dtime, vars[0]->name())) < 0)
         return 0;
