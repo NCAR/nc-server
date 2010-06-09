@@ -2090,7 +2090,7 @@ long NS_NcFile::put_time(double timeoffset, const char *varname)
     else if (_timesAreMidpoints)
         nrec = (long) floor(timeoffset / _interval);
     else
-        nrec = (long) floor((timeoffset + _interval/2) / _interval);
+        nrec = (long) rint(timeoffset / _interval);
 
 #ifdef DEBUG
     DLOG(("timeoffset=%f, _timeOffset=%f,nrec=%d, nrecs=%d,interval=%f",
@@ -2578,7 +2578,7 @@ void NcServerApp::setup()
         logger =
             nidas::util::Logger::createInstance("nc_server",
                                                 LOG_CONS | LOG_PID,
-                                                LOG_LOCAL4);
+                                                LOG_LOCAL5);
     } else
         logger = nidas::util::Logger::createInstance(&std::cerr);
 
