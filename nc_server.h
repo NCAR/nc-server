@@ -17,11 +17,14 @@
 #include <list>
 #include <map>
 #include <netcdf.hh>
+#include <netcdf.h>
 
 #include "nc_server_rpc.h"
 #include <nidas/util/UTime.h>
 #include <nidas/util/Logger.h>
 #include <nidas/util/Exception.h>
+
+extern NcError ncerror;
 
 void nc_shutdown(int);
 
@@ -125,8 +128,11 @@ class Connection
   public:
     Connection(const struct connection *);
     ~Connection(void);
+
     int put_rec(const datarec_float * writerec);
+
     int put_rec(const datarec_int * writerec);
+
     int put_history(const std::string &);
     int add_var_group(const struct datadef *);
     time_t LastRequest()
@@ -263,10 +269,10 @@ class NS_NcFile:public NcFile
 #endif
         return (_endTime > time);
     }
-    NcBool put_rec(const struct datarec_float *, VariableGroup *,
-                   double dtime);
-    NcBool put_rec(const struct datarec_int *, VariableGroup *,
-                   double dtime);
+
+    template<class REC_T, class DATA_T>
+    NcBool put_rec(const REC_T * writerec, VariableGroup *,double dtime);
+
     long put_time(double, const char *);
     int put_history(std::string history);
     time_t LastAccess() const
@@ -308,8 +314,8 @@ class FileGroup
     FileGroup(const struct connection *);
     ~FileGroup(void);
 
-    NS_NcFile *put_rec(const datarec_float * writerec, NS_NcFile * f);
-    NS_NcFile *put_rec(const datarec_int * writerec, NS_NcFile * f);
+    template<class REC_T, class DATA_T>
+    NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f);
 
     int match(const std::string & dir, const std::string & file);
     NS_NcFile *get_file(double time);
@@ -587,4 +593,184 @@ class OutVariable:public Variable
     }
 
 };
+
+template<class REC_T,class DATA_T>
+NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
+                              NS_NcFile * f)
+{
+    int ngroup = writerec->datarecId;
+    double dtime = writerec->time;
+
+    if (ngroup >= (signed) _vargroups.size()) {
+        PLOG(("Invalid variable group number: %d", ngroup));
+        return 0;
+    }
+
+    /* Check if last file is still current */
+    if (!(f && (f->StartTimeLE(dtime) && f->EndTimeGT(dtime)))) {
+#ifdef DEBUG
+        DLOG(("time not contained in current file"));
+#endif
+        if (f)
+            f->sync();
+        if (!(f = get_file(dtime)) && ncerror.get_err() == NC_ENFILE) {
+            // Too many files open
+            AllFiles::Instance()->close_oldest_file();
+            f = get_file(dtime);
+        }
+        if (!f)
+            return 0;
+    }
+#ifdef DEBUG
+    DLOG(("Writing Record, ngroup=%d,f=%s", ngroup, f->getName().c_str()));
+#endif
+
+    if (!f->put_rec<REC_T,DATA_T>(writerec, _vargroups[ngroup], dtime))
+        f = 0;
+    return f;
+}
+
+template<class REC_T, class DATA_T>
+NcBool NS_NcFile::put_rec(const REC_T * writerec,
+                          VariableGroup * vgroup, double dtime)
+{
+    long nrec;
+    long nsample;
+    NS_NcVar **vars;
+    NS_NcVar *var;
+    int i, iv, nv;
+    double groupInt = vgroup->interval();
+    double tdiff;
+    time_t tnow;
+    int ndims_req = vgroup->num_dims();
+    int igroup = vgroup->ngroup();
+
+    // this will add variables if necessary
+#ifdef DEBUG
+    DLOG(("calling get_vars"));
+#endif
+    if (!(vars = get_vars(vgroup)))
+        return 0;
+#ifdef DEBUG
+    DLOG(("called get_vars"));
+#endif
+
+    dtime -= _baseTime;
+    if (_ttType == FIXED_DELTAT && vgroup->num_samples() > 1) {
+        /* Examples:
+         * times fall on even intervals
+         * _interval = 1 sec (time interval of the file)
+         *     times in files will be 00:00:00, 00:00:01, etc
+         * groupInt = 1/60 
+         * dtime = 00:00:01.0167   Not midpoint of _interval/dim
+         * nsample = 1
+         * tdiff = nsample * groupInt
+         * dtime = 00:00:01.0
+         * dtime[nsample] = dtime + nsample * (_interval / dim)
+         *****************************************************************
+         * times are midpoints of intervals
+         * _interval = 300 sec
+         *      values will have timetags of 00:02:30, 00:07:30, etc
+         * groupInt = 60 sec
+         *      values will have timetags of 00:00:30, 00:01:30, etc
+         * dtime = 00:01:30     midpoint of _interval/dim
+         * nsample = 1
+         * tdiff = 90 - 150 = -60
+         * dtime = 00:02:30
+         * Reading:
+         * dtime[nsample] = dtime - _interval/2 + nsample * groupInt + groupInt/2.
+         * How does reader know _interval and groupInt?
+         * Can store _interval as attribute of time. calculate groupInt = _interval/dim
+         * attribute:  "interval(secs)"  "300"
+         * attribute:  "resolution(secs)"  "300"
+         * attribute:  "sampleInterval(secs)"  "300"
+         */
+
+        if (_timesAreMidpoints < 0) {
+            _timesAreMidpoints = fabs(fmod(dtime, groupInt) - groupInt * .5) <
+                groupInt * 1.e-3;
+            if (_timesAreMidpoints) _timeOffset = -_interval * .5;
+            else _timeOffset = -_interval;
+
+        }
+
+        if (_timesAreMidpoints) {
+            nsample = (int) floor(fmod(dtime, _interval) / groupInt);
+            tdiff = (nsample + .5) * groupInt - .5 * _interval;
+        }
+        else {
+            nsample = (int) floor((fmod(dtime, _interval) + groupInt/2) / groupInt);
+            tdiff = nsample * groupInt;
+        }
+
+        DLOG(("dtime=") << dtime << " nsample=" << nsample <<
+            " tdiff=" << tdiff);
+
+        dtime -= tdiff;
+
+    } else
+        nsample = 0;
+
+    if ((nrec = put_time(dtime, vars[0]->name())) < 0)
+        return 0;
+
+    nv = _nvars[igroup];
+
+    int nstart = writerec->start.start_len;
+    int ncount = writerec->count.count_len;
+    long *start = (long *) writerec->start.start_val;
+    long *count = (long *) writerec->count.count_val;
+    const DATA_T *d = writerec->data.data_val;
+    int nd = writerec->data.data_len;
+    const DATA_T *dend = d + nd;
+
+    if (nstart != ndims_req - 2 || nstart != ncount) {
+        PLOG(("variable %s has incorrect start or count length",
+              vars[0]->name()));
+    }
+#ifdef DEBUG
+    DLOG(("nstart=%d,ncount=%d", nstart, ncount));
+    for (i = 0; i < ncount; i++)
+        DLOG(("count[%d]=%d", i, count[i]));
+#endif
+
+    for (iv = 0; iv < nv; iv++) {
+        var = vars[iv];
+
+        var->set_cur(nrec, nsample, start);
+        if (var->isCnts() && writerec->cnts.cnts_len > 0) {
+#ifdef DEBUG
+            DLOG(("put counts"));
+#endif
+            if (!var->put((const int *) writerec->cnts.cnts_val, count)) {
+                PLOG(("put cnts %s: %s %s", _fileName.c_str(), var->name(),
+                      nc_strerror(ncerror.get_err())));
+                return 0;
+            }
+        } else if (d < dend) {
+            if (!(i = var->put(d, count))) {
+                PLOG(("put var %s: %s %s", _fileName.c_str(), var->name(),
+                      nc_strerror(ncerror.get_err())));
+                return 0;
+            }
+#ifdef DEBUG
+            DLOG(("var->put of %s, i=%d", var->name(), i));
+#endif
+            d += i;
+        }
+        // The last variables in a NS_TIMESERIES group may be counts variables
+        // (having been found in the NetCDF file), but the user may not
+        // pass the counts data to be written.  Don't issue a warning in this case.
+        else if (!var->isCnts() || vgroup->rec_type() != NS_TIMESERIES)
+            d += var->put_len(count);
+    }
+    if (d != dend)
+        PLOG(("put check %s: %s put request for %d values, should be %d",
+              _fileName.c_str(), vars[0]->name(), nd,
+              d - writerec->data.data_val));
+
+    if ((tnow = time(0)) - _lastSync > 60) sync();
+    _lastAccess = tnow;
+    return 1;
+}
 
