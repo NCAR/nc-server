@@ -2505,7 +2505,7 @@ int NS_NcVar::put_len(const long *counts)
 }
 
 NcServerApp::NcServerApp(): 
-    _userid(0),_groupid(0),_daemon(false),_logLevel(defaultLogLevel)
+    _userid(0),_groupid(0),_daemon(true),_logLevel(defaultLogLevel)
 {
 }
 
