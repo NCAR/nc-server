@@ -593,8 +593,10 @@ void FileGroup::close()
             (*ni)->put_history(_connections[i]->get_history());
     }
 
-    while (_files.size() > 0)
+    while (_files.size() > 0) {
+        delete _files.back();
         _files.pop_back();
+    }
 }
 
 // sync all NS_NcFile objects
@@ -963,7 +965,7 @@ int FileGroup::add_var_group(const struct datadef *dd)
 VariableGroup::VariableGroup(const struct datadef * dd, int igroup, double finterval):_ngroup
     (igroup)
 {
-    unsigned int i, j, l, n;
+    unsigned int i, j, n;
     Variable *v;
     unsigned int nv;
 
@@ -983,21 +985,17 @@ VariableGroup::VariableGroup(const struct datadef * dd, int igroup, double finte
         _nsamples = 1;
 
     _ndims = dd->dimensions.dimensions_len + 2;
-    _dimnames = new char *[_ndims];
-    _dimsizes = new long[_ndims];
+    _dimnames = vector<string>(_ndims);
+    _dimsizes = vector<long>(_ndims);
 
-    _dimnames[0] = new char[5];
-    strcpy(_dimnames[0], "time");
+    _dimnames[0] = "time";
     _dimsizes[0] = NC_UNLIMITED;
 
-    _dimnames[1] = new char[7];
-    strcpy(_dimnames[1], "sample");
+    _dimnames[1] = "sample";
     _dimsizes[1] = _nsamples;
 
     for (i = 2; i < _ndims; i++) {
-        l = strlen(dd->dimensions.dimensions_val[i - 2].name) + 1;
-        _dimnames[i] = new char[l];
-        strcpy(_dimnames[i], dd->dimensions.dimensions_val[i - 2].name);
+        _dimnames[i] = string(dd->dimensions.dimensions_val[i - 2].name);
         _dimsizes[i] = dd->dimensions.dimensions_val[i - 2].size;
     }
 
@@ -1007,7 +1005,7 @@ VariableGroup::VariableGroup(const struct datadef * dd, int igroup, double finte
 #ifdef DEBUG
         DLOG(("%s: %d", v->name().c_str(), i));
 #endif
-        char *cp = dd->fields.fields_val[i].units;
+        const char *cp = dd->fields.fields_val[i].units;
 
         // if (!strncmp(v->name(),"chksumOK",8))
         // DLOG(("%s units=%s",v->name(),cp ? cp : "none"));
@@ -1051,13 +1049,6 @@ VariableGroup::~VariableGroup(void)
         delete _invars[i];
     for (i = 0; i < _outvars.size(); i++)
         delete _outvars[i];
-
-
-    for (i = 0; i < _ndims; i++)
-        delete [] _dimnames[i];
-    delete [] _dimnames;
-    delete [] _dimsizes;
-
 }
 
 int VariableGroup::num_dims(void) const
@@ -1072,11 +1063,12 @@ long VariableGroup::dim_size(unsigned int i) const
     return -1;
 }
 
-const char *VariableGroup::dim_name(unsigned int i) const
+const string& VariableGroup::dim_name(unsigned int i) const
 {
+    static string empty;
     if (i < _ndims)
         return _dimnames[i];
-    return 0;
+    return empty;
 }
 
 void VariableGroup::create_outvariables(void) throw(BadVariableName)
@@ -1277,8 +1269,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
                      double interval, double fileLength,
                      double dtime):NcFile(fileName.c_str(), openmode),
     _fileName(fileName), _interval(interval), _lengthSecs(fileLength),
-     _ttType(FIXED_DELTAT),_timesAreMidpoints(-1),
-     _dimNames(0),_dimSizes(0),_dimIndices(0),_dims(0),_ndimalloc(0)
+     _ttType(FIXED_DELTAT),_timesAreMidpoints(-1)
 {
 
     if (!is_valid()) {
@@ -1510,10 +1501,6 @@ NS_NcFile::~NS_NcFile(void)
             delete _vars[i][j];
         delete [] _vars[i];
     }
-    delete [] _dimSizes;
-    delete [] _dimIndices;
-    delete [] _dimNames;
-    delete [] _dims;
 }
 
 const std::string & NS_NcFile::getName() const
@@ -1528,7 +1515,7 @@ NcBool NS_NcFile::sync()
     if (!res)
         PLOG(("%s: sync: %s",
             getName().c_str(),nc_strerror(ncerror.get_err())));
-    else ILOG(("%s: sync'd",getName().c_str()));
+    else DLOG(("%s: sync'd",getName().c_str()));
     return res;
 }
 
@@ -1553,17 +1540,11 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
 
     _ndims_req = vgroup->num_dims();
 
-    if (_ndims_req > _ndimalloc) {
-        delete [] _dimSizes;
-        delete [] _dimIndices;
-        delete [] _dimNames;
-        delete [] _dims;
-
-        _dimSizes = new long[_ndims_req];
-        _dimIndices = new int[_ndims_req];
-        _dimNames = new const char *[_ndims_req];
-        _dims = new const NcDim *[_ndims_req];
-        _ndimalloc = _ndims_req;
+    if (_ndims_req > (signed)_dims.size()) {
+        _dimSizes = vector<long>(_ndims_req);
+        _dimIndices = vector<int>(_ndims_req);
+        _dimNames = vector<string>(_ndims_req);
+        _dims = vector<const NcDim *>(_ndims_req);
     }
 
     for (int i = 0; i < _ndims_req; i++) {
@@ -1578,16 +1559,16 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
     for (int i = _ndims = 0; i < _ndims_req; i++) {
 #ifdef DEBUG
         DLOG(("VariableGroup %d dimension number %d %s, size=%d",
-              igroup,i,_dimNames[i], _dimSizes[i]));
+              igroup,i,_dimNames[i].c_str(), _dimSizes[i]));
 #endif
 
         // The _dims array is only used when creating a new variable
         // don't create dimensions of size 1
         // Unlimited dimension must be first one.
         if ((i == 0 && _dimSizes[i] == NC_UNLIMITED) || _dimSizes[i] > 1) {
-            _dims[_ndims] = get_dim(_dimNames[i], _dimSizes[i]);
+            _dims[_ndims] = get_dim(_dimNames[i].c_str(), _dimSizes[i]);
             if (!_dims[_ndims] || !_dims[_ndims]->is_valid()) {
-                PLOG(("get_dim %s: %s %s", _fileName.c_str(), _dimNames[i],
+                PLOG(("get_dim %s: %s %s", _fileName.c_str(), _dimNames[i].c_str(),
                       nc_strerror(ncerror.get_err())));
                 return 0;
             }
@@ -1820,7 +1801,7 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
     if (!(var = find_var(v))) {
         if (!(var =
              NcFile::add_var(varName.c_str(), (NcType) v->data_type(), _ndims,
-                             _dims)) || !var->is_valid()) {
+                             &_dims.front())) || !var->is_valid()) {
             PLOG(("add_var %s: %s %s", _fileName.c_str(), varName.c_str(),
                   nc_strerror(ncerror.get_err())));
             PLOG(("shortName=%s", shortName.c_str()));
@@ -1845,7 +1826,7 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
               getName().c_str(),varName.c_str()));
         goto error;
     }
-    fsv = new NS_NcVar(var, _dimIndices, _ndims_req, v->floatFill(),
+    fsv = new NS_NcVar(var, &_dimIndices.front(), _ndims_req, v->floatFill(),
                        v->intFill(), isCnts);
     // sync();
     return fsv;
@@ -2323,7 +2304,7 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
         DLOG(("%s: dim[%d] = %s, size=%d ndims=%d",
               var->name(),i, dim->name(), dim->size(), ndims));
         DLOG(("%s: req dim[%d] = %s, size=%d ndimin=%d",
-              getName().c_str(),ireq, _dimNames[ireq], _dimSizes[ireq], _ndims_req));
+              getName().c_str(),ireq, _dimNames[ireq].c_str(), _dimSizes[ireq], _ndims_req));
 #endif
         if (_dimSizes[ireq] == NC_UNLIMITED) {
             if (dim->is_unlimited())
@@ -2331,7 +2312,7 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
             else
                 return 0;
         } else if (!strncmp
-                (dim->name(), _dimNames[ireq], strlen(_dimNames[ireq]))) {
+                (dim->name(),_dimNames[ireq].c_str(),_dimNames[ireq].length())) {
             // name match
             if (dim->size() != _dimSizes[ireq]) {
 #ifdef DEBUG
@@ -2603,8 +2584,16 @@ void NcServerApp::run(void)
         exit(1);
     }
 
-    if (_userid != 0 && _userid != getuid())
-        setuid(_userid);
+    if (_groupid != 0 && getegid() != _groupid) {
+        if (setgid(_groupid) < 0)
+            WLOG(("%s: cannot change group id to %d: %m","nc_server",_groupid));
+    }
+
+    if (_userid != 0 && geteuid() != _userid) {
+        if (setuid(_userid) < 0)
+            WLOG(("%s: cannot change userid to %d (%s): %m", "nc_server",
+                _userid,_username.c_str()));
+    }
 
     svc_run();
     PLOG(("svc_run returned"));

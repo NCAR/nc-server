@@ -194,22 +194,34 @@ class NS_NcFile:public NcFile
 
     NcVar *_baseTimeVar;
     NcVar *_timeOffsetVar;
-    std::vector < NS_NcVar ** >_vars;   // for each variable group, a
-    // pointer to an array of variables
+
+    /**
+     * for each variable group, a pointer to an array of variables
+     */
+    std::vector < NS_NcVar ** >_vars;
+
     std::vector < int > _nvars;  // number of variables in each group
+
     NcDim *_recdim;
     int _baseTime;
     long _nrecs;
 
-    const char **_dimNames;     // names of requested dimensions
-    long *_dimSizes;            // sizes of requested dimensions
-    int *_dimIndices;           // position of requested dimensions in variable
+    std::vector<std::string> _dimNames;     // names of requested dimensions
+
+    std::vector<long> _dimSizes;            // sizes of requested dimensions
+
+    std::vector<int> _dimIndices;           // position of requested dimensions in variable
+
     unsigned int _ndims;        // number of dimensions of size > 1
-    const NcDim **_dims;        // dimensions to use when creating new vars
-    int _ndimalloc;             // allocated size of above arrays
+
+    std::vector<const NcDim *> _dims;        // dimensions to use when creating new vars
+
     int _ndims_req;             // number of requested dimensions
+
     time_t _lastAccess;
+
     time_t _lastSync;
+
     std::string _historyHeader;
 
     NS_NcVar **get_vars(VariableGroup *);
@@ -370,16 +382,27 @@ class VariableGroup
     double _interval;
     std::vector < Variable * >_invars;
     std::vector < OutVariable * >_outvars;
+
     unsigned int _ndims;        // number of dimensions
-    long *_dimsizes;            // dimension sizes
-    char **_dimnames;           // dimension names
+
+    std::vector<long> _dimsizes;            // dimension sizes
+
+    std::vector<std::string> _dimnames; // dimension names
+
     int _nsamples;              // number of samples per time record
+
     int _nprefixes;
+
     NS_rectype _rectype;
+
     NS_datatype _datatype;
+
     int _fillMissing;
+
     float _floatFill;
+
     int _intFill;
+
     int _ngroup;
 
     void check_counts_variable();
@@ -437,8 +460,10 @@ class VariableGroup
     int NumCombTrivar(int n) const;
 
     int num_dims() const;
+
     long dim_size(unsigned int i) const;
-    const char *dim_name(unsigned int i) const;
+
+    const std::string&  dim_name(unsigned int i) const;
 
     float floatFill() const
     {
@@ -701,11 +726,11 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
         }
         if (vgroup->num_samples() > 1) {
             if (_timesAreMidpoints) {
-                nsample = (int) floor(fmod(dtime, _interval) / groupInt);
+                nsample = (long) floor(fmod(dtime, _interval) / groupInt);
                 tdiff = (nsample + .5) * groupInt - .5 * _interval;
             }
             else {
-                nsample = (int) floor((fmod(dtime, _interval) + groupInt/2) / groupInt);
+                nsample = (long) floor(fmod(dtime + groupInt/2, _interval) / groupInt);
                 tdiff = nsample * groupInt;
             }
 
