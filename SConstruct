@@ -1,6 +1,10 @@
 
 env = Environment(platform = 'posix')
 
+# library major and minor numbers
+major = '1'
+minor = '0'
+
 opts = Variables()
 opts.AddVariables(PathVariable('PREFIX','installation path',
     '/usr', PathVariable.PathAccept))
@@ -13,16 +17,29 @@ env.RPCGenHeader('nc_server_rpc.x')
 env.RPCGenService('nc_server_rpc.x')
 env.RPCGenXDR('nc_server_rpc.x')
 
-
 libsrcs = Split("""
     nc_server_rpc_xdr.c
     nc_server_rpc_clnt.c
 """)
 
+# libnc_server_rpc.so
+libname = env.subst('$SHLIBPREFIX') + 'nc_server_rpc' + env.subst('$SHLIBSUFFIX')
+
+# libnc_server_rpc.so.major
+soname = libname + '.' + major
+
 libobjs = env.SharedObject(libsrcs,
     CCFLAGS=env['CCFLAGS'] + ['-Wno-unused', '-Wno-strict-aliasing'])
 
-lib = env.SharedLibrary('nc_server_rpc',libobjs)
+lib = env.SharedLibrary('nc_server_rpc',libobjs,
+    SHLIBSUFFIX=env.subst('$SHLIBSUFFIX') + '.' + major + '.' + minor,
+    SHLINKFLAGS=[env['SHLINKFLAGS'] + ['-Wl,-soname=' + soname]])
+
+# link libnc_server_rpc.so.major.minor to libnc_server_rpc.so
+env.Command(libname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
+
+# link libnc_server_rpc.so.major.minor to libnc_server_rpc.so.major
+env.Command(soname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
 
 srcs = Split("""
     nc_server.cc
@@ -54,6 +71,8 @@ p5 = env.Program('nc_check','nc_check.c',
 
 env.Install('$PREFIX/bin',[p1,p2,p3,p4,p5])
 env.Install('$PREFIX/lib',lib)
+env.Command('$PREFIX/lib/' + libname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
+env.Command('$PREFIX/lib/' + soname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
 env.Install('$PREFIX/include','nc_server_rpc.h')
 env.Alias('install', [ '$PREFIX' ])
 
