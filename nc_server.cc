@@ -2492,21 +2492,32 @@ NcServerApp::NcServerApp():
 
 void NcServerApp::usage(const char *argv0)
 {
-    cerr << "Usage: " << argv0 << " [-d] [-l loglevel] [-u username]\n\
+    cerr << "******************************************************************\n\
+nc_server is a program that supports writing to NetCDF files via RPC calls.\n\
+Multiple programs can write to the same file at one time, or the programs can\n\
+write to separate collections of files.  Currently nc_server supports writing\n\
+to version 3 NetCDF files which follow the time series conventions of the NCAR/EOL ISFS.\n\
+nc_server is part of the nc_server_rpc package.\n" << 
+    "******************************************************************\n" << endl;
+
+    cerr << "Usage: " << argv0 << " [-d] [-l loglevel] [-u username] [-z]\n\
   -d: debug, run in foreground and send messages to stderr with log level of debug\n\
       Otherwise run in the background, cd to /, and log messages to syslog\n\
       Specify a -l option after -d to change the log level from debug\n\
   -l loglevel: set logging level, 7=debug,6=info,5=notice,4=warning,3=err,...\n\
      The default level if no -d option is " << defaultLogLevel << "\n\
-  -u user: switch user id to given user after opening RPC portmap socket" << endl;
+  -u user: switch user id to given user after opening RPC portmap socket\n\
+  -z: run in background as a daemon. Either the -d or -z options must be specified" << endl;
 }
 
 int NcServerApp::parseRunstring(int argc, char **argv)
 {
     int c;
-    while ((c = getopt(argc, argv, "dl:u:")) != -1) {
+    int daemonOrforeground = -1;
+    while ((c = getopt(argc, argv, "dl:u:z")) != -1) {
         switch (c) {
         case 'd':
+            daemonOrforeground = 0;
             _daemon = false;
             _logLevel = nidas::util::LOGGER_DEBUG;
             break;
@@ -2532,10 +2543,18 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                 _groupid = pwdbuf.pw_gid;
             }
             break;
+        case 'z':
+            daemonOrforeground = 1;
+            _daemon = true;
+            break;
         default:
             usage(argv[0]);
             return 1;
         }
+    }
+    if (daemonOrforeground < 0) {
+        usage(argv[0]);
+        return 1;
     }
     return 0;
 }
