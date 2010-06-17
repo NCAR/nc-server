@@ -2497,7 +2497,7 @@ nc_server is a program that supports writing to NetCDF files via RPC calls.\n\
 Multiple programs can write to the same file at one time, or the programs can\n\
 write to separate collections of files.  Currently nc_server supports writing\n\
 to version 3 NetCDF files which follow the time series conventions of the NCAR/EOL ISFS.\n\
-nc_server is part of the nc_server_rpc package.\n" << 
+nc_server is part of the nc_server package.\n" << 
     "******************************************************************\n" << endl;
 
     cerr << "Usage: " << argv0 << " [-d] [-l loglevel] [-u username] [-z]\n\

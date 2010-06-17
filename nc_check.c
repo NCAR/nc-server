@@ -57,7 +57,7 @@ Check if a NetCDF version 3 file is valid. Reads character attributes and\n\
 first and last values of all variables in a NetCDF file.\n\
 Exits with status of 0 if successfull or 1 if an error is encountered.\n\
 Output is generated on stderr only if an error is encountered.\n\
-nc_check is part of the nc_server_rpc package\n\
+nc_check is part of the nc_server-auxprogs package\n\
 ******************************************************************\n\n");
         fprintf(stderr, "Usage: %s NetCDFfileName\n", argv[0]);
         exit(1);

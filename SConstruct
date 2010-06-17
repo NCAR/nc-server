@@ -1,4 +1,21 @@
 
+import os
+import re
+import subprocess
+
+def get_lib():
+    try:
+        revline = subprocess.Popen(['uname','-m'],
+            stdout=subprocess.PIPE).stdout.readline()
+        print 'revline=' + revline
+        if revline == 'x86_64\n':
+            return 'lib64'
+        else:
+            return 'lib'
+    except OSError, (errno,strerror):
+        print "Error: %s: %s" %('uname -m',strerror)
+        return None
+
 env = Environment(platform = 'posix')
 
 # library major and minor numbers
@@ -69,10 +86,12 @@ p4 = env.Program('nc_shutdown','nc_shutdown.cc',
 p5 = env.Program('nc_check','nc_check.c',
     LIBS=["netcdf","hdf5","hdf5_hl"])
 
+libdir = get_lib()
+print 'libdir=' + libdir
 env.Install('$PREFIX/bin',[p1,p2,p3,p4,p5])
-env.Install('$PREFIX/lib',lib)
-env.Command('$PREFIX/lib/' + libname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
-env.Command('$PREFIX/lib/' + soname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
+env.Install('$PREFIX/' + libdir,lib)
+env.Command('$PREFIX/' + libdir + '/' + libname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
+env.Command('$PREFIX/' + libdir + '/' + soname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
 env.Install('$PREFIX/include','nc_server_rpc.h')
 env.Alias('install', [ '$PREFIX' ])
 

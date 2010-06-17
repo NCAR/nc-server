@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 ******************************************************************\n\
 nc_shutdown sends a shutdown command to the nc_server program on a host via RPC.\n\
 This will cause the nc_server program to close all NetCDF files that it is\n\
-currently writing to and exit.  nc_shutdown is part of the nc_server_rpc package\n\
+currently writing to and exit.  nc_shutdown is part of the nc_server-auxprogs package\n\
 ******************************************************************\n\n");
         fprintf(stderr,"usage:  %s server_host\n", argv[0]);
         exit(1);
