@@ -1,26 +1,9 @@
 
-import os
-import re
-import subprocess
-
-def get_lib():
-    try:
-        revline = subprocess.Popen(['uname','-m'],
-            stdout=subprocess.PIPE).stdout.readline()
-        print 'revline=' + revline
-        if revline == 'x86_64\n':
-            return 'lib64'
-        else:
-            return 'lib'
-    except OSError, (errno,strerror):
-        print "Error: %s: %s" %('uname -m',strerror)
-        return None
-
-env = Environment(platform = 'posix')
+env = Environment(platform = 'posix').Clone(tools=['sharedlibrary'])
 
 # library major and minor numbers
-major = '1'
-minor = '0'
+env['SHLIBMAJORVERSION'] = '1'
+env['SHLIBMINORVERSION'] = '0'
 
 opts = Variables()
 opts.AddVariables(PathVariable('PREFIX','installation path',
@@ -39,24 +22,10 @@ libsrcs = Split("""
     nc_server_rpc_clnt.c
 """)
 
-# libnc_server_rpc.so
-libname = env.subst('$SHLIBPREFIX') + 'nc_server_rpc' + env.subst('$SHLIBSUFFIX')
-
-# libnc_server_rpc.so.major
-soname = libname + '.' + major
-
 libobjs = env.SharedObject(libsrcs,
     CCFLAGS=env['CCFLAGS'] + ['-Wno-unused', '-Wno-strict-aliasing'])
 
-lib = env.SharedLibrary('nc_server_rpc',libobjs,
-    SHLIBSUFFIX=env.subst('$SHLIBSUFFIX') + '.' + major + '.' + minor,
-    SHLINKFLAGS=[env['SHLINKFLAGS'] + ['-Wl,-soname=' + soname]])
-
-# link libnc_server_rpc.so.major.minor to libnc_server_rpc.so
-env.Command(libname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
-
-# link libnc_server_rpc.so.major.minor to libnc_server_rpc.so.major
-env.Command(soname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
+lib = env.SharedLibrary3('nc_server_rpc',libobjs)
 
 srcs = Split("""
     nc_server.cc
@@ -86,12 +55,9 @@ p4 = env.Program('nc_shutdown','nc_shutdown.cc',
 p5 = env.Program('nc_check','nc_check.c',
     LIBS=["netcdf","hdf5","hdf5_hl"])
 
-libdir = get_lib()
-print 'libdir=' + libdir
+libtgt = env.SharedLibrary3Install('$PREFIX',lib)
 env.Install('$PREFIX/bin',[p1,p2,p3,p4,p5])
-env.Install('$PREFIX/' + libdir,lib)
-env.Command('$PREFIX/' + libdir + '/' + libname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
-env.Command('$PREFIX/' + libdir + '/' + soname,lib,'cd $TARGET.dir; ln -sf $SOURCE.file $TARGET.file')
 env.Install('$PREFIX/include','nc_server_rpc.h')
 env.Alias('install', [ '$PREFIX' ])
+env.Alias('install',libtgt)
 
