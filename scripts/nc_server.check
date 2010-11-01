@@ -1,0 +1,39 @@
+#!/bin/bash
+# sh script to check for nc_server
+#
+
+use_valgrind=false
+
+itry=0
+ntry=3
+while [ $itry -lt $ntry ]; do 
+    if $use_valgrind; then
+        pgrep -f "valgrind /usr/bin/nc_server" > /dev/null && break
+    else
+        pgrep -x nc_server > /dev/null && break
+    fi
+    sleep 1
+    let itry=$itry+1
+done
+
+host=`uname -n`
+if [ $itry -eq $ntry ]; then
+    echo "***** restarting nc_server on $host ******"
+    if $use_valgrind; then
+        sudo -E valgrind /usr/bin/nc_server -d -l 6 -u maclean > /tmp/nc_server.log 2>&1 &
+    else
+        sudo -E /usr/bin/nc_server -u maclean -z -l 6
+    fi
+    sleep 5
+fi
+
+# only complain if it isn't responding. Don't restart it.
+itry=0
+ntry=5
+while [ $itry -lt $ntry ]; do
+    nc_ping $host >& /dev/null && break
+    echo "***** nc_server is not responding on $host ******"
+    # let itry++
+    let itry=$itry+1
+done
+

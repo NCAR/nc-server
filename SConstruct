@@ -35,7 +35,7 @@ srcs = Split("""
 
 p1 = env.Program('nc_server', srcs,
     LIBS=["nc_server_rpc","nidas_util","netcdf_c++","netcdf","hdf5","hdf5_hl"],
-    LIBPATH=["/opt/local/nidas/x86/lib","."],
+    LIBPATH=["/opt/local/nidas/x86/" + env["LIBDIR"],"."],
     CPPPATH="/opt/local/nidas/x86/include")
 
 #    CPPDEFINES = ['RPC_SVC_FG']

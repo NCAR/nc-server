@@ -1,0 +1,21 @@
+#!/bin/sh
+
+#
+# Check if the nc_server process is running.
+
+script=${0##*/}
+
+if [ $# -lt 1 ]; then
+  echo "Usage: $script host"
+  exit 1
+fi
+
+nshost=$1
+
+PATH=$PATH:/usr/sbin
+
+# -T is no longer a valid rpcinfo argument??
+#if ! rpcinfo -t $nshost 536870916; then
+#    rpcinfo -T tcp $nshost 536870916
+#fi
+rpcinfo -t $nshost 536870916

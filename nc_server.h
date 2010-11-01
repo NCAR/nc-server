@@ -1,14 +1,35 @@
-/*              Copyright (C) by UCAR
- *
- * File       : $RCSfile: nc_server.h,v $
- * Revision   : $Revision$
- * Directory  : $Source: /code/cvs/pam/isff/src/nc_server/nc_server.h,v $
- * System     : PAM
- * Date       : $Date$
- *
- * Description:
- *
- */
+/*
+ ********************************************************************
+ Copyright 2005 UCAR, NCAR, All Rights Reserved
+
+ $LastChangedDate$
+
+ $LastChangedRevision$
+
+ $LastChangedBy$
+
+ $HeadURL$
+ ********************************************************************
+
+ NetCDF file server.  Implemented with remote procedure calls (RPC).
+ It only supports file writing, not reading.
+
+ A theoretically unlimited number of clients can request a connection
+ to this server.  Upon connection, the server returns a unique integer
+ connectionId to each client, which the client must use in each
+ RPC call to the server to indicate which client is calling.
+
+ After connection, the clients make one or more RPC
+ calls to tell the server what kind of data records they will be
+ sending, what the time resolution is, what the names of the
+ data variables are, and strings indicating the data units,
+ what format to use for the NetCDF file names, and the time length
+ of the NetCDF files.
+
+ Once the NetCDF variables are created, the client simply makes
+ successive RPC calls to write data records.
+
+*/
 
 #include <time.h>
 #include <signal.h>
