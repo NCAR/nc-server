@@ -2,6 +2,9 @@
 # sh script to check for nc_server
 #
 
+user=$USER
+[ -z "$USER" -o "$USER" == root ] && user=aster
+
 use_valgrind=false
 
 itry=0
@@ -20,9 +23,9 @@ host=`uname -n`
 if [ $itry -eq $ntry ]; then
     echo "***** restarting nc_server on $host ******"
     if $use_valgrind; then
-        sudo -E valgrind /usr/bin/nc_server -d -l 6 -u maclean > /tmp/nc_server.log 2>&1 &
+        sudo -E valgrind /usr/bin/nc_server -d -l 6 -u $user > /tmp/nc_server.log 2>&1 &
     else
-        sudo -E /usr/bin/nc_server -u maclean -z -l 6
+        sudo -E /usr/bin/nc_server -u $user -z -l 6
     fi
     sleep 5
 fi
