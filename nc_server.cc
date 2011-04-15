@@ -2491,13 +2491,15 @@ to version 3 NetCDF files which follow the time series conventions of the NCAR/E
 nc_server is part of the nc_server package.\n" << 
     "******************************************************************\n" << endl;
 
-    cerr << "Usage: " << argv0 << " [-d] [-l loglevel] [-u username] [-z]\n\
+    cerr << "Usage: " << argv0 << " [-d] [-l loglevel] [-u username] [ -g groupname ] [-z]\n\
   -d: debug, run in foreground and send messages to stderr with log level of debug\n\
       Otherwise run in the background, cd to /, and log messages to syslog\n\
       Specify a -l option after -d to change the log level from debug\n\
   -l loglevel: set logging level, 7=debug,6=info,5=notice,4=warning,3=err,...\n\
      The default level if no -d option is " << defaultLogLevel << "\n\
-  -u user: switch user id to given user after opening RPC portmap socket\n\
+  -u name: change user id of the process to given user name and their default group\n\
+     after opening RPC portmap socket\n\
+  -g name: change group id of the process to group name instead of the user's default\n\
   -z: run in background as a daemon. Either the -d or -z options must be specified" << endl;
 }
 
@@ -2505,12 +2507,24 @@ int NcServerApp::parseRunstring(int argc, char **argv)
 {
     int c;
     int daemonOrforeground = -1;
-    while ((c = getopt(argc, argv, "dl:u:z")) != -1) {
+    while ((c = getopt(argc, argv, "dl:g:u:z")) != -1) {
         switch (c) {
         case 'd':
             daemonOrforeground = 0;
             _daemon = false;
             _logLevel = nidas::util::LOGGER_DEBUG;
+            break;
+        case 'g':
+            {
+                _groupname = optarg;
+                struct group groupinfo;
+                struct group *gptr;
+                vector<char> strbuf(_SC_GETGR_R_SIZE_MAX);
+                if (getgrnam_r(_groupname.c_str(),&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
+                    cerr << "cannot determine group id for " << _groupname << ": " << strerror(errno) << endl;
+                }
+                else if (gptr != 0) _groupid = groupinfo.gr_gid;
+            }
             break;
         case 'l':
             _logLevel = atoi(optarg);
@@ -2531,7 +2545,17 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                     return 1;
                 }
                 _userid = pwdbuf.pw_uid;
-                _groupid = pwdbuf.pw_gid;
+                if (_groupid == 0) {
+                    _groupid = pwdbuf.pw_gid;
+                    struct group groupinfo;
+                    struct group *gptr;
+                    vector<char> strbuf(_SC_GETGR_R_SIZE_MAX);
+                    if (getgrgid_r(_groupid,&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
+                        cerr << "cannot determine group for gid " << _groupid << ": " << strerror(errno) << endl;
+                    }
+                    else if (gptr != 0) _groupname = groupinfo.gr_name;
+                    else _groupname = "unknown";
+                }
             }
             break;
         case 'z':
@@ -2596,33 +2620,18 @@ void NcServerApp::run(void)
 
     if (_groupid != 0 && getegid() != _groupid) {
         if (setgid(_groupid) < 0)
-            WLOG(("%s: cannot change group id to %d: %m","nc_server",_groupid));
+            WLOG(("%s: cannot change group id to %d (%s): %m","nc_server",
+                        _groupid,_groupname.c_str()));
     }
 
     if (_userid != 0 && geteuid() != _userid) {
         if (setuid(_userid) < 0)
             WLOG(("%s: cannot change userid to %d (%s): %m", "nc_server",
                 _userid,_username.c_str()));
-        int ngroup;
-        if ((ngroup = getgroups(0,0)) < 0) {
-            WLOG(("%s: failure in getgroups system call: %m", "nc_server"));
-        }
-        else {
-            vector<gid_t> groups(ngroup);
-            if ((ngroup = getgroups(ngroup,&groups.front())) < 0) {
-                WLOG(("%s: failure in getgroups system call, ngroup=%d: %m",
-                            "nc_server",ngroup));
-            }
-            for (int i = 0; i < ngroup; i++) {
-                ILOG(("%s: groupid=%d","nc_server",groups[i]));
-            }
-            if (setgroups(ngroup,&groups.front()) < 0) {
-                WLOG(("%s: failure in setgroups system call, ngroup=%d: %m",
-                            "nc_server",ngroup));
-            }
-        }
     }
 
+    // create files with group write
+    umask(S_IWOTH);
 
     svc_run();
     PLOG(("svc_run returned"));

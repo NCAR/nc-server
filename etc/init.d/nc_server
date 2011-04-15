@@ -8,23 +8,11 @@
 # description: start nc_server (NetCDF RPC file writer)
 
 nuser=nidas
+ngroup=eol
 
 start_nc_server() {
 	echo -n "Starting nc_server ..."
-        # we want the user's login environment, since nc_server
-        # can substitute environment variables when creating
-        # path names, but nc_server must start from sudo in order
-        # to have permission to open the RPC socket.
-
-        # For this to work at bootup, via sudo without a password,
-        # you need this sudo rule, replacing $nuser with the actual
-        # user name:
-        # nidas ALL=NOPASSWD: SETENV: /usr/bin/nc_server
-        #
-        # Also you need to unset the requiretty option for the user.
-        # Defaults:nidas !requiretty
-
-	su - $nuser -c "sudo -E /usr/bin/nc_server -u $nuser -z -l 6"
+	/usr/bin/nc_server -u $nuser -g $ngroup -z -l 6
 	echo " done."
 }
 

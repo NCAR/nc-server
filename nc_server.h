@@ -100,6 +100,8 @@ class NcServerApp
 
     uid_t _userid;
 
+    std::string _groupname;
+
     gid_t _groupid;
 
     int _daemon;
