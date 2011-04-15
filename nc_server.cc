@@ -1,3 +1,5 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 4; tab-width: 4; -*-
+// vim: set shiftwidth=4 softtabstop=4 expandtab:
 /*
  ********************************************************************
  Copyright 2005 UCAR, NCAR, All Rights Reserved
@@ -19,6 +21,7 @@
 #include <sys/stat.h>
 #include <rpc/pmap_clnt.h>
 #include <pwd.h>
+#include <grp.h>
 
 #include <netcdf.h>
 
@@ -723,7 +726,7 @@ NS_NcFile *FileGroup::open_file(double dtime)
     //   then do a create/replace.
     if (!fileExists &&
         !(_CDLFileName.length() > 0 && !access(_CDLFileName.c_str(), F_OK)
-          && !ncgen_file(_CDLFileName.c_str(), fileName.c_str())))
+          && !ncgen_file(_CDLFileName, fileName)))
         openmode = NcFile::Replace;
 
     NS_NcFile *f = 0;
@@ -2600,7 +2603,26 @@ void NcServerApp::run(void)
         if (setuid(_userid) < 0)
             WLOG(("%s: cannot change userid to %d (%s): %m", "nc_server",
                 _userid,_username.c_str()));
+        int ngroup;
+        if ((ngroup = getgroups(0,0)) < 0) {
+            WLOG(("%s: failure in getgroups system call: %m", "nc_server"));
+        }
+        else {
+            vector<gid_t> groups(ngroup);
+            if ((ngroup = getgroups(ngroup,&groups.front())) < 0) {
+                WLOG(("%s: failure in getgroups system call, ngroup=%d: %m",
+                            "nc_server",ngroup));
+            }
+            for (int i = 0; i < ngroup; i++) {
+                ILOG(("%s: groupid=%d","nc_server",groups[i]));
+            }
+            if (setgroups(ngroup,&groups.front()) < 0) {
+                WLOG(("%s: failure in setgroups system call, ngroup=%d: %m",
+                            "nc_server",ngroup));
+            }
+        }
     }
+
 
     svc_run();
     PLOG(("svc_run returned"));
