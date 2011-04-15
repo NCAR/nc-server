@@ -1,0 +1,70 @@
+#! /bin/sh
+#
+# nc_server     This shell script takes care of starting and stopping
+#		the nc_server, which is a program that writes NetCDF files
+#               from records that are received via Sun RPC (remote procedure calls).
+#
+# chkconfig: 35 99 1
+# description: start nc_server (NetCDF RPC file writer)
+
+nuser=nidas
+
+start_nc_server() {
+	echo -n "Starting nc_server ..."
+        # we want the user's login environment, since nc_server
+        # can substitute environment variables when creating
+        # path names, but nc_server must start from sudo in order
+        # to have permission to open the RPC socket.
+
+        # For this to work at bootup, via sudo without a password,
+        # you need this sudo rule, replacing $nuser with the actual
+        # user name:
+        # nidas ALL=NOPASSWD: SETENV: /usr/bin/nc_server
+        #
+        # Also you need to unset the requiretty option for the user.
+        # Defaults:nidas !requiretty
+
+	su - $nuser -c "sudo -E /usr/bin/nc_server -u $nuser -z -l 6"
+	echo " done."
+}
+
+kill_proc() {
+    local proc=$1
+    local sig="$2"
+    ntry=0
+    while [ $ntry -lt 10 ]; do
+	pids=(`pgrep $proc`)
+	[ ${#pids[*]} -eq 0 ] && return 0
+	echo "kill $sig ${pids[*]} ... "
+	kill $sig ${pids[*]}
+	sleep 1
+	ntry=$(($ntry + 1))
+    done
+    return 1
+}
+
+kill_nc_server() {
+    echo "Stopping nc_server ... "
+    kill_proc nc_server -HUP || kill_proc nc_server -9
+    echo " done."
+}
+
+case "$1" in
+	start)
+		start_nc_server
+  		;;
+	stop)
+		kill_nc_server
+  		;;
+	restart)
+                kill_nc_server
+  		sleep 1
+		start_nc_server
+  		;;
+	*)
+  		echo "Usage: /etc/init.d/nc_server {start|stop|restart}"
+  		exit 1
+		;;
+esac
+
+exit 0
