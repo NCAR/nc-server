@@ -3,7 +3,7 @@
 #
 
 user=$USER
-[ -z "$USER" -o "$USER" == root ] && user=aster
+[ -z "$USER" -o "$USER" == root ] && user=nidas
 
 use_valgrind=false
 
