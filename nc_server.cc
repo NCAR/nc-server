@@ -2522,7 +2522,9 @@ int NcServerApp::parseRunstring(int argc, char **argv)
             {
                 struct group groupinfo;
                 struct group *gptr;
-                vector<char> strbuf(sysconf(_SC_GETGR_R_SIZE_MAX));
+                long nb = sysconf(_SC_GETGR_R_SIZE_MAX);
+                if (nb < 0) nb = 4096;
+                vector<char> strbuf(nb);
                 if (getgrnam_r(optarg,&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
                     cerr << "cannot determine group id for " << optarg << ": " << strerror(errno) << endl;
                     usage(argv[0]);
@@ -2548,8 +2550,7 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                 struct passwd pwdbuf;
                 struct passwd *result;
                 long nb = sysconf(_SC_GETPW_R_SIZE_MAX);
-                if (nb < 0)
-                    nb = 4096;
+                if (nb < 0) nb = 4096;
                 vector < char >strbuf(nb);
                 if (getpwnam_r
                     (optarg, &pwdbuf, &strbuf.front(), nb, &result) < 0) {
@@ -2561,7 +2562,9 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                 _groupid = pwdbuf.pw_gid;
                 struct group groupinfo;
                 struct group *gptr;
-                strbuf.resize(sysconf(_SC_GETGR_R_SIZE_MAX));
+                nb = sysconf(_SC_GETGR_R_SIZE_MAX);
+                if (nb < 0) nb = 4096;
+                strbuf.resize(nb);
                 if (getgrgid_r(_groupid,&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
                     cerr << "cannot determine group for gid " << _groupid << ": " << strerror(errno) << endl;
                 }
