@@ -45,7 +45,23 @@
 #include <nidas/util/Logger.h>
 #include <nidas/util/Exception.h>
 
+#ifndef NC_SERVER_H
+#define NC_SERVER_H
+
 extern NcError ncerror;
+
+/**
+ * If ncerror.get_err() is non-zero return NetCDF error string nc_strerror(),
+ * otherwise return system error string strerror_r(errno,...)
+ */
+namespace {
+    std::string get_error_string()
+    {
+        if (ncerror.get_err()) return nc_strerror(ncerror.get_err());
+        std::vector<char> buf(128);
+        return strerror_r(errno,&buf.front(),buf.size());
+    }
+}
 
 void nc_shutdown(int);
 
@@ -802,13 +818,13 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
 #endif
             if (!var->put((const int *) writerec->cnts.cnts_val, count)) {
                 PLOG(("put cnts %s: %s %s", _fileName.c_str(), var->name(),
-                      nc_strerror(ncerror.get_err())));
+                      get_error_string().c_str()));
                 return 0;
             }
         } else if (d < dend) {
             if (!(i = var->put(d, count))) {
                 PLOG(("put var %s: %s %s", _fileName.c_str(), var->name(),
-                      nc_strerror(ncerror.get_err())));
+                      get_error_string().c_str()));
                 return 0;
             }
 #ifdef DEBUG
@@ -832,3 +848,4 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
     return 1;
 }
 
+#endif
