@@ -1,6 +1,13 @@
 
 env = Environment(platform = 'posix').Clone(tools=['sharedlibrary'])
 
+conf = Configure(env)
+if conf.CheckCHeader('sys/capability.h'):
+    conf.env.Append(CPPDEFINES = ['HAS_CAPABILITY_H'])
+if conf.CheckLib('cap'):
+    conf.env.AppendUnique(LIBS = 'cap')
+env = conf.Finish()
+
 # library major and minor numbers
 env['SHLIBMAJORVERSION'] = '1'
 env['SHLIBMINORVERSION'] = '0'

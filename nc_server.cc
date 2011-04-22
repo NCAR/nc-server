@@ -22,6 +22,7 @@
 #include <rpc/pmap_clnt.h>
 #include <pwd.h>
 #include <grp.h>
+#include <sys/prctl.h>
 
 #include <netcdf.h>
 
@@ -1265,7 +1266,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
 
     if (!is_valid()) {
         PLOG(("NcFile %s: %s", _fileName.c_str(),
-              nc_strerror(ncerror.get_err())));
+              ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
         throw NS_NcFile::NetCDFAccessFailed();
     }
 
@@ -1299,7 +1300,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         if (!(_baseTimeVar = NcFile::add_var("base_time", ncLong)) ||
             !_baseTimeVar->is_valid()) {
             PLOG(("add_var %s: %s %s", _fileName.c_str(), "base_time",
-                  nc_strerror(ncerror.get_err())));
+              ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             throw NS_NcFile::NetCDFAccessFailed();
         }
         string since =
@@ -1308,7 +1309,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         if (!_baseTimeVar->add_att("units", since.c_str())) {
             PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
                   _baseTimeVar->name(), "units",
-                  nc_strerror(ncerror.get_err())));
+                  ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             throw NS_NcFile::NetCDFAccessFailed();
         }
     }
@@ -1316,7 +1317,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     if (!(_recdim = rec_dim())) {
         if (!(_recdim = add_dim("time")) || !_recdim->is_valid()) {
             PLOG(("add_dim %s: %s %s", _fileName.c_str(), "time",
-                  nc_strerror(ncerror.get_err())));
+                  ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             // the NcFile has been constructed, and so if this exception is
             // thrown, it will be deleted, which will delete all the 
             // created dimensions and variables.  So we don't have to
@@ -1332,7 +1333,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         if (!(_timeOffsetVar = NcFile::add_var("time", ncDouble, _recdim))
             || !_timeOffsetVar->is_valid()) {
             PLOG(("add_var %s: %s %s", _fileName.c_str(), "time",
-                  nc_strerror(ncerror.get_err())));
+                  ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             throw NS_NcFile::NetCDFAccessFailed();
         }
         _timeOffsetType = _timeOffsetVar->type();
@@ -1346,7 +1347,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
             if (!(val = _timeOffsetVar->get_rec())) {
                 PLOG(("get_rec(%d) %s: %s %s",
                       nrec, _fileName.c_str(), _timeOffsetVar->name(),
-                      nc_strerror(ncerror.get_err())));
+                      ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
                 throw NS_NcFile::NetCDFAccessFailed();
             }
             switch (_timeOffsetType) {
@@ -1400,7 +1401,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         if (!_timeOffsetVar->add_att("units", since.c_str())) {
             PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
                   _timeOffsetVar->name(), "units",
-                  nc_strerror(ncerror.get_err())));
+                  ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             throw NS_NcFile::NetCDFAccessFailed();
         }
     } else
@@ -1412,7 +1413,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
             if (!_timeOffsetVar->add_att("interval(sec)",_interval)) {
                 PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
                       _timeOffsetVar->name(), "interval(sec)",
-                      nc_strerror(ncerror.get_err())));
+                      ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
                 throw NS_NcFile::NetCDFAccessFailed();
             }
         } else
@@ -1422,7 +1423,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     /* Write base time */
     if (!_baseTimeVar->put(&_baseTime, &_nrecs)) {
         PLOG(("put basetime %s: %s", _fileName.c_str(),
-              nc_strerror(ncerror.get_err())));
+              ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
         throw NS_NcFile::NetCDFAccessFailed();
     }
 #ifdef DEBUG
@@ -1505,7 +1506,8 @@ NcBool NS_NcFile::sync()
     NcBool res = NcFile::sync();
     if (!res)
         PLOG(("%s: sync: %s",
-            getName().c_str(),nc_strerror(ncerror.get_err())));
+            getName().c_str(),
+            ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
     else DLOG(("%s: sync'd",getName().c_str()));
     return res;
 }
@@ -1560,7 +1562,7 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
             _dims[_ndims] = get_dim(_dimNames[i].c_str(), _dimSizes[i]);
             if (!_dims[_ndims] || !_dims[_ndims]->is_valid()) {
                 PLOG(("get_dim %s: %s %s", _fileName.c_str(), _dimNames[i].c_str(),
-                      nc_strerror(ncerror.get_err())));
+                      ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
                 return 0;
             }
             _ndims++;
@@ -1794,7 +1796,7 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
              NcFile::add_var(varName.c_str(), (NcType) v->data_type(), _ndims,
                              &_dims.front())) || !var->is_valid()) {
             PLOG(("add_var %s: %s %s", _fileName.c_str(), varName.c_str(),
-                  nc_strerror(ncerror.get_err())));
+                  ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             PLOG(("shortName=%s", shortName.c_str()));
             PLOG(("define_mode=%d", define_mode()));
             PLOG(("data_type=%d", v->data_type()));
@@ -1844,7 +1846,7 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
             if (!var->add_att("_FillValue",v->intFill())) {
                 PLOG(("%s: %s: add_att %s: %s %s",
                       getName().c_str(),var->name(), "_FillValue",
-                      nc_strerror(ncerror.get_err())));
+                      ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
                 delete nca;
                 return -1;
             }
@@ -1853,7 +1855,7 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
             if (!var->add_att("_FillValue", v->floatFill())) {
                 PLOG(("%s: %s: add_att %s: %s",
                       getName().c_str(),var->name(), "_FillValue",
-                      nc_strerror(ncerror.get_err())));
+                      ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
                 delete nca;
                 return -1;
             }
@@ -1883,7 +1885,7 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
                 PLOG(("%s: %s: add_att: %s=%s %s",
                       getName().c_str(),var->name(),
                       "units",v->units().c_str(),
-                      nc_strerror(ncerror.get_err())));
+                      ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             }
         }
         delete nca;
@@ -1913,7 +1915,7 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
                     PLOG(("%s: %s: add_att: %s=%s: %s",
                           getName().c_str(),var->name(),
                           aname.c_str(),aval.c_str(),
-                          nc_strerror(ncerror.get_err())));
+                          ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
                 }
             }
             delete nca;
@@ -2015,7 +2017,7 @@ NcVar *NS_NcFile::find_var(OutVariable * v)
             if (!var->add_att("short_name", tmpString.c_str())) {
                 PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
                       var->name(), "short_name",
-                      nc_strerror(ncerror.get_err())));
+                      ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             }
         }
         var = 0;
@@ -2081,7 +2083,7 @@ long NS_NcFile::put_time(double timeoffset, const char *varname)
         if (!(val = _timeOffsetVar->get_rec())) {
             PLOG(("get_rec(%d) %s: %s %s",
                   _nrecs, _fileName.c_str(), _timeOffsetVar->name(),
-                  nc_strerror(ncerror.get_err())));
+                  ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             throw NS_NcFile::NetCDFAccessFailed();
         }
         switch (_timeOffsetType) {
@@ -2121,7 +2123,7 @@ long NS_NcFile::put_time(double timeoffset, const char *varname)
         }
         if (!i) {
             PLOG(("time_offset put_rec %s: %s", _fileName.c_str(),
-                  nc_strerror(ncerror.get_err())));
+                  ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
             return -1;
         }
     }
@@ -2190,7 +2192,7 @@ int NS_NcFile::put_history(string val)
             history += _historyHeader + val;
             if (!add_att("history", history.c_str()))
                 PLOG(("add history att: %s: %s", _fileName.c_str(),
-                      nc_strerror(ncerror.get_err())));
+                      ncerror.get_err() ? nc_strerror(ncerror.get_err()) : strerror(errno)));
         }
     }
 
@@ -2491,7 +2493,7 @@ to version 3 NetCDF files which follow the time series conventions of the NCAR/E
 nc_server is part of the nc_server package.\n" << 
     "******************************************************************\n" << endl;
 
-    cerr << "Usage: " << argv0 << " [-d] [-l loglevel] [-u username] [ -g groupname ] [-z]\n\
+    cerr << "Usage: " << argv0 << " [-d] [-l loglevel] [-u username] [ -g groupname -g ... ] [-z]\n\
   -d: debug, run in foreground and send messages to stderr with log level of debug\n\
       Otherwise run in the background, cd to /, and log messages to syslog\n\
       Specify a -l option after -d to change the log level from debug\n\
@@ -2499,7 +2501,9 @@ nc_server is part of the nc_server package.\n" <<
      The default level if no -d option is " << defaultLogLevel << "\n\
   -u name: change user id of the process to given user name and their default group\n\
      after opening RPC portmap socket\n\
-  -g name: change group id of the process to group name instead of the user's default\n\
+  -g name: add name to the list of supplementary group ids of the process.\n\
+     More than one -g option can be specified so that the process can belong to more\n\
+     than one group, if necessary, for write permissions on multiple directories\n\
   -z: run in background as a daemon. Either the -d or -z options must be specified" << endl;
 }
 
@@ -2516,14 +2520,23 @@ int NcServerApp::parseRunstring(int argc, char **argv)
             break;
         case 'g':
             {
-                _groupname = optarg;
                 struct group groupinfo;
                 struct group *gptr;
-                vector<char> strbuf(_SC_GETGR_R_SIZE_MAX);
-                if (getgrnam_r(_groupname.c_str(),&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
-                    cerr << "cannot determine group id for " << _groupname << ": " << strerror(errno) << endl;
+                vector<char> strbuf(sysconf(_SC_GETGR_R_SIZE_MAX));
+                if (getgrnam_r(optarg,&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
+                    cerr << "cannot determine group id for " << optarg << ": " << strerror(errno) << endl;
+                    usage(argv[0]);
+                    return 1;
                 }
-                else if (gptr != 0) _groupid = groupinfo.gr_gid;
+                else if (!gptr) {
+                    cerr << "cannot find group " << optarg << endl;
+                    usage(argv[0]);
+                    return 1;
+                }
+                else if (gptr != 0) {
+                    _suppGroupIds.push_back(groupinfo.gr_gid);
+                    _suppGroupNames.push_back(optarg);
+                }
             }
             break;
         case 'l':
@@ -2545,17 +2558,15 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                     return 1;
                 }
                 _userid = pwdbuf.pw_uid;
-                if (_groupid == 0) {
-                    _groupid = pwdbuf.pw_gid;
-                    struct group groupinfo;
-                    struct group *gptr;
-                    vector<char> strbuf(_SC_GETGR_R_SIZE_MAX);
-                    if (getgrgid_r(_groupid,&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
-                        cerr << "cannot determine group for gid " << _groupid << ": " << strerror(errno) << endl;
-                    }
-                    else if (gptr != 0) _groupname = groupinfo.gr_name;
-                    else _groupname = "unknown";
+                _groupid = pwdbuf.pw_gid;
+                struct group groupinfo;
+                struct group *gptr;
+                strbuf.resize(_SC_GETGR_R_SIZE_MAX);
+                if (getgrgid_r(_groupid,&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
+                    cerr << "cannot determine group for gid " << _groupid << ": " << strerror(errno) << endl;
                 }
+                else if (gptr != 0) _groupname = groupinfo.gr_name;
+                else _groupname = "unknown";
             }
             break;
         case 'z':
@@ -2618,6 +2629,26 @@ void NcServerApp::run(void)
         exit(1);
     }
 
+#ifdef HAS_CAPABILITY_H 
+    /* man 7 capabilities:
+     * If a thread that has a 0 value for one or more of its user IDs wants to
+     * prevent its permitted capability set being cleared when it  resets  all
+     * of  its  user  IDs  to  non-zero values, it can do so using the prctl()
+     * PR_SET_KEEPCAPS operation.
+     *
+     * If we are started as uid=0 from sudo, and then setuid(x) below
+     * we want to keep our permitted capabilities.
+     */
+    try {
+        if (prctl(PR_SET_KEEPCAPS,1,0,0,0) < 0)
+            throw nidas::util::Exception("prctl(PR_SET_KEEPCAPS,1)",errno);
+    }
+    catch (const nidas::util::Exception& e) {
+        WLOG(("%s: %s. Will not be able to add supplement group ids","nc_server",e.what()));
+    }
+#endif
+
+
     if (_groupid != 0 && getegid() != _groupid) {
         if (setgid(_groupid) < 0)
             WLOG(("%s: cannot change group id to %d (%s): %m","nc_server",
@@ -2628,6 +2659,24 @@ void NcServerApp::run(void)
         if (setuid(_userid) < 0)
             WLOG(("%s: cannot change userid to %d (%s): %m", "nc_server",
                 _userid,_username.c_str()));
+    }
+
+    try {
+        nidas::util::Process::addEffectiveCapability(CAP_SETGID);
+        DLOG(("CAP_SETGID = ") << nidas::util::Process::getEffectiveCapability(CAP_SETGID));
+    }
+    catch (const nidas::util::Exception& e) {
+        WLOG(("%s: %s","nc_server",e.what()));
+    }
+
+    if (_suppGroupIds.size() > 0) {
+        for (unsigned int i = 0; i < _suppGroupIds.size(); i++) {
+            DLOG(("%s: groupid=%d","nc_server",_suppGroupIds[i]));
+        }
+        if (setgroups(_suppGroupIds.size(),&_suppGroupIds.front()) < 0) {
+            WLOG(("%s: failure in setgroups system call, ngroup=%d: %m",
+                        "nc_server",_suppGroupIds.size()));
+        }
     }
 
     // create files with group write

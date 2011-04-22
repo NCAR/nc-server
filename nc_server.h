@@ -104,6 +104,10 @@ class NcServerApp
 
     gid_t _groupid;
 
+    std::list<std::string> _suppGroupNames;
+
+    std::vector<gid_t> _suppGroupIds;
+
     int _daemon;
 
     int _logLevel;
