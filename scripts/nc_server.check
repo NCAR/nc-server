@@ -23,9 +23,9 @@ host=`uname -n`
 if [ $itry -eq $ntry ]; then
     echo "***** restarting nc_server on $host ******"
     if $use_valgrind; then
-        sudo -E valgrind /usr/bin/nc_server -d -l 6 -u $user > /tmp/nc_server.log 2>&1 &
+        sudo valgrind /usr/bin/nc_server -d -l 6 -u $user > /tmp/nc_server.log 2>&1 &
     else
-        sudo -E /usr/bin/nc_server -u $user -z -l 6
+        sudo /usr/bin/nc_server -u $user -z -l 6
     fi
     sleep 5
 fi

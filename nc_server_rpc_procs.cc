@@ -20,7 +20,7 @@ int *openconnection_1_svc(connection * input, struct svc_req *)
 
     Connections *connections = Connections::Instance();
 
-    res = connections->OpenConnection(input);
+    res = connections->openConnection(input);
 
     return &res;
 }
@@ -204,7 +204,7 @@ int *closeconnection_1_svc(int *connectionId, struct svc_req *)
     static int res;
     Connections *connections = Connections::Instance();
 
-    res = connections->CloseConnection(*connectionId);
+    res = connections->closeConnection(*connectionId);
 
     return &res;
 }
@@ -215,7 +215,7 @@ int *closefiles_1_svc(void *, struct svc_req *)
     AllFiles *allfiles = AllFiles::Instance();
     allfiles->close();
     Connections *connections = Connections::Instance();
-    connections->CloseOldConnections();
+    connections->closeOldConnections();
     return &res;
 }
 
@@ -225,7 +225,7 @@ int *syncfiles_1_svc(void *, struct svc_req *)
     AllFiles *allfiles = AllFiles::Instance();
     allfiles->sync();
     Connections *connections = Connections::Instance();
-    connections->CloseOldConnections();
+    connections->closeOldConnections();
     return &res;
 }
 
@@ -234,7 +234,7 @@ void *shutdown_1_svc(void *, struct svc_req *)
     AllFiles *allfiles = AllFiles::Instance();
     allfiles->close();
     Connections *connections = Connections::Instance();
-    connections->CloseOldConnections();
+    connections->closeOldConnections();
     nc_shutdown(0);
     return (void *) 0;
 }

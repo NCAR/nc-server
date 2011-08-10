@@ -1,3 +1,5 @@
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 4; tab-width: 4; -*-
+// vim: set shiftwidth=4 softtabstop=4 expandtab:
 /*
  ********************************************************************
  Copyright 2005 UCAR, NCAR, All Rights Reserved
@@ -75,7 +77,7 @@ class OutVariable;
 
 class NcServerApp
 {
-  public:
+public:
 
     NcServerApp();
 
@@ -107,7 +109,7 @@ class NcServerApp
         return _groupid;
     }
 
-  private:
+private:
 
     /** Signal handler */
     static void sigAction(int sig, siginfo_t * siginfo, void *vptr);
@@ -133,29 +135,43 @@ class NcServerApp
 
 class BadVariableName:public nidas::util::Exception
 {
-  public:
+public:
     BadVariableName(const char *n):nidas::util::
-        Exception("BadVariableName", n)
+                                   Exception("BadVariableName", n)
     {
     }
 };
 
 class Connections
 {
-  private:
-    std::vector < Connection * >_connections;
+private:
+    std::map <int, Connection*> _connections;
+    int _connectionId;
     static Connections *_instance;
-  protected:
+protected:
     Connections(void);
     ~Connections(void);
-  public:
+public:
     static Connections *Instance();
-  public:
+public:
     static const int CONNECTIONTIMEOUT;
-    int OpenConnection(const struct connection *);
-    int CloseConnection(int connectionId);
-    int CloseOldConnections();
-    Connection *&operator[] (unsigned int);
+    
+    /**
+     * Open a connection and return a positive connection id
+     * handle. If return value is negative an error occurred.
+     */
+    int openConnection(const struct connection *);
+
+    /**
+     * Close a connection, given the id. Return 0 on success, -1 if
+     * the connection is not found.
+     */
+    int closeConnection(int);
+
+    void closeOldConnections();
+
+    Connection * operator[] (int) const;
+
     unsigned int num() const;
 };
 
@@ -167,11 +183,13 @@ class Connection
 
     NS_NcFile *_lastf;          // last file written to, saved for efficiency
     time_t _lastRequest;
+    int _id;
 
-  public:
-    Connection(const struct connection *);
+public:
+    Connection(const struct connection *,int id);
     ~Connection(void);
 
+    int getId() const { return _id; }
     int put_rec(const datarec_float * writerec);
 
     int put_rec(const datarec_int * writerec);
@@ -198,15 +216,15 @@ class Connection
 
 class AllFiles
 {
-  private:
+private:
     std::vector < FileGroup * >_filegroups;
     AllFiles(const AllFiles &); // prevent copying
     AllFiles & operator=(const AllFiles &);     // prevent assignment
     static AllFiles *_instance;
-  protected:
+protected:
     AllFiles(void);
     ~AllFiles(void);
-  public:
+public:
     static AllFiles *Instance();
     FileGroup *get_file_group(const struct connection *);
     void close();
@@ -221,7 +239,7 @@ class AllFiles
 
 class NS_NcFile:public NcFile
 {
-  private:
+private:
     std::string _fileName;
     double _startTime, _endTime;
     double _interval;
@@ -241,9 +259,9 @@ class NS_NcFile:public NcFile
     /**
      * for each variable group, a pointer to an array of variables
      */
-    std::vector < NS_NcVar ** >_vars;
+    std::map <int,NS_NcVar**> _vars;
 
-    std::vector < int > _nvars;  // number of variables in each group
+    std::map <int,int > _nvars;  // number of variables in each group
 
     NcDim *_recdim;
     int _baseTime;
@@ -278,7 +296,7 @@ class NS_NcFile:public NcFile
     NS_NcFile(const NS_NcFile &);       // prevent copying
     NS_NcFile & operator=(const NS_NcFile &);   // prevent assignment
 
-  public:
+public:
     static const double minInterval;    // if _interval is less than
     // minInterval (most likely 0)
     // then the ttType is VARIABLE_DELTAT
@@ -301,8 +319,8 @@ class NS_NcFile:public NcFile
     {
 #ifdef DEBUG
         DLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
-             ", end=" << nidas::util::UTime(_endTime) <<
-             ", current=" nidas::util::UTime(time));
+                ", end=" << nidas::util::UTime(_endTime) <<
+                ", current=" nidas::util::UTime(time));
 #endif
         return (_startTime <= time);
     };
@@ -310,8 +328,8 @@ class NS_NcFile:public NcFile
     {
 #ifdef DEBUG
         DLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
-             ", end=" << nidas::util::UTime(_endTime) <<
-             ", current=" nidas::util::UTime(time));
+                ", end=" << nidas::util::UTime(_endTime) <<
+                ", current=" nidas::util::UTime(time));
 #endif
         return (_endTime <= time);
     }
@@ -319,14 +337,14 @@ class NS_NcFile:public NcFile
     {
 #ifdef DEBUG
         DLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
-             ", end=" << nidas::util::UTime(_endTime) <<
-             ", current=" nidas::util::UTime(time));
+                ", end=" << nidas::util::UTime(_endTime) <<
+                ", current=" nidas::util::UTime(time));
 #endif
         return (_endTime > time);
     }
 
     template<class REC_T, class DATA_T>
-    NcBool put_rec(const REC_T * writerec, VariableGroup *,double dtime);
+        NcBool put_rec(const REC_T * writerec, VariableGroup *,double dtime);
 
     long put_time(double, const char *);
     int put_history(std::string history);
@@ -345,7 +363,7 @@ class NS_NcFile:public NcFile
 // time series data interval and length
 class FileGroup
 {
-  private:
+private:
 
     std::vector < Connection * >_connections;
 
@@ -360,17 +378,18 @@ class FileGroup
     std::string _outputDir;
     std::string _fileNameFormat;
     std::string _CDLFileName;
-    std::vector < VariableGroup * >_vargroups;
+    std::map <int, VariableGroup*> _vargroups;
+    int _vargroupId;
     double _interval;
     double _fileLength;
 
-  public:
+public:
 
     FileGroup(const struct connection *);
     ~FileGroup(void);
 
     template<class REC_T, class DATA_T>
-    NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f);
+        NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f);
 
     int match(const std::string & dir, const std::string & file);
     NS_NcFile *get_file(double time);
@@ -405,8 +424,8 @@ class FileGroup
     time_t oldest_file();
 
     std::string build_name(const std::string & outputDir,
-                           const std::string & nameFormat, double dtime,
-                           double fileLength) const;
+            const std::string & nameFormat, double dtime,
+            double fileLength) const;
     int check_file(const std::string &) const;
     int ncgen_file(const std::string &, const std::string &) const;
 
@@ -421,7 +440,7 @@ class FileGroup
 
 class VariableGroup
 {
-  private:
+private:
     double _interval;
     std::vector < Variable * >_invars;
     std::vector < OutVariable * >_outvars;
@@ -446,20 +465,21 @@ class VariableGroup
 
     int _intFill;
 
-    int _ngroup;
+    int _id;
 
-    void check_counts_variable();
+    void check_counts_variable()
+        throw(BadVariableName);
 
 
     VariableGroup(const VariableGroup &);       // prevent copying
     VariableGroup & operator=(const VariableGroup &);   // prevent assignment
-  public:
+public:
     VariableGroup(const struct datadef *, int n, double finterval);
     ~VariableGroup(void);
 
-    int ngroup() const
+    int getId() const
     {
-        return _ngroup;
+        return _id;
     }
 
     OutVariable *get_var(int n) const
@@ -539,9 +559,9 @@ class NS_NcVar
     float _floatFill;
     int _intFill;
 
-  public:
+public:
     NS_NcVar(NcVar *, int *dimIndices, int ndims_group, float ffill,
-             int lfill, int isCnts = 0);
+            int lfill, int isCnts = 0);
     ~NS_NcVar();
     NcVar *var() const
     {
@@ -580,7 +600,7 @@ class NS_NcVar
 
 class Variable
 {
-  protected:
+protected:
     std::string _name;
 
     /**
@@ -592,7 +612,7 @@ class Variable
 
     Variable & operator=(const Variable &);     // prevent assignment
 
-  public:
+public:
     Variable(const std::string &n);
 
     Variable(const Variable &);
@@ -637,7 +657,7 @@ class OutVariable:public Variable
 
     OutVariable(const OutVariable &);   // prevent copying
 
-  public:
+public:
 
     OutVariable(const Variable &, NS_datatype, float, int)
         throw(BadVariableName);
@@ -664,13 +684,13 @@ class OutVariable:public Variable
 
 template<class REC_T,class DATA_T>
 NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
-                              NS_NcFile * f)
+        NS_NcFile * f)
 {
-    int ngroup = writerec->datarecId;
+    int groupid = writerec->datarecId;
     double dtime = writerec->time;
 
-    if (ngroup >= (signed) _vargroups.size()) {
-        PLOG(("Invalid variable group number: %d", ngroup));
+    if (_vargroups.find(groupid) == _vargroups.end()) {
+        PLOG(("Invalid variable group number: %d", groupid));
         return 0;
     }
 
@@ -690,17 +710,17 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
             return 0;
     }
 #ifdef DEBUG
-    DLOG(("Writing Record, ngroup=%d,f=%s", ngroup, f->getName().c_str()));
+    DLOG(("Writing Record, groupid=%d,f=%s", groupid, f->getName().c_str()));
 #endif
 
-    if (!f->put_rec<REC_T,DATA_T>(writerec, _vargroups[ngroup], dtime))
+    if (!f->put_rec<REC_T,DATA_T>(writerec, _vargroups[groupid], dtime))
         f = 0;
     return f;
 }
 
 template<class REC_T, class DATA_T>
 NcBool NS_NcFile::put_rec(const REC_T * writerec,
-                          VariableGroup * vgroup, double dtime)
+        VariableGroup * vgroup, double dtime)
 {
     long nrec;
     long nsample = 0;
@@ -711,7 +731,7 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
     double tdiff;
     time_t tnow;
     int ndims_req = vgroup->num_dims();
-    int igroup = vgroup->ngroup();
+    int groupid = vgroup->getId();
 
     // this will add variables if necessary
 #ifdef DEBUG
@@ -760,12 +780,12 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
             if (_timesAreMidpoints) _timeOffset = -_interval * .5;
             else _timeOffset = -_interval;
 
-// #define DEBUG
+            // #define DEBUG
 #ifdef DEBUG
             DLOG(("dtime=") << dtime << " groupInt=" << groupInt <<
                     " timesAreMidpoints=" << _timesAreMidpoints);
 #endif
-// #undef DEBUG
+            // #undef DEBUG
         }
         if (vgroup->num_samples() > 1) {
             if (_timesAreMidpoints) {
@@ -779,7 +799,7 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
 
 #ifdef DEBUG
             DLOG(("dtime=") << dtime << " nsample=" << nsample <<
-                " tdiff=" << tdiff);
+                    " tdiff=" << tdiff);
 #endif
             dtime -= tdiff;
         }
@@ -788,7 +808,7 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
     if ((nrec = put_time(dtime, vars[0]->name())) < 0)
         return 0;
 
-    nv = _nvars[igroup];
+    nv = _nvars[groupid];
 
     int nstart = writerec->start.start_len;
     int ncount = writerec->count.count_len;
@@ -800,7 +820,7 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
 
     if (nstart != ndims_req - 2 || nstart != ncount) {
         PLOG(("variable %s has incorrect start or count length",
-              vars[0]->name()));
+                    vars[0]->name()));
     }
 #ifdef DEBUG
     DLOG(("nstart=%d,ncount=%d", nstart, ncount));
@@ -818,13 +838,13 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
 #endif
             if (!var->put((const int *) writerec->cnts.cnts_val, count)) {
                 PLOG(("put cnts %s: %s %s", _fileName.c_str(), var->name(),
-                      get_error_string().c_str()));
+                            get_error_string().c_str()));
                 return 0;
             }
         } else if (d < dend) {
             if (!(i = var->put(d, count))) {
                 PLOG(("put var %s: %s %s", _fileName.c_str(), var->name(),
-                      get_error_string().c_str()));
+                            get_error_string().c_str()));
                 return 0;
             }
 #ifdef DEBUG
@@ -840,8 +860,8 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
     }
     if (d != dend)
         PLOG(("put check %s: %s put request for %d values, should be %d",
-              _fileName.c_str(), vars[0]->name(), nd,
-              d - writerec->data.data_val));
+                    _fileName.c_str(), vars[0]->name(), nd,
+                    d - writerec->data.data_val));
 
     if ((tnow = time(0)) - _lastSync > 60) sync();
     _lastAccess = tnow;
