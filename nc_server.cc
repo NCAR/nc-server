@@ -1439,17 +1439,14 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
 
 NS_NcFile::~NS_NcFile(void)
 {
-    int j;
-
     ILOG(("Closing: %s", _fileName.c_str()));
     std::map<int,NS_NcVar**>::iterator vi = _vars.begin();
-    for ( ; vi != _vars.end(); ) {
+    for ( ; vi != _vars.end(); ++vi) {
         int id = vi->first;
         NS_NcVar** vars = vi->second;
-        for (j = 0; j < _nvars[id]; j++)
+        for (int j = 0; j < _nvars[id]; j++)
             delete vars[j];
         delete [] vars;
-        _vars.erase(vi++);
     }
 }
 
@@ -1472,8 +1469,6 @@ NcBool NS_NcFile::sync()
 
 NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
 {
-
-    NS_NcVar **vars;
 
     int groupid = vgroup->getId();
 
@@ -1527,7 +1522,7 @@ NS_NcVar **NS_NcFile::get_vars(VariableGroup * vgroup)
 #endif
 
     int nv = vgroup->num_vars();    // number of variables in group
-    vars = new NS_NcVar *[nv];
+    NS_NcVar **vars = new NS_NcVar *[nv];
 
     int numCounts = 0;
     int countsIndex = -1;

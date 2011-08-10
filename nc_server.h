@@ -217,7 +217,7 @@ public:
 class AllFiles
 {
 private:
-    std::vector < FileGroup * >_filegroups;
+    std::vector < FileGroup*> _filegroups;
     AllFiles(const AllFiles &); // prevent copying
     AllFiles & operator=(const AllFiles &);     // prevent assignment
     static AllFiles *_instance;
