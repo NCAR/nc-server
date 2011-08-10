@@ -138,6 +138,8 @@ int Connections::openConnection(const struct connection *conn)
 
     closeOldConnections();
 
+    // just in case this process ever handles over 2^31 connections :-)
+    if (_connectionId < 0) _connectionId = 0;
     try {
         cp = new Connection(conn,_connectionId);
     }
@@ -146,11 +148,9 @@ int Connections::openConnection(const struct connection *conn)
         return -1;
     }
     _connections[_connectionId] = cp;
-    ILOG(("Cpened connection, id=%d, #connections=%z, heap=%d",
+    ILOG(("Opened connection, id=%d, #connections=%zd, heap=%zd",
             _connectionId,_connections.size(), heap()));
-    // just in case this process ever handles over 2^31 connections :-)
-    if (++_connectionId < 0) _connectionId = 0;
-    return _connectionId;
+    return _connectionId++;
 }
 
 int Connections::closeConnection(int id)
@@ -160,7 +160,7 @@ int Connections::closeConnection(int id)
         int id = ci->first;
         delete ci->second;
         _connections.erase(ci);
-        ILOG(("Closed connection, id=%d, #connections=%z",
+        ILOG(("Closed connection, id=%d, #connections=%zd",
             id,_connections.size()));
         return 0;
     }
@@ -184,7 +184,7 @@ void Connections::closeOldConnections()
             // map::erase doesn't return an iterator, unless
             // __GXX_EXPERIMENTAL_CXX0X__ is defined
             _connections.erase(ci++);
-            ILOG(("Timeout, closed connection, id=%d, #connections=%z",
+            ILOG(("Timeout, closed connection, id=%d, #connections=%zd",
                 id,_connections.size()));
         }
         else ++ci;
@@ -935,16 +935,15 @@ int FileGroup::add_var_group(const struct datadef *dd)
             return id;
     }
 
+    if (_vargroupId < 0) _vargroupId = 0;
     VariableGroup *vg = new VariableGroup(dd, _vargroupId, _interval);
-
     _vargroups[_vargroupId] = vg;
 
 #ifdef DEBUG
-    DLOG(("Created variable group %d", _vargroupId));
+    ILOG(("Created variable group %d", _vargroupId));
 #endif
 
-    if (++_vargroupId < 0) _vargroupId = 0;
-    return _vargroupId;
+    return _vargroupId++;
 }
 
 VariableGroup::VariableGroup(const struct datadef * dd, int id, double finterval):

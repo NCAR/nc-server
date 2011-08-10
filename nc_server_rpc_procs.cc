@@ -35,7 +35,7 @@ int *definedatarec_1_svc(datadef * ddef, struct svc_req *)
     res = -1;
 
     if ((conn = (*connections)[ddef->connectionId]) == 0) {
-        PLOG(("Invalid Connection ID: %d", ddef->connectionId));
+        PLOG(("Invalid connection ID: %d", ddef->connectionId));
         return &res;
     }
 
