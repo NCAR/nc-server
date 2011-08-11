@@ -1218,11 +1218,8 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     _ttType(FIXED_DELTAT),_timesAreMidpoints(-1)
 {
 
-    if (!is_valid()) {
-        PLOG(("NcFile %s: %s", _fileName.c_str(),
-                    get_error_string().c_str()));
+    if (!is_valid())
         throw NetCDFAccessFailed(getName(),"open",get_error_string());
-    }
 
     if (_interval < minInterval)
         _ttType = VARIABLE_DELTAT;
@@ -1252,28 +1249,19 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     if (!(_baseTimeVar = get_var("base_time"))) {
         /* New variable */
         if (!(_baseTimeVar = NcFile::add_var("base_time", ncLong)) ||
-                !_baseTimeVar->is_valid()) {
-            PLOG(("add_var %s: %s %s", _fileName.c_str(), "base_time",
-                        get_error_string().c_str()));
+                !_baseTimeVar->is_valid())
             throw NetCDFAccessFailed(getName(),
                     string("add_var ") + "base_time",get_error_string());
-        }
         string since =
             nidas::util::UTime(0.0).format(true,
                     "seconds since %Y-%m-%d %H:%M:%S 00:00");
-        if (!_baseTimeVar->add_att("units", since.c_str())) {
-            PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
-                        _baseTimeVar->name(), "units",
-                        get_error_string().c_str()));
+        if (!_baseTimeVar->add_att("units", since.c_str()))
             throw NetCDFAccessFailed(getName(),
-                    string("add_att units ") + _baseTimeVar->name(),get_error_string());
-        }
+                    string("add_att units to ") + _baseTimeVar->name(),get_error_string());
     }
 
     if (!(_recdim = rec_dim())) {
         if (!(_recdim = add_dim("time")) || !_recdim->is_valid()) {
-            PLOG(("add_dim %s: %s %s", _fileName.c_str(), "time",
-                        get_error_string().c_str()));
             // the NcFile has been constructed, and so if this exception is
             // thrown, it will be deleted, which will delete all the 
             // created dimensions and variables.  So we don't have to
@@ -1288,12 +1276,10 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
             !(_timeOffsetVar = get_var("time_offset"))) {
         /* New variable */
         if (!(_timeOffsetVar = NcFile::add_var("time", ncDouble, _recdim))
-                || !_timeOffsetVar->is_valid()) {
-            PLOG(("add_var %s: %s %s", _fileName.c_str(), "time",
-                        get_error_string().c_str()));
+                || !_timeOffsetVar->is_valid())
             throw NetCDFAccessFailed(getName(),
                     string("add_var ") + "time",get_error_string());
-        }
+        
         _timeOffsetType = _timeOffsetVar->type();
     } else {
         _timeOffsetType = _timeOffsetVar->type();
@@ -1303,11 +1289,9 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
             NcValues *val;
             _timeOffsetVar->set_rec(nrec);
             if (!(val = _timeOffsetVar->get_rec())) {
-                PLOG(("get_rec(%d) %s: %s %s",
-                            nrec, _fileName.c_str(), _timeOffsetVar->name(),
-                            get_error_string().c_str()));
-                throw NetCDFAccessFailed(getName(),
-                        string("get_rec ") + "time_offset",get_error_string());
+                ostringstream ost;
+                ost << "get_rec #" << nrec << " of " << _timeOffsetVar->name();
+                throw NetCDFAccessFailed(getName(),ost.str(),get_error_string());
             }
             switch (_timeOffsetType) {
             case ncFloat:
@@ -1317,10 +1301,8 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
                 _timeOffset = val->as_double(0L);
                 break;
             default:
-                PLOG(("%s: unsupported type for time variable",
-                            _fileName.c_str()));
                 throw NetCDFAccessFailed(getName(),
-                        string("get_rec ") + "time_offset, unsupported type",get_error_string());
+                        string("get_rec ") + _timeOffsetVar->name() + " unsupported type",get_error_string());
             }
             delete val;
 
@@ -1358,37 +1340,26 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         string since =
             nidas::util::UTime((time_t) _baseTime).format(true,
                     "seconds since %Y-%m-%d %H:%M:%S 00:00");
-        if (!_timeOffsetVar->add_att("units", since.c_str())) {
-            PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
-                        _timeOffsetVar->name(), "units",
-                        get_error_string().c_str()));
+        if (!_timeOffsetVar->add_att("units", since.c_str()))
             throw NetCDFAccessFailed(getName(),
-                    string("add_att units ") + _timeOffsetVar->name(),get_error_string());
-        }
+                    string("add_att units to ") + _timeOffsetVar->name(),get_error_string());
     } else
         delete timeOffsetUnitsAtt;
 
     if (_ttType == FIXED_DELTAT) {
         NcAtt *intervalAtt;
         if (!(intervalAtt = _timeOffsetVar->get_att("interval(sec)"))) {
-            if (!_timeOffsetVar->add_att("interval(sec)",_interval)) {
-                PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
-                            _timeOffsetVar->name(), "interval(sec)",
-                            get_error_string().c_str()));
+            if (!_timeOffsetVar->add_att("interval(sec)",_interval))
                 throw NetCDFAccessFailed(getName(),
-                        string("add_att interval(sec) ") +  _timeOffsetVar->name(),get_error_string());
-            }
+                        string("add_att interval(sec) to ") +  _timeOffsetVar->name(),get_error_string());
         } else
             delete intervalAtt;
     }
 
     /* Write base time */
-    if (!_baseTimeVar->put(&_baseTime, &_nrecs)) {
-        PLOG(("put basetime %s: %s", _fileName.c_str(),
-                    get_error_string().c_str()));
+    if (!_baseTimeVar->put(&_baseTime, &_nrecs))
         throw NetCDFAccessFailed(getName(),
                 string("put ") + _baseTimeVar->name(),get_error_string());
-    }
 #ifdef DEBUG
     DLOG(("%s: nrecs=%d, baseTime=%d, timeOffset=%f, length=%f",
                 _fileName.c_str(), _nrecs, _baseTime, _timeOffset, _lengthSecs));
@@ -1512,11 +1483,8 @@ vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
         // Unlimited dimension must be first one.
         if ((i == 0 && _dimSizes[i] == NC_UNLIMITED) || _dimSizes[i] > 1) {
             _dims[_ndims] = get_dim(_dimNames[i].c_str(), _dimSizes[i]);
-            if (!_dims[_ndims] || !_dims[_ndims]->is_valid()) {
-                PLOG(("%s: get_dim %s: %s", _fileName.c_str(), _dimNames[i].c_str(),
-                            get_error_string().c_str()));
+            if (!_dims[_ndims] || !_dims[_ndims]->is_valid())
                 throw NetCDFAccessFailed(getName(),string("get_dim ") + _dimNames[i],get_error_string());
-            }
             _ndims++;
         }
     }
@@ -1740,19 +1708,12 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
     int isCnts = v->isCnts();
 
     const string& varName = v->name();
-    const string& shortName = v->att_val("short_name");
 
     // No matching variables found, create new one
     if (!(var = find_var(v))) {
         if (!(var =
                     NcFile::add_var(varName.c_str(), (NcType) v->data_type(), _ndims,
                         &_dims.front())) || !var->is_valid()) {
-            PLOG(("add_var %s: %s %s", _fileName.c_str(), varName.c_str(),
-                        get_error_string().c_str()));
-            PLOG(("shortName=%s", shortName.c_str()));
-            PLOG(("define_mode=%d", define_mode()));
-            PLOG(("data_type=%d", v->data_type()));
-            PLOG(("ndims=%d", _ndims));
 #ifdef DEBUG
             for (unsigned int i = 0; i < _ndims; i++)
                 DLOG(("dims=%d id=%d size=%d", i, _dims[i]->id(),
@@ -1765,11 +1726,9 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
     add_attrs(v, var);
 
     // double check ourselves
-    if (!check_var_dims(var)) {
-        PLOG(("%s: wrong dimensions for variable %s",
-                    getName().c_str(),varName.c_str()));
+    if (!check_var_dims(var))
         throw NetCDFAccessFailed(getName(),string("check dimensions ") + varName,"wrong dimensions");
-    }
+
     fsv = new NS_NcVar(var, &_dimIndices.front(), _ndims_req, v->floatFill(),
             v->intFill(), isCnts);
     // sync();
@@ -1792,20 +1751,12 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
     if (!nca.get()) {
         switch (v->data_type()) {
         case NS_INT:
-            if (!var->add_att("_FillValue",v->intFill())) {
-                PLOG(("%s: %s: add_att %s: %s %s",
-                            getName().c_str(),var->name(), "_FillValue",
-                            get_error_string().c_str()));
-                throw NetCDFAccessFailed(getName(),string("add_att _FillValue ") + var->name(),get_error_string());
-            }
+            if (!var->add_att("_FillValue",v->intFill()))
+                throw NetCDFAccessFailed(getName(),string("add_att _FillValue to ") + var->name(),get_error_string());
             break;
         case NS_FLOAT:
-            if (!var->add_att("_FillValue", v->floatFill())) {
-                PLOG(("%s: %s: add_att %s: %s",
-                            getName().c_str(),var->name(), "_FillValue",
-                            get_error_string().c_str()));
-                throw NetCDFAccessFailed(getName(),string("add_att _FillValue ") + var->name(),get_error_string());
-            }
+            if (!var->add_att("_FillValue", v->floatFill()))
+                throw NetCDFAccessFailed(getName(),string("add_att _FillValue to ") + var->name(),get_error_string());
             break;
         }
     }
@@ -1826,13 +1777,8 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
                         v->units().c_str(),
                         (units ? units : "none"), (nca ? nca->num_vals() : 0)));
 #endif
-            if (!var->add_att("units", v->units().c_str())) {
-                PLOG(("%s: %s: add_att: %s=%s %s",
-                            getName().c_str(),var->name(),
-                            "units",v->units().c_str(),
-                            get_error_string().c_str()));
-                throw NetCDFAccessFailed(getName(),string("add_att units ") + var->name(),get_error_string());
-            }
+            if (!var->add_att("units", v->units().c_str()))
+                throw NetCDFAccessFailed(getName(),string("add_att units to ") + var->name(),get_error_string());
         }
     }
 #endif
@@ -1851,13 +1797,8 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
                     faval.reset(uvals->as_string(0));
             }
             if (!faval.get() || string(faval.get()) != aval) {
-                if (!var->add_att(aname.c_str(), aval.c_str())) {
-                    PLOG(("%s: %s: add_att: %s=%s: %s",
-                                getName().c_str(),var->name(),
-                                aname.c_str(),aval.c_str(),
-                                get_error_string().c_str()));
-                    throw NetCDFAccessFailed(getName(),string("add_att ") + aname + " " + var->name(),get_error_string());
-                }
+                if (!var->add_att(aname.c_str(), aval.c_str()))
+                    throw NetCDFAccessFailed(getName(),string("add_att ") + aname + " to " + var->name(),get_error_string());
             }
         }
     }
@@ -1883,7 +1824,6 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
     bool nameExists = false;
 
     NcAtt *att;
-    char *attString;
 
     if ((var = get_var(varName.c_str()))) {
         nameExists = 1;
@@ -1891,7 +1831,7 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
             varFound = 1;
         // Check its short_name attribute
         else if ((att = var->get_att("short_name"))) {
-            attString = 0;
+            char *attString = 0;
             if (att->type() == ncChar && att->num_vals() > 0 &&
                     (attString = att->as_string(0)) &&
                     !strcmp(attString, shortName.c_str()))
@@ -1912,7 +1852,7 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
         var = get_var(i);
         // Check its short_name attribute
         if ((att = var->get_att("short_name"))) {
-            attString = 0;
+            char* attString = 0;
             if (att->type() == ncChar && att->num_vals() > 0 &&
                     (attString = att->as_string(0)) &&
                     !strcmp(attString, shortName.c_str())) {
@@ -1951,14 +1891,9 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
             // We'll change the short_name attribute of the offending
             // variable to "name_old" and create a new variable.
             string tmpString = shortName + "_old";
-            if (!var->add_att("short_name", tmpString.c_str())) {
-                PLOG(("add_att %s: %s %s %s", _fileName.c_str(),
-                            var->name(), "short_name",
-                            get_error_string().c_str()));
-                delete var;
+            if (!var->add_att("short_name", tmpString.c_str()))
                 throw NetCDFAccessFailed(getName(),
-                        string("add_att short_name ") + var->name(),get_error_string());
-            }
+                        string("add_att short_name to ") + var->name(),get_error_string());
         }
         var = 0;
     }
@@ -2020,12 +1955,9 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
         double tmpOffset;
         NcValues *val;
         _timeOffsetVar->set_rec(nrec);
-        if (!(val = _timeOffsetVar->get_rec())) {
-            PLOG(("get_rec(%d) %s: %s %s",
-                        _nrecs, _fileName.c_str(), _timeOffsetVar->name(),
-                        get_error_string().c_str()));
+        if (!(val = _timeOffsetVar->get_rec()))
             throw NetCDFAccessFailed(getName(),string("get_rec ") + _timeOffsetVar->getName(),get_error_string());
-        }
+
         switch (_timeOffsetType) {
         case ncFloat:
             tmpOffset = val->as_float(0L);
@@ -2061,11 +1993,8 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
         default:
             break;
         }
-        if (!i) {
-            PLOG(("time_offset put_rec %s: %s", _fileName.c_str(),
-                        get_error_string().c_str()));
+        if (!i)
             throw NetCDFAccessFailed(getName(),string("put_rec ") + _timeOffsetVar->name(),get_error_string());
-        }
     }
 #ifdef DEBUG
     DLOG(("after fill timeoffset = %f, timeOffset=%f,nrec=%d, _nrecs=%d,interval=%f",

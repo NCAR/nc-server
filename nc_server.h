@@ -245,7 +245,7 @@ public:
 
     virtual ~NetCDFAccessFailed() throw() {}
 
-    virtual std::string toString() { return _msg; }
+    virtual std::string toString() const { return _msg; }
     virtual const char* what() const throw() { return _msg.c_str(); }
 private:
         std::string _msg;
@@ -728,6 +728,7 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
         f->put_rec<REC_T,DATA_T>(writerec, _vargroups[groupid], dtime);
     }
     catch (const NetCDFAccessFailed& e) {
+        PLOG(("") << e.toString());
         f = 0;
     }
     return f;
@@ -849,22 +850,16 @@ void NS_NcFile::put_rec(const REC_T * writerec,
 #ifdef DEBUG
                 DLOG(("put counts"));
 #endif
-                if (!var->put((const int *) writerec->cnts.cnts_val, count)) {
-                    PLOG(("put cnts %s: %s %s", _fileName.c_str(), var->name(),
-                                get_error_string().c_str()));
+                if (!var->put((const int *) writerec->cnts.cnts_val, count))
                     throw NetCDFAccessFailed(getName(),std::string("put_var ") + var->name(),get_error_string());
-                }
             }
         } else {
             if (d >= dend)
                 PLOG(("%s: %s put request for %d values is too small. num_variables=%d",
                             _fileName.c_str(), var->name(), nd,nv));
             else {
-                if (!(i = var->put(d, count))) {
-                    PLOG(("put var %s: %s %s", _fileName.c_str(), var->name(),
-                                get_error_string().c_str()));
+                if (!(i = var->put(d, count)))
                     throw NetCDFAccessFailed(getName(),std::string("put_var ") + var->name(),get_error_string());
-                }
 #ifdef DEBUG
                 DLOG(("var->put of %s, i=%d", var->name(), i));
 #endif
