@@ -237,6 +237,20 @@ public:
     static void shutdown(int sig);
 };
 
+class NetCDFAccessFailed: public std::exception 
+{
+public:
+    NetCDFAccessFailed(std::string file,std::string operation,std::string msg):
+        _msg(file + ": " + operation + ": " + msg) {}
+
+    virtual ~NetCDFAccessFailed() throw() {}
+
+    virtual std::string toString() { return _msg; }
+    virtual const char* what() const throw() { return _msg.c_str(); }
+private:
+        std::string _msg;
+};
+
 class NS_NcFile:public NcFile
 {
 private:
@@ -259,9 +273,7 @@ private:
     /**
      * for each variable group, a pointer to an array of variables
      */
-    std::map <int,NS_NcVar**> _vars;
-
-    std::map <int,int > _nvars;  // number of variables in each group
+    std::map <int,std::vector<NS_NcVar*> > _vars;
 
     NcDim *_recdim;
     int _baseTime;
@@ -285,10 +297,10 @@ private:
 
     std::string _historyHeader;
 
-    NS_NcVar **get_vars(VariableGroup *);
-    NS_NcVar *add_var(OutVariable * v);
-    NcVar *find_var(OutVariable *);
-    int add_attrs(OutVariable * v, NcVar * var);
+    std::vector<NS_NcVar*>& get_vars(VariableGroup *) throw(NetCDFAccessFailed);
+    NS_NcVar *add_var(OutVariable * v) throw(NetCDFAccessFailed);;
+    NcVar *find_var(OutVariable *) throw(NetCDFAccessFailed);
+    int add_attrs(OutVariable * v, NcVar * var) throw(NetCDFAccessFailed);
 
     NcBool check_var_dims(NcVar *);
     const NcDim *get_dim(NcToken name, long size);
@@ -301,7 +313,8 @@ public:
     // minInterval (most likely 0)
     // then the ttType is VARIABLE_DELTAT
 
-    NS_NcFile(const std::string &, enum FileMode, double, double, double);
+    NS_NcFile(const std::string &, enum FileMode, double, double, double)
+        throw(NetCDFAccessFailed);
     ~NS_NcFile(void);
 
     const std::string & getName() const;
@@ -344,9 +357,10 @@ public:
     }
 
     template<class REC_T, class DATA_T>
-        NcBool put_rec(const REC_T * writerec, VariableGroup *,double dtime);
+        void put_rec(const REC_T * writerec, VariableGroup *,double dtime)
+            throw(NetCDFAccessFailed);
 
-    long put_time(double, const char *);
+    long put_time(double) throw(NetCDFAccessFailed);;
     int put_history(std::string history);
     time_t LastAccess() const
     {
@@ -354,9 +368,6 @@ public:
     }
     NcBool sync(void);
 
-    class NetCDFAccessFailed
-    {
-    };                          // exception class
 };
 
 // A file group is a list of similarly named files with the same
@@ -389,11 +400,11 @@ public:
     ~FileGroup(void);
 
     template<class REC_T, class DATA_T>
-        NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f);
+        NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f) throw();
 
     int match(const std::string & dir, const std::string & file);
-    NS_NcFile *get_file(double time);
-    NS_NcFile *open_file(double time);
+    NS_NcFile *get_file(double time) throw();
+    NS_NcFile *open_file(double time) throw();
     void close();
     void sync();
     void close_old_files(void);
@@ -684,7 +695,7 @@ public:
 
 template<class REC_T,class DATA_T>
 NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
-        NS_NcFile * f)
+        NS_NcFile * f) throw()
 {
     int groupid = writerec->datarecId;
     double dtime = writerec->time;
@@ -713,32 +724,35 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
     DLOG(("Writing Record, groupid=%d,f=%s", groupid, f->getName().c_str()));
 #endif
 
-    if (!f->put_rec<REC_T,DATA_T>(writerec, _vargroups[groupid], dtime))
+    try {
+        f->put_rec<REC_T,DATA_T>(writerec, _vargroups[groupid], dtime);
+    }
+    catch (const NetCDFAccessFailed& e) {
         f = 0;
+    }
     return f;
 }
 
 template<class REC_T, class DATA_T>
-NcBool NS_NcFile::put_rec(const REC_T * writerec,
-        VariableGroup * vgroup, double dtime)
+void NS_NcFile::put_rec(const REC_T * writerec,
+        VariableGroup * vgroup, double dtime) throw(NetCDFAccessFailed)
 {
     long nrec;
     long nsample = 0;
-    NS_NcVar **vars;
     NS_NcVar *var;
     int i, iv, nv;
     double groupInt = vgroup->interval();
     double tdiff;
     time_t tnow;
     int ndims_req = vgroup->num_dims();
-    int groupid = vgroup->getId();
 
     // this will add variables if necessary
 #ifdef DEBUG
     DLOG(("calling get_vars"));
 #endif
-    if (!(vars = get_vars(vgroup)))
-        return 0;
+
+    std::vector<NS_NcVar*>& vars = get_vars(vgroup);
+
 #ifdef DEBUG
     DLOG(("called get_vars"));
 #endif
@@ -805,10 +819,9 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
         }
     }
 
-    if ((nrec = put_time(dtime, vars[0]->name())) < 0)
-        return 0;
+    nrec = put_time(dtime);
 
-    nv = _nvars[groupid];
+    nv = vars.size();
 
     int nstart = writerec->start.start_len;
     int ncount = writerec->count.count_len;
@@ -819,8 +832,8 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
     const DATA_T *dend = d + nd;
 
     if (nstart != ndims_req - 2 || nstart != ncount) {
-        PLOG(("variable %s has incorrect start or count length",
-                    vars[0]->name()));
+        PLOG(("%s: variable %s has incorrect start or count length",
+                    getName().c_str(),vars[0]->name()));
     }
 #ifdef DEBUG
     DLOG(("nstart=%d,ncount=%d", nstart, ncount));
@@ -830,42 +843,42 @@ NcBool NS_NcFile::put_rec(const REC_T * writerec,
 
     for (iv = 0; iv < nv; iv++) {
         var = vars[iv];
-
         var->set_cur(nrec, nsample, start);
-        if (var->isCnts() && writerec->cnts.cnts_len > 0) {
+        if (var->isCnts()) {
+            if (writerec->cnts.cnts_len > 0) {
 #ifdef DEBUG
-            DLOG(("put counts"));
+                DLOG(("put counts"));
 #endif
-            if (!var->put((const int *) writerec->cnts.cnts_val, count)) {
-                PLOG(("put cnts %s: %s %s", _fileName.c_str(), var->name(),
-                            get_error_string().c_str()));
-                return 0;
+                if (!var->put((const int *) writerec->cnts.cnts_val, count)) {
+                    PLOG(("put cnts %s: %s %s", _fileName.c_str(), var->name(),
+                                get_error_string().c_str()));
+                    throw NetCDFAccessFailed(getName(),std::string("put_var ") + var->name(),get_error_string());
+                }
             }
-        } else if (d < dend) {
-            if (!(i = var->put(d, count))) {
-                PLOG(("put var %s: %s %s", _fileName.c_str(), var->name(),
-                            get_error_string().c_str()));
-                return 0;
-            }
+        } else {
+            if (d >= dend)
+                PLOG(("%s: %s put request for %d values is too small. num_variables=%d",
+                            _fileName.c_str(), var->name(), nd,nv));
+            else {
+                if (!(i = var->put(d, count))) {
+                    PLOG(("put var %s: %s %s", _fileName.c_str(), var->name(),
+                                get_error_string().c_str()));
+                    throw NetCDFAccessFailed(getName(),std::string("put_var ") + var->name(),get_error_string());
+                }
 #ifdef DEBUG
-            DLOG(("var->put of %s, i=%d", var->name(), i));
+                DLOG(("var->put of %s, i=%d", var->name(), i));
 #endif
-            d += i;
+                d += i;
+            }
         }
-        // The last variables in a NS_TIMESERIES group may be counts variables
-        // (having been found in the NetCDF file), but the user may not
-        // pass the counts data to be written.  Don't issue a warning in this case.
-        else if (!var->isCnts() || vgroup->rec_type() != NS_TIMESERIES)
-            d += var->put_len(count);
     }
     if (d != dend)
-        PLOG(("put check %s: %s put request for %d values, should be %d",
+        PLOG(("%s: %s put request for %d values, should be %d",
                     _fileName.c_str(), vars[0]->name(), nd,
                     d - writerec->data.data_val));
 
     if ((tnow = time(0)) - _lastSync > 60) sync();
     _lastAccess = tnow;
-    return 1;
 }
 
 #endif
