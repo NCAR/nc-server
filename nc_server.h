@@ -39,6 +39,7 @@
 #include <string>
 #include <list>
 #include <map>
+#include <set>
 #include <netcdf.hh>
 #include <netcdf.h>
 
@@ -132,28 +133,29 @@ private:
 
 };
 
-
-class BadVariableName:public nidas::util::Exception
+class BadVariable: public nidas::util::Exception
 {
 public:
-    BadVariableName(const char *n):nidas::util::
-                                   Exception("BadVariableName", n)
+    BadVariable(const std::string& n):
+        nidas::util::Exception("BadVariable", n)
+    {
+    }
+};
+
+class NetCDFAccessFailed: public nidas::util::Exception
+{
+public:
+    NetCDFAccessFailed(const std::string& file,const std::string& operation,const std::string& msg):
+        nidas::util::Exception("NetCDFAccessFailed",file + ": " + operation + ": " + msg)
     {
     }
 };
 
 class Connections
 {
-private:
-    std::map <int, Connection*> _connections;
-    int _connectionId;
-    static Connections *_instance;
-protected:
-    Connections(void);
-    ~Connections(void);
 public:
     static Connections *Instance();
-public:
+
     static const int CONNECTIONTIMEOUT;
     
     /**
@@ -173,18 +175,17 @@ public:
     Connection * operator[] (int) const;
 
     unsigned int num() const;
+private:
+    std::map <int, Connection*> _connections;
+    int _connectionId;
+    static Connections *_instance;
+protected:
+    Connections(void);
+    ~Connections(void);
 };
 
 class Connection
 {
-    FileGroup *_filegroup;
-    std::string _history;
-    int _histlen;
-
-    NS_NcFile *_lastf;          // last file written to, saved for efficiency
-    time_t _lastRequest;
-    int _id;
-
 public:
     Connection(const struct connection *,int id);
     ~Connection(void);
@@ -195,7 +196,12 @@ public:
     int put_rec(const datarec_int * writerec);
 
     int put_history(const std::string &);
-    int add_var_group(const struct datadef *);
+
+    /**
+     * @return: non-negative group id or -1 on error.
+     */
+    int add_var_group(const struct datadef *) throw();
+
     time_t LastRequest()
     {
         return _lastRequest;
@@ -212,18 +218,19 @@ public:
     class InvalidOutputDir
     {
     };                          // exception class
+private:
+    FileGroup *_filegroup;
+    std::string _history;
+    int _histlen;
+
+    NS_NcFile *_lastf;          // last file written to, saved for efficiency
+    time_t _lastRequest;
+    int _id;
+
 };
 
 class AllFiles
 {
-private:
-    std::vector < FileGroup*> _filegroups;
-    AllFiles(const AllFiles &); // prevent copying
-    AllFiles & operator=(const AllFiles &);     // prevent assignment
-    static AllFiles *_instance;
-protected:
-    AllFiles(void);
-    ~AllFiles(void);
 public:
     static AllFiles *Instance();
     FileGroup *get_file_group(const struct connection *);
@@ -235,83 +242,24 @@ public:
 
     static void hangup(int sig);
     static void shutdown(int sig);
+private:
+    std::vector < FileGroup*> _filegroups;
+    AllFiles(const AllFiles &); // prevent copying
+    AllFiles & operator=(const AllFiles &);     // prevent assignment
+    static AllFiles *_instance;
+protected:
+    AllFiles(void);
+    ~AllFiles(void);
 };
 
-class NetCDFAccessFailed: public std::exception 
+class NS_NcFile: public NcFile
 {
 public:
-    NetCDFAccessFailed(std::string file,std::string operation,std::string msg):
-        _msg(file + ": " + operation + ": " + msg) {}
-
-    virtual ~NetCDFAccessFailed() throw() {}
-
-    virtual std::string toString() const { return _msg; }
-    virtual const char* what() const throw() { return _msg.c_str(); }
-private:
-        std::string _msg;
-};
-
-class NS_NcFile:public NcFile
-{
-private:
-    std::string _fileName;
-    double _startTime, _endTime;
-    double _interval;
-    double _lengthSecs;
-    double _timeOffset;         // last timeOffset written
-    NcType _timeOffsetType;     // ncFloat or ncDouble
-    char _monthLong;            //
-
-    // time tag type, fixed dt or variable?
-    enum { FIXED_DELTAT, VARIABLE_DELTAT } _ttType;
-
-    int _timesAreMidpoints;
-
-    NcVar *_baseTimeVar;
-    NcVar *_timeOffsetVar;
-
     /**
-     * for each variable group, a pointer to an array of variables
+     * if _interval is less than minInterval (most likely 0)
+     * then the ttType is VARIABLE_DELTAT.
      */
-    std::map <int,std::vector<NS_NcVar*> > _vars;
-
-    NcDim *_recdim;
-    int _baseTime;
-    long _nrecs;
-
-    std::vector<std::string> _dimNames;     // names of requested dimensions
-
-    std::vector<long> _dimSizes;            // sizes of requested dimensions
-
-    std::vector<int> _dimIndices;           // position of requested dimensions in variable
-
-    unsigned int _ndims;        // number of dimensions of size > 1
-
-    std::vector<const NcDim *> _dims;        // dimensions to use when creating new vars
-
-    int _ndims_req;             // number of requested dimensions
-
-    time_t _lastAccess;
-
-    time_t _lastSync;
-
-    std::string _historyHeader;
-
-    std::vector<NS_NcVar*>& get_vars(VariableGroup *) throw(NetCDFAccessFailed);
-    NS_NcVar *add_var(OutVariable * v) throw(NetCDFAccessFailed);;
-    NcVar *find_var(OutVariable *) throw(NetCDFAccessFailed);
-    int add_attrs(OutVariable * v, NcVar * var) throw(NetCDFAccessFailed);
-
-    NcBool check_var_dims(NcVar *);
-    const NcDim *get_dim(NcToken name, long size);
-
-    NS_NcFile(const NS_NcFile &);       // prevent copying
-    NS_NcFile & operator=(const NS_NcFile &);   // prevent assignment
-
-public:
-    static const double minInterval;    // if _interval is less than
-    // minInterval (most likely 0)
-    // then the ttType is VARIABLE_DELTAT
+    static const double minInterval;
 
     NS_NcFile(const std::string &, enum FileMode, double, double, double)
         throw(NetCDFAccessFailed);
@@ -368,32 +316,95 @@ public:
     }
     NcBool sync(void);
 
+    /**
+     * Check validity of a counts variable name for this file.
+     * @returns:
+     *   false 
+     *      A variable exists with that name with wrong (non-timeseries) dimensions
+     *      The name matches a counts attribute of one or more existing file
+     *      variables which are not in the VariableGroup.
+     *  true otherwise
+     */
+    bool checkCountsVariableName(const std::string& name, VariableGroup*)
+        throw(NetCDFAccessFailed);
+
+    /**
+     * Determine a counts attribute for a VariableGroup, given the
+     * current counts attributes found in the file for the group.
+     */
+    std::string resolveCountsName(const std::set<std::string>& attrs, VariableGroup*);
+
+    /**
+     * Utility function to create a new name by appending and
+     * underscore and an integer value to the end.
+     */
+    std::string createNewName(const std::string& name,int & i);
+
+private:
+    std::string _fileName;
+    double _startTime, _endTime;
+    double _interval;
+    double _lengthSecs;
+    double _timeOffset;         // last timeOffset written
+    NcType _timeOffsetType;     // ncFloat or ncDouble
+    char _monthLong;            //
+
+    // time tag type, fixed dt or variable?
+    enum { FIXED_DELTAT, VARIABLE_DELTAT } _ttType;
+
+    int _timesAreMidpoints;
+
+    NcVar *_baseTimeVar;
+    NcVar *_timeOffsetVar;
+
+    /**
+     * for each variable group, a vector of variables in this file
+     */
+    std::map <int,std::vector<NS_NcVar*> > _vars;
+
+    NcDim *_recdim;
+    int _baseTime;
+    long _nrecs;
+
+    std::vector<std::string> _dimNames;     // names of requested dimensions
+
+    std::vector<long> _dimSizes;            // sizes of requested dimensions
+
+    std::vector<int> _dimIndices;           // position of requested dimensions in variable
+
+    unsigned int _ndims;        // number of dimensions of size > 1
+
+    std::vector<const NcDim *> _dims;        // dimensions to use when creating new vars
+
+    int _ndims_req;             // number of requested dimensions
+
+    time_t _lastAccess;
+
+    time_t _lastSync;
+
+    std::string _historyHeader;
+
+    const std::vector<NS_NcVar*>& get_vars(VariableGroup *) throw(NetCDFAccessFailed);
+
+    NS_NcVar *add_var(OutVariable * v) throw(NetCDFAccessFailed);;
+
+    NcVar *find_var(OutVariable *) throw(NetCDFAccessFailed);
+
+    void add_attrs(OutVariable * v, NcVar * var,const std::string& countsAttr)
+        throw(NetCDFAccessFailed);
+
+    NcBool check_var_dims(NcVar *);
+    const NcDim *get_dim(NcToken name, long size);
+
+    NS_NcFile(const NS_NcFile &);       // prevent copying
+    NS_NcFile & operator=(const NS_NcFile &);   // prevent assignment
+
 };
 
 // A file group is a list of similarly named files with the same
 // time series data interval and length
 class FileGroup
 {
-private:
-
-    std::vector < Connection * >_connections;
-
-    std::list < NS_NcFile * >_files;    // List of files in this group
-
-    static const int FILEACCESSTIMEOUT;
-    static const int MAX_FILES_OPEN;
-
-    FileGroup(const FileGroup &);       // prevent copying
-    FileGroup & operator=(const FileGroup &);   // prevent assignment
-
-    std::string _outputDir;
-    std::string _fileNameFormat;
-    std::string _CDLFileName;
-    std::map <int, VariableGroup*> _vargroups;
-    int _vargroupId;
-    double _interval;
-    double _fileLength;
-
 public:
 
     FileGroup(const struct connection *);
@@ -411,7 +422,12 @@ public:
     void close_oldest_file(void);
     void add_connection(Connection *);
     void remove_connection(Connection *);
-    int add_var_group(const struct datadef *);
+
+    /**
+     * @return: non-negative group id or -1 on error.
+     */
+    int add_var_group(const struct datadef *) throw();
+
     double interval() const
     {
         return _interval;
@@ -447,46 +463,42 @@ public:
     {
     };
 
+private:
+
+    std::vector < Connection * >_connections;
+
+    std::list < NS_NcFile * >_files;    // List of files in this group
+
+    static const int FILEACCESSTIMEOUT;
+    static const int MAX_FILES_OPEN;
+
+    FileGroup(const FileGroup &);       // prevent copying
+    FileGroup & operator=(const FileGroup &);   // prevent assignment
+
+    std::string _outputDir;
+    std::string _fileNameFormat;
+    std::string _CDLFileName;
+    std::map <int, VariableGroup*> _vargroups;
+    int _vargroupId;
+    double _interval;
+    double _fileLength;
+
 };
 
 class VariableGroup
 {
-private:
-    double _interval;
-    std::vector < Variable * >_invars;
-    std::vector < OutVariable * >_outvars;
-
-    unsigned int _ndims;        // number of dimensions
-
-    std::vector<long> _dimsizes;            // dimension sizes
-
-    std::vector<std::string> _dimnames; // dimension names
-
-    int _nsamples;              // number of samples per time record
-
-    int _nprefixes;
-
-    NS_rectype _rectype;
-
-    NS_datatype _datatype;
-
-    int _fillMissing;
-
-    float _floatFill;
-
-    int _intFill;
-
-    int _id;
-
-    void check_counts_variable()
-        throw(BadVariableName);
-
-
-    VariableGroup(const VariableGroup &);       // prevent copying
-    VariableGroup & operator=(const VariableGroup &);   // prevent assignment
 public:
-    VariableGroup(const struct datadef *, int n, double finterval);
+    VariableGroup(const struct datadef *, int n, double finterval)
+        throw(BadVariable);
     ~VariableGroup(void);
+
+    /**
+     * A name for this group for log messages.
+     */
+    const std::string& getName() const
+    {
+        return _name;
+    }
 
     int getId() const
     {
@@ -499,16 +511,21 @@ public:
     }
 
     int same_var_group(const struct datadef *) const;
+
     int similar_var_group(const VariableGroup *) const;
-    // void append_to_suffix(char);
-    // void set_suffix(const char*);
+
     const char *suffix() const;
-    void create_outvariables(void) throw(BadVariableName);
 
-    OutVariable *createCountsVariable(const std::string& name)
-        throw(BadVariableName);
+    void create_outvariables(void);
 
-    char *counts_name(char *);
+    void createCountsVariable(const std::string& name);
+
+    const std::string& getCountsName() const
+    {
+        return _countsName;
+    }
+
+    void setCountsName(const std::string& val);
 
     double interval() const
     {
@@ -548,31 +565,58 @@ public:
         return _intFill;
     }
 
+private:
+    /** name for use in log messages */
+    std::string _name;
+
+    double _interval;
+
+    std::vector <Variable *> _invars;
+
+    std::vector <OutVariable *> _outvars;
+
+    unsigned int _ndims;        // number of dimensions
+
+    std::vector<long> _dimsizes;            // dimension sizes
+
+    std::vector<std::string> _dimnames; // dimension names
+
+    int _nsamples;              // number of samples per time record
+
+    int _nprefixes;
+
+    NS_rectype _rectype;
+
+    NS_datatype _datatype;
+
+    int _fillMissing;
+
+    float _floatFill;
+
+    int _intFill;
+
+    int _id;
+
+    /**
+     * Name of counts variable, which is the unique value
+     * of any counts attributes of the variables.
+     */
+    std::string _countsName;
+
+    void check_counts_variable()
+        throw(BadVariable);
+
+
+    VariableGroup(const VariableGroup &);       // prevent copying
+    VariableGroup & operator=(const VariableGroup &);   // prevent assignment
 };
 
 //
 class NS_NcVar
 {
-    NcVar *_var;
-    /**
-     * for requested dimensions, their position in the NetCDF variable's dimensions
-     */
-    int *_dimIndices;
-
-    /**
-     * length of _dimIndices. This is 2 + number of requested dimensions
-     */
-    int _ndimIndices;
-
-    long *_start;
-    long *_count;
-    int _isCnts;
-    float _floatFill;
-    int _intFill;
-
 public:
     NS_NcVar(NcVar *, int *dimIndices, int ndims_group, float ffill,
-            int lfill, int isCnts = 0);
+            int lfill, bool isCnts = false);
     ~NS_NcVar();
     NcVar *var() const
     {
@@ -594,7 +638,7 @@ public:
     {
         return _var->add_att(attname, v);
     }
-    int &isCnts()
+    bool &isCnts()
     {
         return _isCnts;
     }
@@ -607,22 +651,28 @@ public:
         return _intFill;
     }
 
+private:
+    NcVar *_var;
+    /**
+     * for requested dimensions, their position in the NetCDF variable's dimensions
+     */
+    int *_dimIndices;
+
+    /**
+     * length of _dimIndices. This is 2 + number of requested dimensions
+     */
+    int _ndimIndices;
+
+    long *_start;
+    long *_count;
+    bool _isCnts;
+    float _floatFill;
+    int _intFill;
+
 };
 
 class Variable
 {
-protected:
-    std::string _name;
-
-    /**
-     * If this variable is referenced as a counts variable by other variables.
-     */
-    int _isCnts;
-
-    std::map <std::string, std::string> _strAttrs;
-
-    Variable & operator=(const Variable &);     // prevent assignment
-
 public:
     Variable(const std::string &n);
 
@@ -630,7 +680,7 @@ public:
 
     virtual ~ Variable(void) {}
 
-    int &isCnts()
+    bool &isCnts()
     {
         return _isCnts;
     }
@@ -645,41 +695,37 @@ public:
 
     void set_name(const std::string&);
 
+    /**
+     * If val is an empty string, the attribute is removed.
+     */
     void add_att(const std::string& name, const std::string& val);
 
     std::vector<std::string> get_attr_names() const;
 
     const std::string& att_val(const std::string& n) const;
 
+protected:
+    std::string _name;
+
+    /**
+     * If this variable is referenced as a counts variable by other variables.
+     */
+    bool _isCnts;
+
+    std::map <std::string, std::string> _strAttrs;
+
+    Variable & operator=(const Variable &);     // prevent assignment
+
 };
 
 class OutVariable:public Variable
 {
-
-    NS_datatype _datatype;
-
-    OutVariable *_countsvar;
-
-    float _floatFill;
-
-    int _intFill;
-
-    OutVariable & operator=(const OutVariable &);       // prevent assignment
-
-    OutVariable(const OutVariable &);   // prevent copying
-
 public:
-
-    OutVariable(const Variable &, NS_datatype, float, int)
-        throw(BadVariableName);
+    OutVariable(const Variable &, NS_datatype, float, int);
 
     NS_datatype data_type() const
     {
         return _datatype;
-    }
-    OutVariable *&counts_variable()
-    {
-        return _countsvar;
     }
 
     float floatFill() const
@@ -690,6 +736,17 @@ public:
     {
         return _intFill;
     }
+
+private:
+    NS_datatype _datatype;
+
+    float _floatFill;
+
+    int _intFill;
+
+    OutVariable & operator=(const OutVariable &);       // prevent assignment
+
+    OutVariable(const OutVariable &);   // prevent copying
 
 };
 
@@ -752,7 +809,7 @@ void NS_NcFile::put_rec(const REC_T * writerec,
     DLOG(("calling get_vars"));
 #endif
 
-    std::vector<NS_NcVar*>& vars = get_vars(vgroup);
+    const std::vector<NS_NcVar*>& vars = get_vars(vgroup);
 
 #ifdef DEBUG
     DLOG(("called get_vars"));

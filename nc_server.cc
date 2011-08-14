@@ -219,7 +219,7 @@ Connection::~Connection(void)
     allfiles->close_old_files();
 }
 
-int Connection::add_var_group(const struct datadef *dd)
+int Connection::add_var_group(const struct datadef *dd) throw()
 {
     _lastRequest = time(0);
     return _filegroup->add_var_group(dd);
@@ -919,7 +919,7 @@ void FileGroup::close_oldest_file(void)
     }
 }
 
-int FileGroup::add_var_group(const struct datadef *dd)
+int FileGroup::add_var_group(const struct datadef *dd) throw()
 {
 
     // check to see if this variable group is equivalent to
@@ -934,9 +934,14 @@ int FileGroup::add_var_group(const struct datadef *dd)
     }
 
     if (_vargroupId < 0) _vargroupId = 0;
-    VariableGroup *vg = new VariableGroup(dd, _vargroupId, _interval);
-    _vargroups[_vargroupId] = vg;
-
+    try {
+        VariableGroup *vg = new VariableGroup(dd, _vargroupId, _interval);
+        _vargroups[_vargroupId] = vg;
+    }
+    catch (const BadVariable& e) {
+        PLOG(("%s",e.what()));
+        return -1;
+    }
 #ifdef DEBUG
     ILOG(("Created variable group %d", _vargroupId));
 #endif
@@ -944,14 +949,16 @@ int FileGroup::add_var_group(const struct datadef *dd)
     return _vargroupId++;
 }
 
-VariableGroup::VariableGroup(const struct datadef * dd, int id, double finterval):
-    _id(id)
+VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
+    throw(BadVariable): _id(id)
 {
     unsigned int i, j, n;
     Variable *v;
     unsigned int nv;
 
     nv = dd->fields.fields_len;
+    if (nv == 0) throw BadVariable("empty variable group");
+
     _rectype = dd->rectype;
     _datatype = dd->datatype;
     _fillMissing = dd->fillmissingrecords;
@@ -985,6 +992,15 @@ VariableGroup::VariableGroup(const struct datadef * dd, int id, double finterval
     for (i = 0; i < nv; i++) {
         _invars.push_back(v =
                 new Variable(dd->fields.fields_val[i].name));
+
+        // generate name for log messages
+        if (i == 0) {
+            ostringstream ost;
+            ost << "variables[" << nv << "]=" << v->name() <<
+                (nv > 1 ? ",..." : "");
+            _name = ost.str();
+        }
+
 #ifdef DEBUG
         DLOG(("%s: %d", v->name().c_str(), i));
 #endif
@@ -1007,18 +1023,22 @@ VariableGroup::VariableGroup(const struct datadef * dd, int id, double finterval
         }
     }
 
+    create_outvariables();
+
     try {
-        create_outvariables();
         check_counts_variable();
     }
-    catch(BadVariableName & bvn) {
-        PLOG(("Illegal variable name: %s", bvn.toString().c_str()));
+    catch(const BadVariable& e) {
+        for (unsigned i = 0; i < _invars.size(); i++)
+            delete _invars[i];
+        for (unsigned i = 0; i < _outvars.size(); i++)
+            delete _outvars[i];
+        throw e;
     }
 
 #ifdef DEBUG
     DLOG(("created outvariables"));
 #endif
-
 }
 
 VariableGroup::~VariableGroup(void)
@@ -1050,34 +1070,78 @@ const string& VariableGroup::dim_name(unsigned int i) const
     return empty;
 }
 
-void VariableGroup::create_outvariables(void) throw(BadVariableName)
+void VariableGroup::create_outvariables(void)
 {
-    int nv = _invars.size();
-    int i;
-    Variable *v1;
-    OutVariable *ov;
-    string cntsattr;
-    enum NS_datatype dtype;
-
-    for (i = 0; i < nv; i++) {
-        v1 = _invars[i];
-        dtype = _datatype;
-        _outvars.push_back(ov =
-                new OutVariable(*v1, dtype, _floatFill,
-                    _intFill));
+    for (unsigned int i = 0; i < _invars.size(); i++) {
+        Variable *var = _invars[i];
+        _outvars.push_back(
+                new OutVariable(*var, _datatype, _floatFill,_intFill));
     }
 }
 
-OutVariable *VariableGroup::
-createCountsVariable(const string& cname) throw(BadVariableName)
+void VariableGroup::check_counts_variable() throw(BadVariable)
+{
+    OutVariable *ov;
+
+    OutVariable * cv = 0;
+
+    // check that all counts attributes are the same.
+    set<string> cntsNames;
+
+    for (int i = 0; i < num_vars(); i++) {
+        ov = get_var(i);
+        if (ov->isCnts()) {
+            if (cv) throw BadVariable(getName() + ": multiple counts variables");
+            cv = ov;
+        }
+        else if (ov->att_val("counts").length() > 0)
+            cntsNames.insert(ov->att_val("counts"));
+    }
+
+    if (cntsNames.size() == 0) {
+        return;                 // no counts
+    }
+
+    if (cntsNames.size() > 1) {
+        ostringstream ost;
+        ost << ": inconsistent counts attributes: " <<
+            *(cntsNames.begin()) << " and " << *(++cntsNames.begin());
+        throw BadVariable(getName() + ost.str());
+    }
+
+    string cntsName = *(cntsNames.begin());
+    if (cv && cv->name() != cntsName) {
+        ostringstream ost;
+        ost << ": name of counts variable " << cv->name() <<
+            " not equal to counts attributes " << cntsName;
+        throw BadVariable(getName() + ost.str());
+    }
+
+    setCountsName(cntsName);
+
+    if (!cv) createCountsVariable(cntsName);
+}
+
+void VariableGroup::setCountsName(const std::string& val)
+{
+    _countsName = val;
+    OutVariable* cv = 0;
+    for (int i = 0; i < num_vars(); i++) {
+        OutVariable* ov = get_var(i);
+        if (!ov->isCnts()) ov->add_att("counts",val);
+        else cv = ov;
+    }
+    if (!cv) createCountsVariable(val);
+}
+
+void VariableGroup:: createCountsVariable(const string& cname)
 {
     Variable v(cname);
     OutVariable *ov = new OutVariable(v, NS_INT, _floatFill, _intFill);
-    ov->isCnts() = 1;
+    ov->isCnts() = true;
     // no short_name attribute
     ov->add_att("short_name", "");
     _outvars.push_back(ov);
-    return ov;
 }
 
 //
@@ -1141,7 +1205,7 @@ int VariableGroup::same_var_group(const struct datadef *ddp) const
     return 1;
 }
 
-Variable::Variable(const string& vname): _name(vname),_isCnts(0)
+Variable::Variable(const string& vname): _name(vname),_isCnts(false)
 {
 }
 
@@ -1181,10 +1245,8 @@ const string& Variable::att_val(const string& name) const
 }
 
 OutVariable::OutVariable(const Variable& v, NS_datatype dtype,
-        float ff,
-        int ll) throw(BadVariableName):
-    Variable(v),_datatype(dtype), _countsvar(0),
-    _floatFill(ff), _intFill(ll)
+        float ff, int ll):
+    Variable(v),_datatype(dtype), _floatFill(ff), _intFill(ll)
 {
     string namestr = name();
 
@@ -1444,7 +1506,144 @@ NcBool NS_NcFile::sync()
     return res;
 }
 
-vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
+bool NS_NcFile::checkCountsVariableName(const string& name,VariableGroup * vgroup)
+            throw(NetCDFAccessFailed)
+{
+    // check if variable exists
+    // Y: correct dimension?  If not return false;
+    // Check if any variables in file, not in vgroup, have it's name
+    // as a counts attribute:
+    //  Y: return false
+    //  N: return true
+    //
+    NcVar *ncv;
+    if ((ncv = get_var(name.c_str()))) {
+        // Check the dimensions. We're not being picky about the type.
+        if (!check_var_dims(ncv)) return false;
+    }
+    const vector<NS_NcVar*>& gvars = get_vars(vgroup);
+
+    // loop over all variables in the file
+    for (int i = 0; i < num_vars(); i++) {
+        ncv = get_var(i);
+        // check that it is a time series variable
+        if (ncv->num_dims() == 0 || !ncv->get_dim(0)->is_unlimited()) continue;
+        unsigned int j;
+        for (j = 0; j < gvars.size(); j++) {
+            if (gvars[j] && gvars[j]->var() == ncv) break;
+        }
+        // check counts attributes of time series variables not in this group
+        if (j == gvars.size()) {
+            auto_ptr<NcAtt> att(ncv->get_att("counts"));
+            if (att.get()) {
+                const char* attString = 0;
+                if (att->type() == ncChar && att->num_vals() > 0 &&
+                        (attString = att->as_string(0)) &&
+                        !strcmp(attString, name.c_str())) {
+                    delete [] attString;
+                    return false;   // string match, this is not a good counts name
+                }
+                delete [] attString;
+            }
+        }
+    }
+    return true;
+}
+
+string NS_NcFile::resolveCountsName(
+        const set<string>& fileCntsAttrs,VariableGroup* vgroup)
+{
+    // non-empty requested counts name
+    //     no attributes in file
+    //         while (!checkCountsVariableName(req name,vg)) createNewName()
+    //     file attributes size 1, equal to requested
+    //         while (!checkCountsVariableName(req name,vg)) createNewName()
+    //     file attributes size 1, not equal to requested
+    //         warn
+    //         cntsName = file name
+    //         if (!checkCountsVariableName(cntsName,vg))
+    //             cntsName = req name
+    //             while (!checkCountsVariableName(cntsName,vg)) createNewName();
+    //     file attributes size > 1
+    //         warn
+    //         while (!checkCountsVariableName(req name,vg)) createNewName()
+    // empty requested name
+    //     no attributes in file: do nothing
+    //     file attributes size 1
+    //         while (!checkCountsVariableName(file name,vg)) createNewName()
+    //         update the requested counts name to the attribute from the file
+    //     file attributes size > 1
+    //         warn
+    //         what to do? Work with first one.
+
+    if (fileCntsAttrs.size() > 1)
+        WLOG(("%s: %s: multiple counts attributes: ",
+                getName().c_str(),vgroup->getName().c_str()) <<
+                *(fileCntsAttrs.begin()) << " and " << *(++fileCntsAttrs.begin()));
+
+    string fileCntsName;
+    if (fileCntsAttrs.size() > 0)
+        fileCntsName = *(fileCntsAttrs.begin());
+
+    string cntsName = vgroup->getCountsName();
+    int isuffix = 1;
+
+    if (vgroup->getCountsName().length() > 0) {
+        if (fileCntsName.length() > 0) {
+            if (fileCntsName == vgroup->getCountsName()) {
+                while (!checkCountsVariableName(cntsName,vgroup))
+                    cntsName = createNewName(fileCntsName,isuffix);
+            }
+            else {
+                // mismatch of what was requested and what's in the file
+                WLOG(("%s: %s: counts attribute: ",
+                        getName().c_str(),vgroup->getName().c_str()) <<
+                        vgroup->getCountsName() <<
+                        " does not match attributes in file: " <<
+                        fileCntsName);
+                cntsName = fileCntsName;
+                // try what's in file
+                if (!checkCountsVariableName(cntsName,vgroup)) {
+                    // didn't work, try what's requested
+                    cntsName = vgroup->getCountsName();
+                    while (!checkCountsVariableName(cntsName,vgroup))
+                        cntsName = createNewName(vgroup->getCountsName(),isuffix);
+                }
+            }
+        }
+        else {
+            while (!checkCountsVariableName(cntsName,vgroup))
+                cntsName = createNewName(vgroup->getCountsName(),isuffix);
+        }
+    }
+    else {
+        // no requested counts name, but counts attributes occur in file
+        if (fileCntsName.length() > 0) {
+            cntsName = fileCntsName;
+            if (checkCountsVariableName(cntsName,vgroup)) {
+                // no counts attributes in requested variables, but
+                // consistent counts attributes found in file.
+                // Set counts attribute for this group from file.
+                if (fileCntsAttrs.size() == 1) vgroup->setCountsName(cntsName);
+            }
+            else {
+                do {
+                    cntsName = createNewName(fileCntsName,isuffix);
+                } while (!checkCountsVariableName(cntsName,vgroup));
+            }
+        }
+    }
+    return cntsName;
+}
+
+string NS_NcFile::createNewName(const string& name,int & i)
+{
+    ostringstream ost;
+    ost << name << '_' << i++;
+    return ost.str();
+}
+
+const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
             throw(NetCDFAccessFailed)
 {
 
@@ -1497,207 +1696,61 @@ vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
 #endif
 
     int nv = vgroup->num_vars();    // number of variables in group
-    vector<NS_NcVar*> vars(nv);
 
-    int numCounts = 0;
-    int countsIndex = -1;
-    string countsAttrNameFromFile;
-    string countsAttrNameFromOVs;
-    bool countsAttrNameMisMatch = false;
+    _vars[groupid] = vector<NS_NcVar*>(nv);
+    vector<NS_NcVar*>& vars = _vars[groupid];
 
+    set<string> fileCntsNames;
+
+    // Initialize any variables that are currently in this file,
+    // Check for validity. Accumulate counts attributes.
     for (int iv = 0; iv < nv; iv++) {
-        vars[iv] = 0;
         OutVariable *ov = vgroup->get_var(iv);
-#ifdef DEBUG
-        DLOG(("checking %s", ov->name().c_str()));
-#endif
+        vars[iv] = 0;
         if (!ov->isCnts()) {
-            string cntsAttr;
-            // check for consistency of counts attribute amongst requested variables
-            if ((cntsAttr = ov->att_val("counts")).length() > 0) {
-                if (countsAttrNameFromOVs.length() > 0) {
-                    if (countsAttrNameFromOVs != cntsAttr)
-                        WLOG(("var %s: counts attribute=%s, no match with attribute from other requested variables: %s",
-                                    ov->name().c_str(),cntsAttr.c_str(),countsAttrNameFromOVs.c_str()));
-                } else
-                    countsAttrNameFromOVs = cntsAttr;
-            }
-            NS_NcVar *nsv = add_var(ov);
-            NcAtt *att = nsv->get_att("counts");
-            if (att) {
-                // check for consistency of counts attribute amongst variables in file
-                if (att->type() == ncChar && att->num_vals() > 0) {
-                    const char *cname = att->as_string(0);
-                    if (countsAttrNameFromFile.length() == 0)
-                        countsAttrNameFromFile = cname;
-                    else {
-                        // this shouldn't happen - there should be one counts var per grp
-                        if (countsAttrNameFromFile != string(cname)) {
-                            PLOG(("%s: var %s counts attribute=%s, no match with attribute in other variables in the file: %s",
-                                        getName().c_str(),nsv->name(),cname,countsAttrNameFromFile.c_str()));
-                            countsAttrNameMisMatch = true;
+            NcVar* ncv = find_var(ov);
+            if (ncv) {
+                NS_NcVar* nsv =
+                    new NS_NcVar(ncv, &_dimIndices.front(), _ndims_req, ov->floatFill(),
+                        ov->intFill(), ov->isCnts());
+                vars[iv] = nsv;
+
+                NcAtt *att = nsv->get_att("counts");
+                if (att) {
+                    // accumulate counts attributes of all variables in the file
+                    if (att->type() == ncChar && att->num_vals() > 0) {
+                        const char *cname = att->as_string(0);
+                        if (cname) {
+                            fileCntsNames.insert(cname);
+                            delete [] cname;
                         }
                     }
-                    delete [] cname;
-                }
-                delete att;
-            }
-
-            vars[iv] = nsv;
-        } else {
-            // a counts variable
-            if (numCounts++ == 0)
-                countsIndex = iv;
-        }
-    }
-
-    //
-    // Scenarios:
-    //    no variables in file, so no attributes, likely a new file
-    //        create counts variable
-    //    variables, and counts attributes
-    //      counts var exists in file
-    //        does file counts variable match OutVariable counts var name?
-    //            yes: no problem
-    //            no: change name of OutVariable
-    //      counts var doesn't exist in file
-    //            typically shouldn't happen, since attributes existed
-    //            
-
-    if (numCounts > 0) {
-
-#ifdef DEBUG
-        DLOG(("countsIndex=%d", countsIndex));
-#endif
-        OutVariable *cv = vgroup->get_var(countsIndex);
-        assert(cv->isCnts());
-
-        if (numCounts > 1)
-            WLOG(("%s: multiple counts variables in variable group",getName().c_str()));
-
-#ifdef DEBUG
-        cerr << "countsAttrNameFromFile=" << countsAttrNameFromFile <<
-            endl;
-        cerr << "counts var=" << cv->name() << endl;
-#endif
-
-        if (countsAttrNameFromFile.length() == 0 || countsAttrNameMisMatch) {
-            // no counts attributes found in file for variables in group
-            // or attributes aren't consistent in the file
-            // check that OutVariable counts attributes
-            // matches OutVariable name
-            if (cv->name() != countsAttrNameFromOVs)
-                WLOG(("%s: counts attributes don't match counts variable name for group. var=%s: %s and %s",
-                    getName().c_str(),cv->name().c_str(), countsAttrNameFromOVs.c_str(), cv->name().c_str()));
-            NcVar *ncv;
-            if ((ncv = get_var(cv->name().c_str()))) {
-                // counts variable exists in file, it must be for another group
-                // create another counts variable
-                ostringstream ost;
-                for (int j = 1; get_var(cv->name().c_str()); j++) {
-                    ost.str("");
-                    ost << cv->name() << '_' << j;
-                }
-                string countsname = ost.str();
-
-                // new name
-                ILOG(("%s: new name for counts variable %s: %s\n",
-                           getName().c_str(),cv->name().c_str(), countsname.c_str()));
-                if (countsname != cv->name())
-                    cv->set_name(countsname);
-
-                // set our counts attributes (on the file too)
-                for (int iv = 0; iv < nv; iv++) {
-                    OutVariable *ov = vgroup->get_var(iv);
-                    if (!ov->isCnts()) {
-                        ov->add_att("counts", cv->name());
-                        NS_NcVar *nsv = vars[iv];
-                        // set in file too
-                        assert(nsv);
-                        nsv->add_att("counts", cv->name().c_str());
-                    }
-                }
-                vars[countsIndex] = add_var(cv);
-            } else {
-                // counts variable doesn't exist in file
-                vars[countsIndex] = add_var(cv);
-                for (int iv = 0; iv < nv; iv++) {
-                    OutVariable *ov = vgroup->get_var(iv);
-                    if (!ov->isCnts()) {
-                        ov->add_att("counts", cv->name());
-                        NS_NcVar *nsv = vars[iv];
-                        // set in file too
-                        assert(nsv);
-                        nsv->add_att("counts", cv->name().c_str());
-                    }
-                }
-            }
-        } else {
-            // counts attributes found in file and are consistent
-            if (cv->name() != countsAttrNameFromFile)
-                cv->set_name(countsAttrNameFromFile.c_str());
-            if ((vars[countsIndex] = add_var(cv)) == 0)
-                PLOG(("%s: failed to create counts variable %s",
-                            getName().c_str(),cv->name().c_str()));
-            for (int iv = 0; iv < nv; iv++) {
-                OutVariable *ov = vgroup->get_var(iv);
-                if (!ov->isCnts()) {
-                    ov->add_att("counts", cv->name());
-                    NS_NcVar *nsv = vars[iv];
-                    // set in file too
-                    assert(nsv);
-                    nsv->add_att("counts", cv->name().c_str());
+                    delete att;
                 }
             }
         }
     }
+    string cntsName = resolveCountsName(fileCntsNames,vgroup);
+
+    if (cntsName != vgroup->getCountsName())
+        ILOG(("%s: %s: new name for counts variable: %s",
+                   getName().c_str(),vgroup->getName().c_str(),
+                   cntsName.c_str()));
+
+    for (int iv = 0; iv < nv; iv++) {
+        OutVariable *ov = vgroup->get_var(iv);
+        if (ov->isCnts() && ov->name() != cntsName) ov->set_name(cntsName);
+
+        NS_NcVar* nsv = vars[iv];
+        if (!nsv) vars[iv] = nsv = add_var(ov);
+        if (!ov->isCnts()) add_attrs(ov,nsv->var(),cntsName);
+    }
+
 #ifdef DEBUG
     DLOG(("added vars"));
 #endif
-    _vars[groupid] = vars;
     sync();
-    return _vars[groupid];
-}
-
-void VariableGroup::check_counts_variable() throw(BadVariableName)
-{
-    OutVariable *ov;
-
-    // scan over all counts variables
-    set < OutVariable * >cntsVars;
-    set < string > cntsNames;
-
-    for (int i = 0; i < num_vars(); i++) {
-        ov = get_var(i);
-        if (ov->isCnts())
-            cntsVars.insert(ov);
-        else if (ov->att_val("counts").length() > 0)
-            cntsNames.insert(ov->att_val("counts"));
-    }
-
-    if (cntsNames.size() == 0)
-        return;                 // no counts
-
-    // add a counts OutVariable for each cntsName that doesn't
-    // exist in cntsVars. Update counts_variable() member.
-    set < string >::const_iterator ni = cntsNames.begin();
-
-    for (; ni != cntsNames.end(); ++ni) {
-        set < OutVariable * >::const_iterator ci = cntsVars.begin();
-        for (; ci != cntsVars.end(); ++ci)
-            if ((*ci)->name() == *ni) break;
-
-        if (ci == cntsVars.end()) {
-            OutVariable *cv = createCountsVariable(*ni);
-            // update counts_variable() 
-            for (int i = 0; i < num_vars(); i++) {
-                ov = get_var(i);
-                if (!ov->isCnts() && ov->att_val("counts").length() > 0
-                        && ov->att_val("counts") == *ni)
-                    ov->counts_variable() = cv;
-            }
-        }
-    }
+    return vars;
 }
 
 NS_NcVar *NS_NcFile::add_var(OutVariable * v)
@@ -1705,7 +1758,7 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
 {
     NcVar *var;
     NS_NcVar *fsv;
-    int isCnts = v->isCnts();
+    bool isCnts = v->isCnts();
 
     const string& varName = v->name();
 
@@ -1723,8 +1776,6 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
         }
     }
 
-    add_attrs(v, var);
-
     // double check ourselves
     if (!check_var_dims(var))
         throw NetCDFAccessFailed(getName(),string("check dimensions ") + varName,"wrong dimensions");
@@ -1735,11 +1786,7 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
     return fsv;
 }
 
-/*
- * return 0: OK
- * return -1: error
- */
-int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
+void NS_NcFile::add_attrs(OutVariable * v, NcVar * var,const string& cntsName)
                 throw(NetCDFAccessFailed)
 {
     // add attributes if they don't exist in file, otherwise leave them alone
@@ -1760,26 +1807,28 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
             break;
         }
     }
-    nca.reset(0);
+    nca.reset();
 
 #ifdef DO_UNITS_SEPARATELY
     if (v->units().length() > 0) {
-        auto_ptr<char> units;
+        const char* units = 0;
         nca.reset(var->get_att("units"));
         if (nca.get()) {
             auto_ptr<NcValues> uvals(nca->values());
             if (uvals.get() && nca->num_vals() >= 1 && nca->type() == ncChar)
-                units.reset(uvals->as_string(0));
+                units = uvals->as_string(0);
         }
-        if (!units.get() || string(units.get()) != v->units()) {
+        if (!units || string(units) != v->units()) {
 #ifdef DEBUG
             DLOG(("new units=%s, old units=%s,len=%d",
                         v->units().c_str(),
                         (units ? units : "none"), (nca ? nca->num_vals() : 0)));
 #endif
+            delete [] units;
             if (!var->add_att("units", v->units().c_str()))
                 throw NetCDFAccessFailed(getName(),string("add_att units to ") + var->name(),get_error_string());
         }
+        else delete [] units;
     }
 #endif
 
@@ -1789,21 +1838,21 @@ int NS_NcFile::add_attrs(OutVariable * v, NcVar * var)
         string aname = attrNames[i];
         string aval = v->att_val(aname);
         if (aval.length() > 0) {
-            auto_ptr<char> faval;
+            const char* faval = 0;
             nca.reset(var->get_att(aname.c_str()));
             if (nca.get()) {
                 auto_ptr<NcValues> uvals(nca->values());
                 if (uvals.get() && nca->num_vals() >= 1 && nca->type() == ncChar)
-                    faval.reset(uvals->as_string(0));
+                    faval = uvals->as_string(0);
             }
-            if (!faval.get() || string(faval.get()) != aval) {
+            if (!faval || string(faval) != aval) {
+                delete [] faval;
                 if (!var->add_att(aname.c_str(), aval.c_str()))
                     throw NetCDFAccessFailed(getName(),string("add_att ") + aname + " to " + var->name(),get_error_string());
             }
+            else delete [] faval;
         }
     }
-
-    return 0;
 }
 
 //
@@ -1820,37 +1869,33 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
     const string& varName = v->name();
     const string& shortName = v->att_val("short_name");
 
-    int varFound = 0;
     bool nameExists = false;
-
-    NcAtt *att;
 
     if ((var = get_var(varName.c_str()))) {
         nameExists = 1;
-        if (shortName.length() == 0)
-            varFound = 1;
         // Check its short_name attribute
-        else if ((att = var->get_att("short_name"))) {
-            char *attString = 0;
-            if (att->type() == ncChar && att->num_vals() > 0 &&
-                    (attString = att->as_string(0)) &&
-                    !strcmp(attString, shortName.c_str()))
-                varFound = 1;
-            delete att;
-            delete [] attString;
+        if (shortName.length() > 0) {
+            NcAtt *att;
+            if ((att = var->get_att("short_name"))) {
+                char *attString = 0;
+                if (att->type() != ncChar || att->num_vals() == 0 ||
+                        !(attString = att->as_string(0)) ||
+                        strcmp(attString, shortName.c_str()))
+                    var = 0;
+                delete [] attString;
+                delete att;
+            }
         }
-
-        if (!varFound)
-            var = 0;
     }
     //
     // If we can't find a variable with the same NetCDF variable name,
     // and a matching short_name, look through all other variables for
     // one with a matching short_name
     //
-    for (i = 0; shortName.length() > 0 && !var && i < num_vars(); i++) {
+    for (i = 0; !var && shortName.length() > 0 && i < num_vars(); i++) {
         var = get_var(i);
         // Check its short_name attribute
+        NcAtt *att;
         if ((att = var->get_att("short_name"))) {
             char* attString = 0;
             if (att->type() == ncChar && att->num_vals() > 0 &&
@@ -1867,9 +1912,9 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
     }
 
     if (var && var->type() != (NcType) v->data_type()) {
+        // we'll just warn about this at the moment.
         WLOG(("%s: variable %s is of wrong type",
                     _fileName.c_str(), var->name()));
-        var = 0;
     }
 
     if (var && !check_var_dims(var)) {
@@ -1886,7 +1931,6 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
         WLOG(("%s: should be declared %s", _fileName.c_str(), ost.str().c_str()));
 
         if (shortName.length() > 0) {
-            //
             // Variable with matching short_name, but wrong dimensions
             // We'll change the short_name attribute of the offending
             // variable to "name_old" and create a new variable.
@@ -2262,7 +2306,7 @@ const NcDim *NS_NcFile::get_dim(NcToken prefix, long size)
     return dim;
 }
 
-NS_NcVar::NS_NcVar(NcVar * var, int *dimIndices, int ndimIndices, float ffill, int ifill, int iscnts):
+NS_NcVar::NS_NcVar(NcVar * var, int *dimIndices, int ndimIndices, float ffill, int ifill, bool iscnts):
     _var(var), _ndimIndices(ndimIndices), _isCnts(iscnts), _floatFill(ffill),
     _intFill(ifill)
 {
