@@ -1743,7 +1743,7 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
 
         NS_NcVar* nsv = vars[iv];
         if (!nsv) vars[iv] = nsv = add_var(ov);
-        if (!ov->isCnts()) add_attrs(ov,nsv->var(),cntsName);
+        if (!ov->isCnts()) add_attrs(ov,nsv,cntsName);
     }
 
 #ifdef DEBUG
@@ -1786,7 +1786,7 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
     return fsv;
 }
 
-void NS_NcFile::add_attrs(OutVariable * v, NcVar * var,const string& cntsName)
+void NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName)
                 throw(NetCDFAccessFailed)
 {
     // add attributes if they don't exist in file, otherwise leave them alone
@@ -1837,21 +1837,26 @@ void NS_NcFile::add_attrs(OutVariable * v, NcVar * var,const string& cntsName)
     for (unsigned int i = 0; i < attrNames.size(); i++) {
         string aname = attrNames[i];
         string aval = v->att_val(aname);
-        if (aval.length() > 0) {
-            const char* faval = 0;
-            nca.reset(var->get_att(aname.c_str()));
-            if (nca.get()) {
-                auto_ptr<NcValues> uvals(nca->values());
-                if (uvals.get() && nca->num_vals() >= 1 && nca->type() == ncChar)
-                    faval = uvals->as_string(0);
-            }
-            if (!faval || string(faval) != aval) {
-                delete [] faval;
-                if (!var->add_att(aname.c_str(), aval.c_str()))
-                    throw NetCDFAccessFailed(getName(),string("add_att ") + aname + " to " + var->name(),get_error_string());
-            }
-            else delete [] faval;
+        // do counts below
+        if (aname == "counts") continue;
+        try {
+            if (aval.length() > 0) var->set_att(aname,aval);
         }
+        catch(const NetCDFAccessFailed& e) {
+            // add file name to message
+            throw NetCDFAccessFailed(getName() + ": " + e.toString());
+        }
+
+    }
+    // if cntsName is non-empty, set it in the file, even if it
+    // isn't an attribute of the OutVariable
+    // This logic will not change a counts attribute to an empty string
+    try {
+        if (cntsName.length() > 0) var->set_att("counts",cntsName);
+    }
+    catch(const NetCDFAccessFailed& e) {
+        // add file name to message
+        throw NetCDFAccessFailed(getName() + ": " + e.toString());
     }
 }
 
@@ -2324,6 +2329,26 @@ NS_NcVar::~NS_NcVar()
     delete [] _dimIndices;
     delete [] _start;
     delete [] _count;
+}
+
+void NS_NcVar::set_att(const string& aname, const string& aval)
+    throw(NetCDFAccessFailed)
+{
+    const char* faval = 0;
+    auto_ptr<NcAtt> nca(get_att(aname.c_str()));
+    if (nca.get()) {
+        auto_ptr<NcValues> uvals(nca->values());
+        if (uvals.get() && nca->num_vals() >= 1 && nca->type() == ncChar) {
+            faval = uvals->as_string(0);
+            if (!faval || string(faval) != aval) {
+                delete [] faval;
+                if (!add_att(aname.c_str(), aval.c_str()))
+                    throw NetCDFAccessFailed(string("add_att ") +
+                            aname + " to " + name() + ": " + get_error_string());
+            }
+            else delete [] faval;
+        }
+    }
 }
 
 NcBool NS_NcVar::set_cur(long nrec, int nsample, const long *start)

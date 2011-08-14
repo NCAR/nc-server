@@ -149,6 +149,10 @@ public:
         nidas::util::Exception("NetCDFAccessFailed",file + ": " + operation + ": " + msg)
     {
     }
+    NetCDFAccessFailed(const std::string& msg):
+        nidas::util::Exception("NetCDFAccessFailed",msg)
+    {
+    }
 };
 
 class Connections
@@ -390,7 +394,7 @@ private:
 
     NcVar *find_var(OutVariable *) throw(NetCDFAccessFailed);
 
-    void add_attrs(OutVariable * v, NcVar * var,const std::string& countsAttr)
+    void add_attrs(OutVariable * v, NS_NcVar * var,const std::string& countsAttr)
         throw(NetCDFAccessFailed);
 
     NcBool check_var_dims(NcVar *);
@@ -638,6 +642,20 @@ public:
     {
         return _var->add_att(attname, v);
     }
+
+    NcBool add_att(NcToken attname, int v) const
+    {
+        return _var->add_att(attname, v);
+    }
+
+    NcBool add_att(NcToken attname, float v) const
+    {
+        return _var->add_att(attname, v);
+    }
+
+
+    void set_att(const std::string& name, const std::string& val) throw(NetCDFAccessFailed);
+
     bool &isCnts()
     {
         return _isCnts;
