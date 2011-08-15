@@ -21,10 +21,11 @@ kill_proc() {
     local sig="$2"
     ntry=0
     while [ $ntry -lt 10 ]; do
-	pids=(`pgrep $proc`)
-	[ ${#pids[*]} -eq 0 ] && return 0
-	echo "kill $sig ${pids[*]} ... "
-	kill $sig ${pids[*]}
+	pid=`pgrep -o $proc`
+	[ -n "$pid" ] && return 0
+	[ $pid -eq $$ ] && return 0
+	echo "kill $sig $pid"
+	kill $sig $pid
 	sleep 1
 	ntry=$(($ntry + 1))
     done
@@ -33,7 +34,8 @@ kill_proc() {
 
 kill_nc_server() {
     echo "Stopping nc_server ... "
-    kill_proc nc_server -HUP || kill_proc nc_server -9
+    /usr/bin/nc_shutdown localhost
+    kill_proc nc_server -TERM || kill_proc nc_server -9
     echo " done."
 }
 
