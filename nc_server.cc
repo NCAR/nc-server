@@ -2439,14 +2439,13 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                 long nb = sysconf(_SC_GETGR_R_SIZE_MAX);
                 if (nb < 0) nb = 4096;
                 vector<char> strbuf(nb);
-                if (getgrnam_r(optarg,&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
-                    cerr << "cannot determine group id for " << optarg << ": " << strerror(errno) << endl;
-                    usage(argv[0]);
+                int res;
+                if ((res = getgrnam_r(optarg,&groupinfo,&strbuf.front(),strbuf.size(),&gptr)) != 0) {
+                    cerr << "getgrnam_r: " << nidas::util::Exception::errnoToString(res) << endl;
                     return 1;
                 }
                 else if (!gptr) {
                     cerr << "cannot find group " << optarg << endl;
-                    usage(argv[0]);
                     return 1;
                 }
                 else if (gptr != 0) {
@@ -2466,10 +2465,13 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                 long nb = sysconf(_SC_GETPW_R_SIZE_MAX);
                 if (nb < 0) nb = 4096;
                 vector < char >strbuf(nb);
-                if (getpwnam_r
-                        (optarg, &pwdbuf, &strbuf.front(), nb, &result) < 0) {
+                int res;
+                if ((res = getpwnam_r(optarg, &pwdbuf, &strbuf.front(), nb, &result)) != 0) {
+                    cerr << "getpwnam_r: " << nidas::util::Exception::errnoToString(res) << endl;
+                    return 1;
+                }
+                else if (!result) {
                     cerr << "Unknown user: " << optarg << endl;
-                    usage(argv[0]);
                     return 1;
                 }
                 _userid = pwdbuf.pw_uid;
@@ -2479,8 +2481,8 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                 nb = sysconf(_SC_GETGR_R_SIZE_MAX);
                 if (nb < 0) nb = 4096;
                 strbuf.resize(nb);
-                if (getgrgid_r(_groupid,&groupinfo,&strbuf.front(),strbuf.size(),&gptr) < 0) {
-                    cerr << "cannot determine group for gid " << _groupid << ": " << strerror(errno) << endl;
+                if ((res = getgrgid_r(_groupid,&groupinfo,&strbuf.front(),strbuf.size(),&gptr)) != 0) {
+                    cerr << "getgrgid_r: " << nidas::util::Exception::errnoToString(res) << endl;
                 }
                 else if (gptr != 0) _groupname = groupinfo.gr_name;
                 else _groupname = "unknown";
