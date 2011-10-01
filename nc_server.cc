@@ -1734,6 +1734,7 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
     }
     string cntsName = resolveCountsName(fileCntsNames,vgroup);
 
+    bool doSync = false;
     if (cntsName != vgroup->getCountsName())
         ILOG(("%s: %s: new name for counts variable: %s",
                    getName().c_str(),vgroup->getName().c_str(),
@@ -1744,18 +1745,18 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
         if (ov->isCnts() && ov->name() != cntsName) ov->set_name(cntsName);
 
         NS_NcVar* nsv = vars[iv];
-        if (!nsv) vars[iv] = nsv = add_var(ov);
-        add_attrs(ov,nsv,cntsName);
+        if (!nsv) vars[iv] = nsv = add_var(ov,doSync);
+        if (add_attrs(ov,nsv,cntsName)) doSync = true;
     }
 
 #ifdef DEBUG
     DLOG(("added vars"));
 #endif
-    sync();
+    if (doSync) sync();
     return vars;
 }
 
-NS_NcVar *NS_NcFile::add_var(OutVariable * v)
+NS_NcVar *NS_NcFile::add_var(OutVariable * v, bool& modified)
             throw(NetCDFAccessFailed)
 {
     NcVar *var;
@@ -1766,6 +1767,7 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
 
     // No matching variables found, create new one
     if (!(var = find_var(v))) {
+        modified = true;
         if (!(var =
                     NcFile::add_var(varName.c_str(), (NcType) v->data_type(), _ndims,
                         &_dims.front())) || !var->is_valid()) {
@@ -1784,20 +1786,23 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v)
 
     fsv = new NS_NcVar(var, &_dimIndices.front(), _ndims_req, v->floatFill(),
             v->intFill(), isCnts);
-    // sync();
     return fsv;
 }
 
-void NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName)
+bool NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName)
                 throw(NetCDFAccessFailed)
 {
     // add attributes if they don't exist in file, otherwise leave them alone
 
     // bug in netcdf, if units is empty string "", result in 
     // netcdf file is some arbitrary character.
+    //
+
+    bool modified = false;
 
     auto_ptr<NcAtt> nca(var->get_att("_FillValue"));
     if (!nca.get()) {
+        modified = true;
         switch (v->data_type()) {
         case NS_INT:
             if (!var->add_att("_FillValue",v->intFill()))
@@ -1813,7 +1818,9 @@ void NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName
 
     try {
 #ifdef DO_UNITS_SEPARATELY
-        if (v->units().length() > 0) var->set_att("units",v->units());
+        if (v->units().length() > 0) {
+            if (var->set_att("units",v->units())) modified = true;
+        }
 #endif
         // all string attributes
         vector<string> attrNames = v->get_attr_names();
@@ -1822,17 +1829,22 @@ void NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName
             string aval = v->att_val(aname);
             // do counts below
             if (aname == "counts") continue;
-            if (aval.length() > 0) var->set_att(aname,aval);
+            if (aval.length() > 0) {
+                if (var->set_att(aname,aval)) modified = true;
+            }
         }
         // if cntsName is non-empty, set it in the file, even if it
         // isn't an attribute of the OutVariable
         // This logic will not change a counts attribute to an empty string
-        if (!v->isCnts() && cntsName.length() > 0) var->set_att("counts",cntsName);
+        if (!v->isCnts() && cntsName.length() > 0) {
+            if (var->set_att("counts",cntsName)) modified = true;
+        }
     }
     catch(const NetCDFAccessFailed& e) {
         // add file name to message
         throw NetCDFAccessFailed(getName() + ": " + e.toString());
     }
+    return modified;
 }
 
 //
@@ -2306,9 +2318,10 @@ NS_NcVar::~NS_NcVar()
     delete [] _count;
 }
 
-void NS_NcVar::set_att(const string& aname, const string& aval)
+bool NS_NcVar::set_att(const string& aname, const string& aval)
     throw(NetCDFAccessFailed)
 {
+    bool modified = false;
     const char* faval = 0;
     auto_ptr<NcAtt> nca(get_att(aname.c_str()));
     if (nca.get()) {
@@ -2316,6 +2329,7 @@ void NS_NcVar::set_att(const string& aname, const string& aval)
         if (uvals.get() && nca->num_vals() >= 1 && nca->type() == ncChar) {
             faval = uvals->as_string(0);
             if (!faval || string(faval) != aval) {
+                modified = true;
                 delete [] faval;
                 if (!add_att(aname.c_str(), aval.c_str()))
                     throw NetCDFAccessFailed(string("add_att ") +
@@ -2324,9 +2338,13 @@ void NS_NcVar::set_att(const string& aname, const string& aval)
             else delete [] faval;
         }
     }
-    else if (!add_att(aname.c_str(), aval.c_str()))
+    else {
+        modified = true;
+        if (!add_att(aname.c_str(), aval.c_str()))
         throw NetCDFAccessFailed(string("add_att ") +
                 aname + " to " + name() + ": " + get_error_string());
+    }
+    return modified;
 }
 
 NcBool NS_NcVar::set_cur(long nrec, int nsample, const long *start)

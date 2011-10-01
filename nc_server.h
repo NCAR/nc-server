@@ -344,6 +344,12 @@ public:
      */
     std::string createNewName(const std::string& name,int & i);
 
+    /**
+     * When writing time-series records, how frequently to sync
+     * the NetCDF file.
+     */
+    static const int SYNC_INTERVAL_SECS = 5;
+
 private:
     std::string _fileName;
     double _startTime, _endTime;
@@ -390,11 +396,19 @@ private:
 
     const std::vector<NS_NcVar*>& get_vars(VariableGroup *) throw(NetCDFAccessFailed);
 
-    NS_NcVar *add_var(OutVariable * v) throw(NetCDFAccessFailed);;
+    /**
+     * Add a variable to the NS_NcFile. Set modified to true if
+     * the NcFile was modified.
+     */
+    NS_NcVar *add_var(OutVariable * v,bool & modified) throw(NetCDFAccessFailed);;
 
     NcVar *find_var(OutVariable *) throw(NetCDFAccessFailed);
 
-    void add_attrs(OutVariable * v, NS_NcVar * var,const std::string& countsAttr)
+    /**
+     * Add an attribute to the NS_NcFile. Return true if
+     * the NcFile was modified.
+     */
+    bool add_attrs(OutVariable * v, NS_NcVar * var,const std::string& countsAttr)
         throw(NetCDFAccessFailed);
 
     NcBool check_var_dims(NcVar *);
@@ -654,7 +668,11 @@ public:
     }
 
 
-    void set_att(const std::string& name, const std::string& val) throw(NetCDFAccessFailed);
+    /**
+     * Set an attribute on the NS_NcVar. Return true if
+     * the NcFile was modified.
+     */
+    bool set_att(const std::string& name, const std::string& val) throw(NetCDFAccessFailed);
 
     bool &isCnts()
     {
@@ -831,6 +849,7 @@ void NS_NcFile::put_rec(const REC_T * writerec,
 
 #ifdef DEBUG
     DLOG(("called get_vars"));
+    nidas::util::UTime debugUT(dtime);
 #endif
 
     dtime -= _baseTime;
@@ -894,6 +913,10 @@ void NS_NcFile::put_rec(const REC_T * writerec,
             dtime -= tdiff;
         }
     }
+#ifdef DEBUG
+    DLOG(("NS_NcFile::put_rec, ut=") <<
+            debugUT.format(true,"%Y %m %d %H:%M:%S.%3f"));
+#endif
 
     nrec = put_time(dtime);
 
@@ -947,7 +970,7 @@ void NS_NcFile::put_rec(const REC_T * writerec,
                     _fileName.c_str(), vars[0]->name(), nd,
                     d - writerec->data.data_val));
 
-    if ((tnow = time(0)) - _lastSync > 60) sync();
+    if ((tnow = time(0)) - _lastSync > SYNC_INTERVAL_SECS) sync();
     _lastAccess = tnow;
 }
 
