@@ -807,7 +807,9 @@ int FileGroup::check_file(const string & fileName) const
 int FileGroup::ncgen_file(const string & CDLFileName,
         const string & fileName) const
 {
+    int res = 1;
     try {
+        ILOG(("ncgen -o %s %s", fileName.c_str(),CDLFileName.c_str()));
         vector < string > args;
         args.push_back("ncgen");
         args.push_back("-o");
@@ -825,14 +827,14 @@ int FileGroup::ncgen_file(const string & CDLFileName,
                 WLOG(("error reading nc_check error output: %m"));
                 break;
             }
-            errmsg += string(buf,0,l);
-            if (errmsg.length() > 1024) break;
+            if (errmsg.length() < 1024) errmsg += string(buf,0,l);
         }
         proc.wait(true, &status);
         if (WIFEXITED(status)) {
             if (WEXITSTATUS(status))
                 WLOG(("ncgen exited with status=%d, err output=",
                             WEXITSTATUS(status)) << errmsg);
+            else res = 0;
         } else if (WIFSIGNALED(status))
             WLOG(("ncgen received signal=%d, err output=",
                         WTERMSIG(status)) << errmsg);
@@ -841,7 +843,7 @@ int FileGroup::ncgen_file(const string & CDLFileName,
     {
         WLOG(("%s", e.what()));
     }
-    return 0;
+    return res;
 }
 
 void FileGroup::close_old_files(void)
@@ -2448,10 +2450,8 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                     cerr << "cannot find group " << optarg << endl;
                     return 1;
                 }
-                else if (gptr != 0) {
-                    _suppGroupIds.push_back(groupinfo.gr_gid);
-                    _suppGroupNames.push_back(optarg);
-                }
+                _suppGroupIds.push_back(groupinfo.gr_gid);
+                _suppGroupNames.push_back(optarg);
             }
             break;
         case 'l':
@@ -2483,9 +2483,13 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                 strbuf.resize(nb);
                 if ((res = getgrgid_r(_groupid,&groupinfo,&strbuf.front(),strbuf.size(),&gptr)) != 0) {
                     cerr << "getgrgid_r: " << nidas::util::Exception::errnoToString(res) << endl;
+                    return 1;
                 }
-                else if (gptr != 0) _groupname = groupinfo.gr_name;
-                else _groupname = "unknown";
+                else if (!gptr) {
+                    cerr << "Unknown group id for user " << optarg << endl;
+                    return 1;
+                }
+                _groupname = groupinfo.gr_name;
             }
             break;
         case 'z':
