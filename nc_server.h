@@ -345,10 +345,10 @@ public:
     std::string createNewName(const std::string& name,int & i);
 
     /**
-     * When writing time-series records, how frequently to sync
-     * the NetCDF file.
+     * When writing time-series records, how frequently to check
+     * to sync the NetCDF file.
      */
-    static const int SYNC_INTERVAL_SECS = 5;
+    static const int SYNC_CHECK_INTERVAL_SECS = 5;
 
 private:
     std::string _fileName;
@@ -970,7 +970,7 @@ void NS_NcFile::put_rec(const REC_T * writerec,
                     _fileName.c_str(), vars[0]->name(), nd,
                     d - writerec->data.data_val));
 
-    if ((tnow = time(0)) - _lastSync > SYNC_INTERVAL_SECS) sync();
+    if ((tnow = time(0)) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
     _lastAccess = tnow;
 }
 

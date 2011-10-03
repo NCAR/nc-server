@@ -680,9 +680,6 @@ NS_NcFile *FileGroup::open_file(double dtime) throw()
         if (statBuf.st_size > 0)
             fileExists = 1;
     }
-#ifdef DEBUG
-    DLOG(("NetCDF fileName =%s, exists=%d", fileName.c_str(), fileExists));
-#endif
 
     if (fileExists) {
         if (!check_file(fileName)) {
@@ -707,13 +704,17 @@ NS_NcFile *FileGroup::open_file(double dtime) throw()
 #endif
 
 #ifdef DEBUG
-    DLOG(("NetCDF fileName =%s, CDLName=%s", fileName.c_str(),
-                _CDLFileName.c_str()));
+    ILOG(("NetCDF fileName=%s, exists=%d", fileName.c_str(), fileExists));
+    ILOG(("access(%s,F_OK)=%d, eaccess=%d, getuid()=%d, geteuid()=%d",
+            _CDLFileName.c_str(),
+            access(_CDLFileName.c_str(),F_OK),
+            eaccess(_CDLFileName.c_str(),F_OK),
+            getuid(),geteuid()));
 #endif
 
-    // If file doesn't exist (or is size 0) then
-    //   if a CDL file was specified, try to ncgen it.
-    // If the file doesn't exist (or size 0) and it was not ncgen'd
+    // If the NetCDF file doesn't exist (or is size 0) then
+    //   if a CDL file was specified and exists, try to ncgen it.
+    // If the NetCDF file doesn't exist (or size 0) and it was not ncgen'd
     //   then do a create/replace.
     if (!fileExists &&
             !(_CDLFileName.length() > 0 && !access(_CDLFileName.c_str(), F_OK)
@@ -777,8 +778,7 @@ int FileGroup::check_file(const string & fileName) const
                 WLOG(("error reading nc_check error output: %m"));
                 break;
             }
-            errmsg += string(buf,0,l);
-            if (errmsg.length() > 1024) break;
+            if (errmsg.length() < 1024) errmsg += string(buf,0,l);
         }
         proc.wait(true, &status);
         if (WIFEXITED(status)) {
@@ -809,7 +809,6 @@ int FileGroup::ncgen_file(const string & CDLFileName,
 {
     int res = 1;
     try {
-        ILOG(("ncgen -o %s %s", fileName.c_str(),CDLFileName.c_str()));
         vector < string > args;
         args.push_back("ncgen");
         args.push_back("-o");
@@ -834,7 +833,10 @@ int FileGroup::ncgen_file(const string & CDLFileName,
             if (WEXITSTATUS(status))
                 WLOG(("ncgen exited with status=%d, err output=",
                             WEXITSTATUS(status)) << errmsg);
-            else res = 0;
+            else {
+                ILOG(("ncgen -o %s %s", fileName.c_str(),CDLFileName.c_str()));
+                res = 0;
+            }
         } else if (WIFSIGNALED(status))
             WLOG(("ncgen received signal=%d, err output=",
                         WTERMSIG(status)) << errmsg);
