@@ -12,7 +12,7 @@ done
 host=`uname -n`
 if [ $itry -eq $ntry ]; then
     echo "***** restarting nc_server on $host ******"
-    sudo /etc/init./nc_server start
+    sudo /etc/init.d/nc_server start
     sleep 5
 fi
 
