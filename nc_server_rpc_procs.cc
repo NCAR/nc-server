@@ -258,7 +258,7 @@ char **checkerror_1_svc(int * id,struct svc_req *)
         return &result;
     }
     else {
-        if (result && result[0]) {
+        if (!result || result[0]) {
             free(result);
             result = (char*)malloc(1);
             result[0] = 0;
