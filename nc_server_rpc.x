@@ -95,5 +95,6 @@ program NETCDFSERVERPROG {
         int CLOSEFILES(void) = 10;
         void SHUTDOWN(void) = 11;
         int SYNCFILES(void) = 12;
+        string CHECKERROR(int id) = 13;
     } = 1;
 } = 0x20000004;

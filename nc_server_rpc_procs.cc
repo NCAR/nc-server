@@ -121,7 +121,6 @@ void *writedatarecbatch_float_1_svc(datarec_float * writereq,
 void *writedatarecbatch_int_1_svc(datarec_int * writereq,
                                    struct svc_req *)
 {
-
     Connections *connections = Connections::Instance();
     Connection *conn;
     int res;
@@ -237,4 +236,33 @@ void *shutdown_1_svc(void *, struct svc_req *)
     connections->closeOldConnections();
     nc_shutdown(0);
     return (void *) 0;
+}
+
+char **checkerror_1_svc(int * id,struct svc_req *)
+{
+    static char * result = 0;
+    Connections *connections = Connections::Instance();
+    Connection *conn;
+
+    if ((conn = (*connections)[*id]) == 0) {
+        std::ostringstream ost;
+        ost << "Invalid connection ID " << *id;
+        free(result);
+        result = strdup(ost.str().c_str());
+        return &result;
+    }
+
+    if (conn->getState() != Connection::CONN_OK) {
+        free(result);
+        result = strdup(conn->getErrorMsg().c_str());
+        return &result;
+    }
+    else {
+        if (result && result[0]) {
+            free(result);
+            result = (char*)malloc(1);
+            result[0] = 0;
+        }
+        return &result;
+    }
 }

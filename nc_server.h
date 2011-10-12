@@ -155,6 +155,15 @@ public:
     }
 };
 
+class NcServerAccessFailed: public nidas::util::Exception
+{
+public:
+    NcServerAccessFailed(const std::string& connstr,const std::string& op, const std::string& msg):
+        nidas::util::Exception("NcServerAccessFailed",connstr + ": " + op + ": " + msg)
+    {
+    }
+};
+
 class Connections
 {
 public:
@@ -195,9 +204,12 @@ public:
     ~Connection(void);
 
     int getId() const { return _id; }
-    int put_rec(const datarec_float * writerec);
 
-    int put_rec(const datarec_int * writerec);
+    static std::string getIdStr(int id);
+
+    int put_rec(const datarec_float * writerec) throw();
+
+    int put_rec(const datarec_int * writerec) throw();
 
     int put_history(const std::string &);
 
@@ -217,11 +229,25 @@ public:
     }
 
     NS_NcFile *last_file() const;
+
     void unset_last_file();     // the file has been closed
 
     class InvalidOutputDir
     {
     };                          // exception class
+
+    enum state {CONN_OK, CONN_ERROR };
+
+    enum state getState() const
+    {
+        return _state;
+    }
+
+    const std::string& getErrorMsg() const
+    {
+        return _errorMsg;
+    }
+
 private:
     FileGroup *_filegroup;
     std::string _history;
@@ -230,6 +256,10 @@ private:
     NS_NcFile *_lastf;          // last file written to, saved for efficiency
     time_t _lastRequest;
     int _id;
+
+    std::string _errorMsg;
+
+    enum state _state;
 
 };
 
@@ -429,11 +459,11 @@ public:
     ~FileGroup(void);
 
     template<class REC_T, class DATA_T>
-        NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f) throw();
+        NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f) throw(nidas::util::Exception);
 
     int match(const std::string & dir, const std::string & file);
-    NS_NcFile *get_file(double time) throw();
-    NS_NcFile *open_file(double time) throw();
+    NS_NcFile *get_file(double time) throw(NetCDFAccessFailed);
+    NS_NcFile *open_file(double time) throw(NetCDFAccessFailed);
     void close();
     void sync();
     void close_old_files(void);
@@ -788,14 +818,16 @@ private:
 
 template<class REC_T,class DATA_T>
 NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
-        NS_NcFile * f) throw()
+        NS_NcFile * f) throw(nidas::util::Exception)
 {
     int groupid = writerec->datarecId;
     double dtime = writerec->time;
 
     if (_vargroups.find(groupid) == _vargroups.end()) {
-        PLOG(("Invalid variable group number: %d", groupid));
-        return 0;
+        std::string idstr = Connection::getIdStr(writerec->connectionId);
+        std::ostringstream ost;
+        ost << "Invalid variable group number: " <<  groupid;
+        throw NcServerAccessFailed(idstr,"put_rec",ost.str());
     }
 
     /* Check if last file is still current */
@@ -805,25 +837,23 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
 #endif
         if (f)
             f->sync();
-        if (!(f = get_file(dtime)) && ncerror.get_err() == NC_ENFILE) {
-            // Too many files open
-            AllFiles::Instance()->close_oldest_file();
+        try {
             f = get_file(dtime);
         }
-        if (!f)
-            return 0;
+        catch(const NetCDFAccessFailed& e) {
+            // Too many files open
+            if (ncerror.get_err() == NC_ENFILE) {
+                AllFiles::Instance()->close_oldest_file();
+                f = get_file(dtime);
+            }
+            else throw e;
+        }
     }
 #ifdef DEBUG
     DLOG(("Writing Record, groupid=%d,f=%s", groupid, f->getName().c_str()));
 #endif
 
-    try {
-        f->put_rec<REC_T,DATA_T>(writerec, _vargroups[groupid], dtime);
-    }
-    catch (const NetCDFAccessFailed& e) {
-        PLOG(("") << e.toString());
-        f = 0;
-    }
+    f->put_rec<REC_T,DATA_T>(writerec, _vargroups[groupid], dtime);
     return f;
 }
 
@@ -931,8 +961,9 @@ void NS_NcFile::put_rec(const REC_T * writerec,
     const DATA_T *dend = d + nd;
 
     if (nstart != ndims_req - 2 || nstart != ncount) {
-        PLOG(("%s: variable %s has incorrect start or count length",
-                    getName().c_str(),vars[0]->name()));
+        std::ostringstream ost;
+        ost << vars[0]->name() << ": has incorrect start or count length";
+        throw NetCDFAccessFailed(getName(),"put_rec",ost.str());
     }
 #ifdef DEBUG
     DLOG(("nstart=%d,ncount=%d", nstart, ncount));
@@ -952,9 +983,11 @@ void NS_NcFile::put_rec(const REC_T * writerec,
                     throw NetCDFAccessFailed(getName(),std::string("put_var ") + var->name(),get_error_string());
             }
         } else {
-            if (d >= dend)
-                PLOG(("%s: %s put request for %d values is too small. num_variables=%d",
-                            _fileName.c_str(), var->name(), nd,nv));
+            if (d >= dend) {
+                std::ostringstream ost;
+                ost << var->name() << ": data array has " << nd << " values, num_variables=" << nv;
+                throw NetCDFAccessFailed(getName(),"put_rec",ost.str());
+            }
             else {
                 if (!(i = var->put(d, count)))
                     throw NetCDFAccessFailed(getName(),std::string("put_var ") + var->name(),get_error_string());
@@ -965,10 +998,12 @@ void NS_NcFile::put_rec(const REC_T * writerec,
             }
         }
     }
-    if (d != dend)
-        PLOG(("%s: %s put request for %d values, should be %d",
-                    _fileName.c_str(), vars[0]->name(), nd,
-                    d - writerec->data.data_val));
+    if (d != dend) {
+        std::ostringstream ost;
+        ost << vars[0]->name() << ": data array has " << nd << " values, but only " <<
+            (unsigned long)(d - writerec->data.data_val) << " written, num_variables=" << nv;
+        throw NetCDFAccessFailed(getName(),"put_rec",ost.str());
+    }
 
     if ((tnow = time(0)) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
     _lastAccess = tnow;

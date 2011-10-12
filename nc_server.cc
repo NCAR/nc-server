@@ -196,8 +196,16 @@ unsigned int Connections::num() const
     return _connections.size();
 }
 
+/* static */
+std::string Connection::getIdStr(int id) 
+{
+    ostringstream ost;
+    ost << "connection#" << id;
+    return ost.str();
+}
+
 Connection::Connection(const connection * conn, int id)
-:  _filegroup(0),_lastf(0),_id(id)
+:  _filegroup(0),_lastf(0),_id(id),_state(CONN_OK)
 {
 
     AllFiles *allfiles = AllFiles::Instance();
@@ -246,25 +254,37 @@ void Connection::unset_last_file()
     _lastf = 0;
 }
 
-int Connection::put_rec(const datarec_float * writerec)
+int Connection::put_rec(const datarec_float * writerec) throw()
 {
-    NS_NcFile *f;
+    if (_state != CONN_OK) return -1;
     _lastRequest = time(0);
-    if (!(f = _filegroup->put_rec<datarec_float,float>(writerec, _lastf)))
+    try {
+        _lastf = _filegroup->put_rec<datarec_float,float>(writerec, _lastf);
+        _state = CONN_OK;
+    }
+    catch (const nidas::util::Exception& e) {
+        PLOG(("%s",e.what()));
+        _state = CONN_ERROR;
+        _errorMsg = e.what();
         return -1;
-    _lastf = f;
-
+    }
     return 0;
 }
 
-int Connection::put_rec(const datarec_int * writerec)
+int Connection::put_rec(const datarec_int * writerec) throw()
 {
-    NS_NcFile *f;
+    if (_state != CONN_OK) return -1;
     _lastRequest = time(0);
-    if (!(f = _filegroup->put_rec<datarec_int,int>(writerec, _lastf)))
+    try {
+        _lastf = _filegroup->put_rec<datarec_int,int>(writerec, _lastf);
+        _state = CONN_OK;
+    }
+    catch (const nidas::util::Exception& e) {
+        PLOG(("%s",e.what()));
+        _state = CONN_ERROR;
+        _errorMsg = e.what();
         return -1;
-    _lastf = f;
-
+    }
     return 0;
 }
 
@@ -615,7 +635,7 @@ void FileGroup::remove_connection(Connection * cp)
 }
 
 
-NS_NcFile *FileGroup::get_file(double dtime) throw()
+NS_NcFile *FileGroup::get_file(double dtime) throw(NetCDFAccessFailed)
 {
     NS_NcFile *f = 0;
     list < NS_NcFile * >::iterator ni;
@@ -665,7 +685,7 @@ NS_NcFile *FileGroup::get_file(double dtime) throw()
     return f;
 }
 
-NS_NcFile *FileGroup::open_file(double dtime) throw()
+NS_NcFile *FileGroup::open_file(double dtime) throw(NetCDFAccessFailed)
 {
     int fileExists = 0;
 
@@ -721,15 +741,8 @@ NS_NcFile *FileGroup::open_file(double dtime) throw()
                 && !ncgen_file(_CDLFileName, fileName)))
         openmode = NcFile::Replace;
 
-    NS_NcFile *f = 0;
-    try {
-        f = new NS_NcFile(fileName.c_str(), openmode, _interval,
-                _fileLength, dtime);
-    }
-    catch(const NetCDFAccessFailed& e) {
-        f = 0;
-    }
-    return f;
+    return new NS_NcFile(fileName.c_str(), openmode, _interval,
+            _fileLength, dtime);
 }
 
 string FileGroup::build_name(const string & outputDir,
