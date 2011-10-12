@@ -1,12 +1,6 @@
 /*              Copyright (C) by UCAR
- *
- * File       : $RCSfile: nc_server_rpc.x,v $
- * Revision   : $Revision: 1.9 $
- * Directory  : $Source: /code/cvs/pam/isff/src/lib/nc_server_rpc.x,v $
- * System     : PAM
- * Date       : $Date: 2004/10/27 23:54:51 $
- *
  * Description:
+ *  XDR declarations for nc_server data and procedures.
  */
 
 enum NS_rectype {
@@ -16,6 +10,11 @@ enum NS_rectype {
 /* It ain't no accident that these match NC_INT and NC_FLOAT in netcdf.h */
 enum NS_datatype { NS_INT=4, NS_FLOAT=5 };
 
+/*
+   strings within structs must be declared with <> identifiers.
+   If a procedure returns a string, it is not declared with <>, but there
+   doesn't seem to be any documentation on this difference.
+ */
 struct field {
     string name<>;
     string units<>;
