@@ -190,7 +190,7 @@ public:
     unsigned int num() const;
 private:
     std::map <int, Connection*> _connections;
-    int _connectionId;
+    int _connectionCntr;
     static Connections *_instance;
 protected:
     Connections(void);
@@ -246,6 +246,11 @@ public:
     const std::string& getErrorMsg() const
     {
         return _errorMsg;
+    }
+
+    void setErrorMsg(const std::string& val)
+    {
+        _errorMsg = val;
     }
 
 private:

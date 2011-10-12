@@ -35,7 +35,8 @@ int *definedatarec_1_svc(datadef * ddef, struct svc_req *)
     res = -1;
 
     if ((conn = (*connections)[ddef->connectionId]) == 0) {
-        PLOG(("Invalid connection ID: %d", ddef->connectionId));
+        PLOG(("definedatarec: invalid connection ID: %d",
+                    (ddef->connectionId & 0xffff)));
         return &res;
     }
 
@@ -62,7 +63,8 @@ int *writedatarec_float_1_svc(datarec_float * writereq, struct svc_req *)
 #endif
 
     if ((conn = (*connections)[writereq->connectionId]) == 0) {
-        PLOG(("Invalid Connection ID: %d", writereq->connectionId));
+        PLOG(("writedatarec_float: invalid connection ID: %d",
+                    (writereq->connectionId & 0xffff)));
         return &res;
     }
 #ifdef DEBUG
@@ -87,7 +89,8 @@ int *writedatarec_int_1_svc(datarec_int * writereq, struct svc_req *)
     res = -1;
 
     if ((conn = (*connections)[writereq->connectionId]) == 0) {
-        PLOG(("Invalid Connection ID: %d", writereq->connectionId));
+        PLOG(("writedatarec_int: nvalid Connection ID: %d",
+                    (writereq->connectionId & 0xffff)));
         return &res;
     }
     res = conn->put_rec(writereq);
@@ -106,7 +109,8 @@ void *writedatarecbatch_float_1_svc(datarec_float * writereq,
     int res;
 
     if ((conn = (*connections)[writereq->connectionId]) == 0) {
-        PLOG(("Invalid Connection ID: %d", writereq->connectionId));
+        PLOG(("writedatarecbatch_float: invalid connection ID: %d",
+                    (writereq->connectionId & 0xffff)));
         return (void *) 0;
     }
     res = conn->put_rec(writereq);
@@ -126,7 +130,8 @@ void *writedatarecbatch_int_1_svc(datarec_int * writereq,
     int res;
 
     if ((conn = (*connections)[writereq->connectionId]) == 0) {
-        PLOG(("Invalid Connection ID: %d", writereq->connectionId));
+        PLOG(("writedatarecbatch_int: invalid connection ID: %d",
+                    (writereq->connectionId & 0xffff)));
         return (void *) 0;
     }
     res = conn->put_rec(writereq);
@@ -156,7 +161,8 @@ int *writehistoryrec_1_svc(historyrec * writereq, struct svc_req *)
 #ifdef DEBUG
         DLOG(("conn=%x", conn));
 #endif
-        PLOG(("Invalid Connection ID: %d", writereq->connectionId));
+        PLOG(("writehistoryrec: invalid connection ID: %d",
+                    writereq->connectionId));
         return &res;
     }
 #ifdef DEBUG
@@ -184,7 +190,8 @@ void *writehistoryrecbatch_1_svc(historyrec * writereq, struct svc_req *)
 #ifdef DEBUG
         DLOG(("conn=%x", conn));
 #endif
-        PLOG(("Invalid Connection ID: %d", writereq->connectionId));
+        PLOG(("writehistoryrecbatch: invalid connection ID: %d",
+                    (writereq->connectionId & 0xffff)));
         return (void *) 0;
     }
 #ifdef DEBUG
@@ -246,7 +253,8 @@ char **checkerror_1_svc(int * id,struct svc_req *)
 
     if ((conn = (*connections)[*id]) == 0) {
         std::ostringstream ost;
-        ost << "Invalid connection ID " << *id;
+        ost << "checkerror: invalid connection ID " << (*id & 0xffff);
+        PLOG(("%s",ost.str().c_str()));
         free(result);
         result = strdup(ost.str().c_str());
         return &result;

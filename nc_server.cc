@@ -108,9 +108,10 @@ void nc_shutdown(int i)
     exit(i);
 }
 
-Connections::Connections(void): _connectionId(0)
+Connections::Connections(void): _connectionCntr(0)
 {
     nidas::util::UTime::setTZ("GMT");
+    srandom((unsigned int)time(0));
 }
 
 Connections *Connections::_instance = 0;
@@ -139,18 +140,25 @@ int Connections::openConnection(const struct connection *conn)
     closeOldConnections();
 
     // just in case this process ever handles over 2^31 connections :-)
-    if (_connectionId < 0) _connectionId = 0;
+    if (_connectionCntr < 0) _connectionCntr = 0;
+
+    // The low order 2 bytes of the connection id are an integer
+    // that increments for every new connection. The high order
+    // 2 bytes are a random value, so that if this process is
+    // restarted, it is unlikely that any pre-existing client will
+    // have the same id as a new client.
+    int id = (_connectionCntr++ & 0xffff) + (random() & 0xffff0000UL);
     try {
-        cp = new Connection(conn,_connectionId);
+        cp = new Connection(conn,id);
     }
     catch(Connection::InvalidOutputDir) {
         delete cp;
         return -1;
     }
-    _connections[_connectionId] = cp;
+    _connections[id] = cp;
     ILOG(("Opened connection, id=%d, #connections=%zd, heap=%zd",
-            _connectionId,_connections.size(), heap()));
-    return _connectionId++;
+            (id & 0xffff),_connections.size(), heap()));
+    return id;
 }
 
 int Connections::closeConnection(int id)
@@ -161,7 +169,7 @@ int Connections::closeConnection(int id)
         delete ci->second;
         _connections.erase(ci);
         ILOG(("Closed connection, id=%d, #connections=%zd",
-            id,_connections.size()));
+            (id & 0xffff),_connections.size()));
         return 0;
     }
     return -1;
@@ -185,7 +193,7 @@ void Connections::closeOldConnections()
             // __GXX_EXPERIMENTAL_CXX0X__ is defined
             _connections.erase(ci++);
             ILOG(("Timeout, closed connection, id=%d, #connections=%zd",
-                id,_connections.size()));
+                (id & 0xffff),_connections.size()));
         }
         else ++ci;
     }
@@ -200,7 +208,7 @@ unsigned int Connections::num() const
 std::string Connection::getIdStr(int id) 
 {
     ostringstream ost;
-    ost << "connection#" << id;
+    ost << "connection#" << (id & 0xffff);
     return ost.str();
 }
 
