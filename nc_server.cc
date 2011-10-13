@@ -238,7 +238,15 @@ Connection::~Connection(void)
 int Connection::add_var_group(const struct datadef *dd) throw()
 {
     _lastRequest = time(0);
-    return _filegroup->add_var_group(dd);
+    try {
+        return _filegroup->add_var_group(dd);
+    }
+    catch (const nidas::util::Exception& e) {
+        PLOG(("%s",e.what()));
+        _state = CONN_ERROR;
+        _errorMsg = e.what();
+        return -1;
+    }
 }
 
 Connection *Connections::operator[] (int i) const
@@ -944,7 +952,7 @@ void FileGroup::close_oldest_file(void)
     }
 }
 
-int FileGroup::add_var_group(const struct datadef *dd) throw()
+int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
 {
 
     // check to see if this variable group is equivalent to
@@ -959,14 +967,11 @@ int FileGroup::add_var_group(const struct datadef *dd) throw()
     }
 
     if (_vargroupId < 0) _vargroupId = 0;
-    try {
-        VariableGroup *vg = new VariableGroup(dd, _vargroupId, _interval);
-        _vargroups[_vargroupId] = vg;
-    }
-    catch (const BadVariable& e) {
-        PLOG(("%s",e.what()));
-        return -1;
-    }
+
+    // throws BadVariable
+    VariableGroup *vg = new VariableGroup(dd, _vargroupId, _interval);
+    _vargroups[_vargroupId] = vg;
+
 #ifdef DEBUG
     ILOG(("Created variable group %d", _vargroupId));
 #endif

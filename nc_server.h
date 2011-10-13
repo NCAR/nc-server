@@ -477,9 +477,9 @@ public:
     void remove_connection(Connection *);
 
     /**
-     * @return: non-negative group id or -1 on error.
+     * @return: non-negative group id
      */
-    int add_var_group(const struct datadef *) throw();
+    int add_var_group(const struct datadef *) throw(BadVariable);
 
     double interval() const
     {
