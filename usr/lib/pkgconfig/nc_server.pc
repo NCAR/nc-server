@@ -1,0 +1,10 @@
+prefix=/opt/nc_server
+exec_prefix=/opt/nc_server
+libdir=/opt/nc_server/lib
+includedir=/opt/nc_server/include
+
+Name: nc_server
+Description: SunRPC netcdf file server
+Version: 1.0.9
+Libs: -L${libdir} -lnc_server_rpc
+Cflags: -I${includedir}
