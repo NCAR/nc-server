@@ -989,6 +989,9 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
     nv = dd->fields.fields_len;
     if (nv == 0) throw BadVariable("empty variable group");
 
+    if (dd->rectype  != NS_TIMESERIES) 
+        throw BadVariable("variable group must be NS_TIMESERIES");
+
     _rectype = dd->rectype;
     _datatype = dd->datatype;
     _fillMissing = dd->fillmissingrecords;

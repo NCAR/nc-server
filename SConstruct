@@ -1,5 +1,5 @@
 
-env = Environment(platform = 'posix').Clone(tools=['sharedlibrary'])
+env = Environment(platform = 'posix').Clone(tools=['sharedlibrary','symlink'])
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
