@@ -14,7 +14,7 @@ env['SHLIBMINORVERSION'] = '0'
 
 opts = Variables()
 opts.AddVariables(PathVariable('PREFIX','installation path',
-    '/usr', PathVariable.PathAccept))
+    '/opt/nc_server', PathVariable.PathAccept))
 opts.Update(env)
 
 env['CCFLAGS'] = [ '-g', '-Wall', '-O2' ]
@@ -41,8 +41,8 @@ srcs = Split("""
 """)
 
 p1 = env.Program('nc_server', srcs,
-    LIBS=["nc_server_rpc","nidas_util","netcdf_c++","netcdf","hdf5","hdf5_hl"],
-    LIBPATH=["/opt/local/nidas/x86/" + env["LIBDIR"],"."],
+    LIBS=["nc_server_rpc","nidas_util","netcdf_c++","netcdf","hdf5","hdf5_hl","pthread"],
+    LIBPATH=["/opt/local/nidas/x86/" + env["ARCHLIBDIR"],"."],
     CPPPATH="/opt/local/nidas/x86/include")
 
 #    CPPDEFINES = ['RPC_SVC_FG']

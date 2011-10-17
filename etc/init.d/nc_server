@@ -7,12 +7,16 @@
 # chkconfig: 35 99 1
 # description: start nc_server (NetCDF RPC file writer)
 
+if ! which nc_shutdown > /dev/null && [ -f /etc/profile.d/nc_server.sh ]; then
+    source /etc/profile.d/nc_server.sh
+fi
+
 nuser=nidas
 ngroup=eol
 
 start_nc_server() {
 	echo -n "Starting nc_server ..."
-	/usr/bin/nc_server -u $nuser -g $ngroup -z -l 6
+	nc_server -u $nuser -g $ngroup -z -l 6
 	echo " done."
 }
 
@@ -34,7 +38,7 @@ kill_proc() {
 
 kill_nc_server() {
     echo "Stopping nc_server ... "
-    /usr/bin/nc_shutdown localhost
+    nc_shutdown localhost
     kill_proc nc_server -TERM || kill_proc nc_server -9
     echo " done."
 }
