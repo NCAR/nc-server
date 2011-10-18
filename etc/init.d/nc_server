@@ -7,9 +7,7 @@
 # chkconfig: 35 99 1
 # description: start nc_server (NetCDF RPC file writer)
 
-if ! which nc_shutdown > /dev/null && [ -f /etc/profile.d/nc_server.sh ]; then
-    source /etc/profile.d/nc_server.sh
-fi
+which nc_shutdown > /dev/null 2>&1 || PATH=$PATH:/opt/nc_server/bin
 
 nuser=nidas
 ngroup=eol
