@@ -266,6 +266,9 @@ private:
 
     enum state _state;
 
+    Connection(const Connection&);
+    Connection& operator=(const Connection&);
+
 };
 
 class AllFiles
@@ -392,7 +395,7 @@ private:
     double _lengthSecs;
     double _timeOffset;         // last timeOffset written
     NcType _timeOffsetType;     // ncFloat or ncDouble
-    char _monthLong;            //
+    bool _monthLong;            //
 
     // time tag type, fixed dt or variable?
     enum { FIXED_DELTAT, VARIABLE_DELTAT } _ttType;
@@ -460,7 +463,7 @@ class FileGroup
 {
 public:
 
-    FileGroup(const struct connection *);
+    FileGroup(const struct connection *) throw(Connection::InvalidOutputDir);
     ~FileGroup(void);
 
     template<class REC_T, class DATA_T>
@@ -565,7 +568,7 @@ public:
 
     int same_var_group(const struct datadef *) const;
 
-    int similar_var_group(const VariableGroup *) const;
+    void update_attrs(const struct datadef *ddp);
 
     const char *suffix() const;
 
@@ -739,6 +742,9 @@ private:
     bool _isCnts;
     float _floatFill;
     int _intFill;
+
+    NS_NcVar(const NS_NcVar&);
+    NS_NcVar& operator=(const NS_NcVar&);
 
 };
 

@@ -17,7 +17,7 @@ opts.AddVariables(PathVariable('PREFIX','installation path',
     '/opt/nc_server', PathVariable.PathAccept))
 opts.Update(env)
 
-env['CCFLAGS'] = [ '-g', '-Wall', '-O2' ]
+env['CCFLAGS'] = [ '-g', '-Wall', '-O2','-Weffc++' ]
 
 env.RPCGenClient('nc_server_rpc.x')
 env.RPCGenHeader('nc_server_rpc.x')

@@ -108,9 +108,8 @@ void nc_shutdown(int i)
     exit(i);
 }
 
-Connections::Connections(void): _connectionCntr(0)
+Connections::Connections(void): _connections(),_connectionCntr(0)
 {
-    nidas::util::UTime::setTZ("GMT");
     srandom((unsigned int)time(0));
 }
 
@@ -213,7 +212,8 @@ std::string Connection::getIdStr(int id)
 }
 
 Connection::Connection(const connection * conn, int id)
-:  _filegroup(0),_lastf(0),_id(id),_state(CONN_OK)
+:  _filegroup(0),_history(),_histlen(),_lastf(0),_lastRequest(time(0)),
+    _id(id),_errorMsg(),_state(CONN_OK)
 {
 
     AllFiles *allfiles = AllFiles::Instance();
@@ -316,7 +316,7 @@ int Connection::put_history(const string & h)
     return 0;
 }
 
-AllFiles::AllFiles(void)
+AllFiles::AllFiles(void): _filegroups()
 {
     (void) signal(SIGHUP, hangup);
     (void) signal(SIGTERM, shutdown);
@@ -491,7 +491,11 @@ void AllFiles::close_oldest_file(void)
 
 }
 
-FileGroup::FileGroup(const struct connection *conn):
+FileGroup::FileGroup(const struct connection *conn)
+    throw(Connection::InvalidOutputDir):
+    _connections(),_files(),
+    _outputDir(),_fileNameFormat(),
+    _CDLFileName(),_vargroups(),
     _vargroupId(0),_interval(conn->interval),
     _fileLength(conn->filelength)
 {
@@ -962,8 +966,11 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
     for ( ; vi != _vargroups.end(); ++vi) {
         int id = vi->first;
         VariableGroup* vg = vi->second;
-        if (vg->same_var_group(dd))
+        if (vg->same_var_group(dd)) {
+            // looks to be the same, update attributes
+            vg->update_attrs(dd);
             return id;
+        }
     }
 
     if (_vargroupId < 0) _vargroupId = 0;
@@ -980,7 +987,14 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
 }
 
 VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
-    throw(BadVariable): _id(id)
+    throw(BadVariable):
+    _name(),_interval(dd->interval),_invars(),_outvars(),
+    _ndims(0),_dimsizes(), _dimnames(),
+    _nsamples(0),_nprefixes(0),
+    _rectype(dd->rectype),_datatype(dd->datatype),
+    _fillMissing(dd->fillmissingrecords),
+    _floatFill(dd->floatFill), _intFill(dd->intFill),
+    _id(id),_countsName()
 {
     unsigned int i, j, n;
     Variable *v;
@@ -992,14 +1006,8 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
     if (dd->rectype  != NS_TIMESERIES) 
         throw BadVariable("variable group must be NS_TIMESERIES");
 
-    _rectype = dd->rectype;
-    _datatype = dd->datatype;
-    _fillMissing = dd->fillmissingrecords;
-    _floatFill = dd->floatFill;
-    _intFill = dd->intFill;
     if (_datatype == NS_FLOAT)
         _intFill = 0;
-    _interval = dd->interval;
     _nsamples = (int) floor(finterval / _interval + .5);
     if (_nsamples < 1)
         _nsamples = 1;
@@ -1216,29 +1224,38 @@ int VariableGroup::same_var_group(const struct datadef *ddp) const
     for (i = 0; i < nv; i++)
         if (_invars[i]->name() != string(ddp->fields.fields_val[i].name))
             return 0;
+    return 1;
+}
+void VariableGroup::update_attrs(const struct datadef *ddp)
+{
+    unsigned int nv = ddp->fields.fields_len;
 
-    // looks to be the same, lets copy any missing attributes
-
-    for (i = 0; i < nv; i++) {
+    for (unsigned int i = 0; i < nv; i++) {
         Variable *v = _invars[i];
+        OutVariable *ov = 0;
+        if (i < _outvars.size()) ov = _outvars[i];
 
         char *cp = ddp->fields.fields_val[i].units;
-        if (cp) v->add_att("units", cp);
+        if (cp) {
+            v->add_att("units", cp);
+            if (ov) ov->add_att("units", cp);
+        }
 
         unsigned int n = ddp->attrs.attrs_val[i].attrs.attrs_len;
 
-        for (j = 0; j < n; j++) {
+        for (unsigned int j = 0; j < n; j++) {
             str_attr *a = ddp->attrs.attrs_val[i].attrs.attrs_val + j;
 #ifdef DEBUG
             DLOG(("%d %s %s", j, a->name, a->value));
 #endif
             v->add_att(a->name, a->value);
+            if (ov) ov->add_att(a->name, a->value);
         }
     }
-    return 1;
 }
 
-Variable::Variable(const string& vname): _name(vname),_isCnts(false)
+Variable::Variable(const string& vname): _name(vname),_isCnts(false),
+    _strAttrs()
 {
 }
 
@@ -1309,8 +1326,14 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         double interval, double fileLength,
         double dtime) throw(NetCDFAccessFailed):
     NcFile(fileName.c_str(), openmode),
-    _fileName(fileName), _interval(interval), _lengthSecs(fileLength),
-    _ttType(FIXED_DELTAT),_timesAreMidpoints(-1)
+    _fileName(fileName), _startTime(0.0),_endTime(0.0),
+    _interval(interval), _lengthSecs(fileLength),
+    _timeOffset(0.0),_timeOffsetType(ncFloat),_monthLong(false),
+    _ttType(FIXED_DELTAT),_timesAreMidpoints(-1),
+    _baseTimeVar(0),_timeOffsetVar(0),_vars(),_recdim(0),
+    _baseTime(0),_nrecs(0),_dimNames(0),_dimSizes(),_dimIndices(),
+    _ndims(0),_dims(),_ndims_req(0),_lastAccess(0),_lastSync(0),
+    _historyHeader()
 {
 
     if (!is_valid())
@@ -2330,7 +2353,8 @@ const NcDim *NS_NcFile::get_dim(NcToken prefix, long size)
 }
 
 NS_NcVar::NS_NcVar(NcVar * var, int *dimIndices, int ndimIndices, float ffill, int ifill, bool iscnts):
-    _var(var), _ndimIndices(ndimIndices), _isCnts(iscnts), _floatFill(ffill),
+    _var(var),_dimIndices(0),_ndimIndices(ndimIndices),
+    _start(0),_count(0), _isCnts(iscnts), _floatFill(ffill),
     _intFill(ifill)
 {
     int i;
@@ -2444,7 +2468,9 @@ int NS_NcVar::put_len(const long *counts)
 }
 
 NcServerApp::NcServerApp(): 
-    _userid(0),_groupid(0),_daemon(true),_logLevel(defaultLogLevel)
+    _username(), _userid(0),_groupname(),_groupid(0),
+    _suppGroupNames(),_suppGroupIds(),
+    _daemon(true),_logLevel(defaultLogLevel)
 {
 }
 
