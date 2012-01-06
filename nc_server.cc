@@ -2591,8 +2591,11 @@ void NcServerApp::setup()
     }
 
     nidas::util::Logger * logger = 0;
+    nidas::util::LogScheme logscheme("nc_server");
+
     nidas::util::LogConfig lc;
     lc.level = _logLevel;
+
     if (_daemon) {
         // fork to background
         if (daemon(0, 0) < 0) {
@@ -2601,12 +2604,13 @@ void NcServerApp::setup()
         }
         logger =
             nidas::util::Logger::createInstance("nc_server",
-                    LOG_CONS | LOG_PID,
-                    LOG_LOCAL5);
+                    LOG_CONS | LOG_PID, LOG_LOCAL5);
+        logscheme.setShowFields("level,message");
     } else
         logger = nidas::util::Logger::createInstance(&cerr);
 
-    logger->setScheme(nidas::util::LogScheme("nc_server").addConfig(lc));
+    logscheme.addConfig(lc);
+    logger->setScheme(logscheme);
 }
 
 void NcServerApp::run(void)
