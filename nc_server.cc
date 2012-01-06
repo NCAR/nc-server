@@ -2604,7 +2604,7 @@ void NcServerApp::setup()
         }
         logger =
             nidas::util::Logger::createInstance("nc_server",
-                    LOG_CONS | LOG_PID, LOG_LOCAL5);
+                    LOG_PID, LOG_LOCAL5);
         logscheme.setShowFields("level,message");
     } else
         logger = nidas::util::Logger::createInstance(&cerr);
