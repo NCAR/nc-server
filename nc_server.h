@@ -621,6 +621,8 @@ public:
         return _intFill;
     }
 
+    void check_counts_variable() throw(BadVariable);
+
 private:
     /** name for use in log messages */
     std::string _name;
@@ -658,9 +660,6 @@ private:
      * of any counts attributes of the variables.
      */
     std::string _countsName;
-
-    void check_counts_variable()
-        throw(BadVariable);
 
 
     VariableGroup(const VariableGroup &);       // prevent copying

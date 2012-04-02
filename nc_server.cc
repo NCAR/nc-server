@@ -967,7 +967,8 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
         int id = vi->first;
         VariableGroup* vg = vi->second;
         if (vg->same_var_group(dd)) {
-            // looks to be the same, update attributes
+            // looks to be the same. Check counts variable and update attributes.
+            vg->check_counts_variable();
             vg->update_attrs(dd);
             return id;
         }
@@ -1159,8 +1160,6 @@ void VariableGroup::check_counts_variable() throw(BadVariable)
     }
 
     setCountsName(cntsName);
-
-    if (!cv) createCountsVariable(cntsName);
 }
 
 void VariableGroup::setCountsName(const std::string& val)
