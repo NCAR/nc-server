@@ -23,6 +23,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <sys/prctl.h>
+#include <linux/capability.h>
 
 #include <netcdf.h>
 
