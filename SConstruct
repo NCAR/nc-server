@@ -31,9 +31,11 @@ libsrcs = Split("""
 """)
 
 libobjs = env.SharedObject(libsrcs,
-    CCFLAGS=env['CCFLAGS'] + ['-Wno-unused', '-Wno-strict-aliasing'])
+    CCFLAGS=env['CCFLAGS'] + ['-Wno-unused', '-Wno-strict-aliasing'],
+    CPPPATH='')
 
-lib = env.SharedLibrary3('nc_server_rpc',libobjs)
+# Don't want nidas libraries searched here
+lib = env.SharedLibrary3('nc_server_rpc',libobjs,LIBS='',LIBPATH='')
 
 srcs = Split("""
     nc_server.cc
