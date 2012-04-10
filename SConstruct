@@ -1,5 +1,5 @@
 
-env = Environment(platform = 'posix').Clone(tools=['sharedlibrary','symlink'])
+env = Environment(platform = 'posix').Clone(tools=['sharedlibrary','symlink','nidas'])
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
@@ -41,24 +41,21 @@ srcs = Split("""
     nc_server_rpc_svc.c
 """)
 
+env.Append(LIBPATH='.')
+
 p1 = env.Program('nc_server', srcs,
-    LIBS=["nc_server_rpc","nidas_util","netcdf_c++","netcdf","hdf5","hdf5_hl","pthread"],
-    LIBPATH=["/opt/local/nidas/x86/" + env["ARCHLIBDIR"],"."],
-    CPPPATH="/opt/local/nidas/x86/include")
+    LIBS=[env['LIBS'],"nc_server_rpc","netcdf_c++","netcdf","hdf5","hdf5_hl","pthread"])
 
 #    CPPDEFINES = ['RPC_SVC_FG']
 
 p2 = env.Program('nc_close','nc_close.cc',
-    LIBS=["nc_server_rpc"],
-    LIBPATH=["."])
+    LIBS=["nc_server_rpc"])
 
 p3 = env.Program('nc_sync','nc_sync.cc',
-    LIBS=["nc_server_rpc"],
-    LIBPATH=["."])
+    LIBS=["nc_server_rpc"])
 
 p4 = env.Program('nc_shutdown','nc_shutdown.cc',
-    LIBS=["nc_server_rpc"],
-    LIBPATH=["."])
+    LIBS=["nc_server_rpc"])
 
 p5 = env.Program('nc_check','nc_check.c',
     LIBS=["netcdf","hdf5","hdf5_hl"])
