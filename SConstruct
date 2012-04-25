@@ -1,5 +1,5 @@
 
-env = Environment(platform = 'posix',tools=['default','sharedlibrary','symlink','nidas'])
+env = Environment(tools=['default','sharedlibrary','symlink','nidas'])
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
