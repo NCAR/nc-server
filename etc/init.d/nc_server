@@ -10,11 +10,24 @@
 which nc_shutdown > /dev/null 2>&1 || PATH=$PATH:/opt/nc_server/bin
 
 nuser=nidas
-ngroup=eol
+
+get_groups() {
+    # look for existence of some groups. $nuser doesn't have to be a member of the group
+    local yp=false
+    ypwhich > /dev/null && yp=true
+
+    for g in eol isf www; do
+        if grep -q "^$g:" /etc/group; then
+            echo "-g $g"
+        elif $yp; then
+            ypmatch $g group > /dev/null && echo "-g $g"
+        fi
+    done
+}
 
 start_nc_server() {
 	echo -n "Starting nc_server ..."
-	nc_server -u $nuser -g $ngroup -z -l 6
+        nc_server -u $nuser $(get_groups) -z -l 6
 	echo " done."
 }
 
