@@ -1309,13 +1309,15 @@ OutVariable::OutVariable(const Variable& v, NS_datatype dtype,
     while((ic = namestr.find_first_of(".'(),*",0)) != string::npos)
         namestr[ic] = '_';
 
-    // convert double underscores to one
+#ifdef REDUCE_DOUBLE_UNDERSCORES
+    // convert double underscores to one.
     while((ic = namestr.find("__",0)) != string::npos)
         namestr = namestr.substr(0,ic) + namestr.substr(ic+1);
 
     // remove trailing _, unless name less than 3 chars
     if ((ic = namestr.length()) > 2 && namestr[ic-1] == '_')
         namestr = namestr.substr(0,ic-1);
+#endif
 
     set_name(namestr);
 }
