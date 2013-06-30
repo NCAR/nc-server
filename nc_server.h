@@ -96,7 +96,7 @@ public:
     void setup();
 
     /** main loop */
-    void run();
+    int run();
 
     static void setupSignals();
 

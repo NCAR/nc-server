@@ -20,6 +20,9 @@ opts.Update(env)
 env['CCFLAGS'] = [ '-g', '-Wall', '-O2' ]
 env['CXXFLAGS'] = [ '-Weffc++' ]
 
+# -L: generated code sends rpc server errors to syslog
+env['RPCGENSERVICEFLAGS'] = ['-L']
+
 env.RPCGenClient('nc_server_rpc.x')
 env.RPCGenHeader('nc_server_rpc.x')
 env.RPCGenService('nc_server_rpc.x')

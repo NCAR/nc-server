@@ -2615,7 +2615,7 @@ void NcServerApp::setup()
     logger->setScheme(logscheme);
 }
 
-void NcServerApp::run(void)
+int NcServerApp::run(void)
 {
     ILOG(("nc_server starting"));
     SVCXPRT *transp;
@@ -2625,12 +2625,12 @@ void NcServerApp::run(void)
     transp = svctcp_create(RPC_ANYSOCK, 0, 0);
     if (transp == NULL) {
         PLOG(("cannot create tcp service."));
-        exit(1);
+        return 1;
     }
     if (!svc_register(transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
                 netcdfserverprog_1, IPPROTO_TCP)) {
         PLOG(("Unable to register (NETCDFSERVERPROG=%x, NETCDFSERVERVERS, tcp): %m", NETCDFSERVERPROG));
-        exit(1);
+        return 1;
     }
 
 #ifdef HAS_CAPABILITY_H 
@@ -2688,8 +2688,8 @@ void NcServerApp::run(void)
     umask(S_IWOTH);
 
     svc_run();
-    PLOG(("svc_run returned"));
-    exit(1);
+    PLOG(("svc_run returned: %m"));
+    return 1;
     /* NOTREACHED */
 }
 
@@ -2700,5 +2700,5 @@ int main(int argc, char **argv)
     if ((res = ncserver.parseRunstring(argc, argv)))
         return res;
     ncserver.setup();
-    ncserver.run();
+    return ncserver.run();
 }
