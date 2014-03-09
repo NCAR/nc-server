@@ -106,14 +106,13 @@ void *writedatarecbatch_float_1_svc(datarec_float * writereq,
 
     Connections *connections = Connections::Instance();
     Connection *conn;
-    int res;
 
     if ((conn = (*connections)[writereq->connectionId]) == 0) {
         PLOG(("writedatarecbatch_float: invalid connection ID: %d",
                     (writereq->connectionId & 0xffff)));
         return (void *) 0;
     }
-    res = conn->put_rec(writereq);
+    conn->put_rec(writereq);
 
     /* Batch mode, return NULL, so RPC does not reply */
 #ifdef DEBUG
@@ -127,14 +126,13 @@ void *writedatarecbatch_int_1_svc(datarec_int * writereq,
 {
     Connections *connections = Connections::Instance();
     Connection *conn;
-    int res;
 
     if ((conn = (*connections)[writereq->connectionId]) == 0) {
         PLOG(("writedatarecbatch_int: invalid connection ID: %d",
                     (writereq->connectionId & 0xffff)));
         return (void *) 0;
     }
-    res = conn->put_rec(writereq);
+    conn->put_rec(writereq);
 #ifdef DEBUG
     DLOG(("writedatarecbatch_int_1_svc res=%d", res));
 #endif
@@ -180,7 +178,6 @@ void *writehistoryrecbatch_1_svc(historyrec * writereq, struct svc_req *)
 
     Connections *connections = Connections::Instance();
     Connection *conn;
-    int res;
 
 #ifdef DEBUG
     DLOG(("writereq->connectionId=%d", writereq->connectionId));
@@ -198,7 +195,7 @@ void *writehistoryrecbatch_1_svc(historyrec * writereq, struct svc_req *)
     DLOG(("writereq->connectionId=%d", writereq->connectionId));
 #endif
 
-    res = conn->put_history(writereq->history);
+    conn->put_history(writereq->history);
 
     /* Batch mode, return NULL, so RPC does not reply */
     return (void *) 0;

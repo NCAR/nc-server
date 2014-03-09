@@ -156,8 +156,13 @@ int Connections::openConnection(const struct connection *conn)
         return -1;
     }
     _connections[id] = cp;
+#ifdef LOG_HEAP
     ILOG(("Opened connection, id=%d, #connections=%zd, heap=%zd",
             (id & 0xffff),_connections.size(), heap()));
+#else
+    ILOG(("Opened connection, id=%d, #connections=%zd",
+            (id & 0xffff),_connections.size()));
+#endif
     return id;
 }
 
@@ -967,12 +972,7 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
     for ( ; vi != _vargroups.end(); ++vi) {
         int id = vi->first;
         VariableGroup* vg = vi->second;
-        if (vg->same_var_group(dd)) {
-            // looks to be the same. Check counts variable and update attributes.
-            vg->check_counts_variable();
-            vg->update_attrs(dd);
-            return id;
-        }
+        if (vg->same_var_group(dd)) return id;
     }
 
     if (_vargroupId < 0) _vargroupId = 0;
@@ -990,7 +990,7 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
 
 VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
     throw(BadVariable):
-    _name(),_interval(dd->interval),_invars(),_outvars(),
+    _name(),_interval(dd->interval),_vars(),_outvars(),
     _ndims(0),_dimsizes(), _dimnames(),
     _nsamples(0),_nprefixes(0),
     _rectype(dd->rectype),_datatype(dd->datatype),
@@ -999,7 +999,6 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
     _id(id),_countsName()
 {
     unsigned int i, j, n;
-    Variable *v;
     unsigned int nv;
 
     nv = dd->fields.fields_len;
@@ -1031,15 +1030,17 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
         _dimsizes[i] = dd->dimensions.dimensions_val[i - 2].size;
     }
 
-    // _invars does not include a counts variable
+    set<string> cntsNames;
+
+    // _vars does not include a counts variable
     for (i = 0; i < nv; i++) {
-        _invars.push_back(v =
-                new Variable(dd->fields.fields_val[i].name));
+        Variable* v = new Variable(dd->fields.fields_val[i].name);
+        _vars.push_back(v);
 
         // generate name for log messages
         if (i == 0) {
             ostringstream ost;
-            ost << "variables[" << nv << "]=" << v->name() <<
+            ost << "vg#" << _id << ",vars[" << nv << "]=" << v->name() <<
                 (nv > 1 ? ",..." : "");
             _name = ost.str();
         }
@@ -1060,37 +1061,130 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
         for (j = 0; j < n; j++) {
             str_attr *a = dd->attrs.attrs_val[i].attrs.attrs_val + j;
 #ifdef DEBUG
-            DLOG(("%d %s %s", j, a->name, a->value));
+            DLOG(("%s: %s adding attribute: %d %s %s",
+                        getName().c_str(),v->name().c_str(), j, a->name, a->value));
 #endif
             v->add_att(a->name, a->value);
+            if (!strcmp(a->name,"counts")) cntsNames.insert(a->value);
         }
     }
 
-    create_outvariables();
-
-    try {
-        check_counts_variable();
-    }
-    catch(const BadVariable& e) {
-        for (unsigned i = 0; i < _invars.size(); i++)
-            delete _invars[i];
-        for (unsigned i = 0; i < _outvars.size(); i++)
-            delete _outvars[i];
-        throw e;
+    if (cntsNames.size() > 1) {
+        ostringstream ost;
+        ost << ": inconsistent counts attributes: " <<
+            *(cntsNames.begin()) << " and " << *(++cntsNames.begin());
+        throw BadVariable(getName() + ost.str());
     }
 
-#ifdef DEBUG
-    DLOG(("created outvariables"));
-#endif
+    if (cntsNames.size() > 0) _countsName = *(cntsNames.begin());
+
+    for (unsigned int i = 0; i < _vars.size(); i++) {
+        Variable *v = _vars[i];
+        _outvars.push_back(new OutVariable(*v,_datatype,_floatFill,_intFill));
+    }
 }
 
 VariableGroup::~VariableGroup(void)
 {
     unsigned int i;
-    for (i = 0; i < _invars.size(); i++)
-        delete _invars[i];
+    for (i = 0; i < _vars.size(); i++)
+        delete _vars[i];
     for (i = 0; i < _outvars.size(); i++)
         delete _outvars[i];
+}
+
+//
+// Was this VariableGroup created from an identical datadef
+//
+bool VariableGroup::same_var_group(const struct datadef *ddp) const
+{
+    unsigned int nv = ddp->fields.fields_len;
+#ifdef DEBUG
+    DLOG(("%s same_var_group,nv=%u,_vars.size()=%ld",
+        getName().c_str(),nv,_vars.size()));
+#endif
+
+    if (_vars.size() != nv)
+        return false;
+
+    if (_interval != ddp->interval)
+        return false;
+
+    // Check that dimensions are the same.  There can be extra
+    // rightmost (trailing) dimensions of 1.
+    // This does not check the dimension names
+    // It also does not check the time or sample dimensions
+    //
+    unsigned int ic, j;
+    for (ic = 0, j = 2; ic < ddp->dimensions.dimensions_len && j < _ndims;
+            ic++, j++)
+        if (ddp->dimensions.dimensions_val[ic].size != _dimsizes[j])
+            return false;
+    for (; ic < ddp->dimensions.dimensions_len; ic++)
+        if (ddp->dimensions.dimensions_val[ic].size != 1)
+            return false;
+    for (; j < _ndims; j++)
+        if (_dimsizes[j] != 1)
+            return false;
+
+    if (_rectype != ddp->rectype)
+        return false;
+    if (_datatype != ddp->datatype)
+        return false;
+
+#ifdef DEBUG
+    DLOG(("%s interval, dimensions, rectype OK",
+        getName().c_str()));
+#endif
+
+    // check that variable names are the same, and attributes
+    for (ic = 0; ic < nv; ic++) {
+        if (_vars[ic]->name() != string(ddp->fields.fields_val[ic].name)) {
+#ifdef DEBUG
+            DLOG(("%s: ic=%d, different var names: %s != %s",
+                getName().c_str(),ic,_vars[ic]->name().c_str(),
+                ddp->fields.fields_val[ic].name));
+#endif
+            return false;
+        }
+        unsigned int na = ddp->attrs.attrs_val[ic].attrs.attrs_len;
+        const char *units = ddp->fields.fields_val[ic].units;
+        if (units && strlen(units) > 0) {
+#ifdef DEBUG
+            DLOG(("%s same_var_group,na=%u,_vars[ic]->get_attr_names().size()=%ld,units=\"%s\",\"%s\"",
+                getName().c_str(),nv,_vars[ic]->get_attr_names().size(),
+                units,_vars[ic]->att_val("units").c_str()));
+#endif
+            if (_vars[ic]->att_val("units") != string(units)) return false;
+            if (na != _vars[ic]->get_attr_names().size()-1) return false;
+        }
+        else {
+#ifdef DEBUG
+            DLOG(("%s same_var_group,na=%u,_vars[ic]->get_attr_names().size()=%ld",
+                getName().c_str(),nv,_vars[ic]->get_attr_names().size()));
+#endif
+            if (na != _vars[ic]->get_attr_names().size()) return false;
+        }
+
+        for (j = 0; j < na; j++) {
+            str_attr *a = ddp->attrs.attrs_val[ic].attrs.attrs_val + j;
+#ifdef DEBUG
+            DLOG(("%d %s %s", j, a->name, a->value));
+#endif
+            if (_vars[ic]->att_val(a->name) != string(a->value)) {
+#ifdef DEBUG
+                DLOG(("%s: %s: ic=%d, j=%d, different attrs: %s != %s",
+                    getName().c_str(),ic,_vars[ic]->name().c_str(),
+                    _vars[ic]->att_val(a->name).c_str(),a->value));
+#endif
+                return false;
+            }
+        }
+    }
+#ifdef DEBUG
+    DLOG(("%s: match", getName().c_str()));
+#endif
+    return true;
 }
 
 int VariableGroup::num_dims(void) const
@@ -1113,154 +1207,13 @@ const string& VariableGroup::dim_name(unsigned int i) const
     return empty;
 }
 
-void VariableGroup::create_outvariables(void)
-{
-    for (unsigned int i = 0; i < _invars.size(); i++) {
-        Variable *var = _invars[i];
-        _outvars.push_back(
-                new OutVariable(*var, _datatype, _floatFill,_intFill));
-    }
-}
-
-void VariableGroup::check_counts_variable() throw(BadVariable)
-{
-    OutVariable *ov;
-
-    OutVariable * cv = 0;
-
-    // check that all counts attributes are the same.
-    set<string> cntsNames;
-
-    for (int i = 0; i < num_vars(); i++) {
-        ov = get_var(i);
-        if (ov->isCnts()) {
-            if (cv) throw BadVariable(getName() + ": multiple counts variables");
-            cv = ov;
-        }
-        else if (ov->att_val("counts").length() > 0)
-            cntsNames.insert(ov->att_val("counts"));
-    }
-
-    if (cntsNames.size() == 0) {
-        return;                 // no counts
-    }
-
-    if (cntsNames.size() > 1) {
-        ostringstream ost;
-        ost << ": inconsistent counts attributes: " <<
-            *(cntsNames.begin()) << " and " << *(++cntsNames.begin());
-        throw BadVariable(getName() + ost.str());
-    }
-
-    string cntsName = *(cntsNames.begin());
-    if (cv && cv->name() != cntsName) {
-        ostringstream ost;
-        ost << ": name of counts variable " << cv->name() <<
-            " not equal to counts attributes " << cntsName;
-        throw BadVariable(getName() + ost.str());
-    }
-
-    setCountsName(cntsName);
-}
-
-void VariableGroup::setCountsName(const std::string& val)
-{
-    _countsName = val;
-    OutVariable* cv = 0;
-    for (int i = 0; i < num_vars(); i++) {
-        OutVariable* ov = get_var(i);
-        if (!ov->isCnts()) ov->add_att("counts",val);
-        else cv = ov;
-    }
-    if (!cv) createCountsVariable(val);
-}
-
-void VariableGroup:: createCountsVariable(const string& cname)
-{
-    Variable v(cname);
-    OutVariable *ov = new OutVariable(v, NS_INT, _floatFill, _intFill);
-    ov->isCnts() = true;
-    // no short_name attribute
-    ov->add_att("short_name", "");
-    _outvars.push_back(ov);
-}
-
-//
-// Was this VariableGroup created from an identical datadef
-//
-int VariableGroup::same_var_group(const struct datadef *ddp) const
-{
-
-    unsigned int i, j;
-    unsigned int nv = ddp->fields.fields_len;
-
-    if (_invars.size() != nv)
-        return 0;
-
-    if (_interval != ddp->interval)
-        return 0;
-
-    // Check that dimensions are the same.  There can be extra
-    // rightmost (trailing) dimensions of 1.
-    // This does not check the dimension names
-    // It also does not check the time or sample dimensions
-    //
-    for (i = 0, j = 2; i < ddp->dimensions.dimensions_len && j < _ndims;
-            i++, j++)
-        if (ddp->dimensions.dimensions_val[i].size != _dimsizes[j])
-            return 0;
-    for (; i < ddp->dimensions.dimensions_len; i++)
-        if (ddp->dimensions.dimensions_val[i].size != 1)
-            return 0;
-    for (; j < _ndims; j++)
-        if (_dimsizes[j] != 1)
-            return 0;
-
-    if (_rectype != ddp->rectype)
-        return 0;
-    if (_datatype != ddp->datatype)
-        return 0;
-
-    for (i = 0; i < nv; i++)
-        if (_invars[i]->name() != string(ddp->fields.fields_val[i].name))
-            return 0;
-    return 1;
-}
-void VariableGroup::update_attrs(const struct datadef *ddp)
-{
-    unsigned int nv = ddp->fields.fields_len;
-
-    for (unsigned int i = 0; i < nv; i++) {
-        Variable *v = _invars[i];
-        OutVariable *ov = 0;
-        if (i < _outvars.size()) ov = _outvars[i];
-
-        char *cp = ddp->fields.fields_val[i].units;
-        if (cp) {
-            v->add_att("units", cp);
-            if (ov) ov->add_att("units", cp);
-        }
-
-        unsigned int n = ddp->attrs.attrs_val[i].attrs.attrs_len;
-
-        for (unsigned int j = 0; j < n; j++) {
-            str_attr *a = ddp->attrs.attrs_val[i].attrs.attrs_val + j;
-#ifdef DEBUG
-            DLOG(("%d %s %s", j, a->name, a->value));
-#endif
-            v->add_att(a->name, a->value);
-            if (ov) ov->add_att(a->name, a->value);
-        }
-    }
-}
-
-Variable::Variable(const string& vname): _name(vname),_isCnts(false),
+Variable::Variable(const string& vname): _name(vname),
     _strAttrs()
 {
 }
 
 Variable::Variable(const Variable & v):
-    _name(v._name),_isCnts(v._isCnts),_strAttrs(v._strAttrs)
+    _name(v._name),_strAttrs(v._strAttrs)
 {
 }
 
@@ -1296,7 +1249,7 @@ const string& Variable::att_val(const string& name) const
 
 OutVariable::OutVariable(const Variable& v, NS_datatype dtype,
         float ff, int ll):
-    Variable(v),_datatype(dtype), _floatFill(ff), _intFill(ll)
+    Variable(v),_isCnts(false),_datatype(dtype), _floatFill(ff), _intFill(ll)
 {
     string namestr = name();
 
@@ -1335,7 +1288,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     _baseTimeVar(0),_timeOffsetVar(0),_vars(),_recdim(0),
     _baseTime(0),_nrecs(0),_dimNames(0),_dimSizes(),_dimIndices(),
     _ndims(0),_dims(),_ndims_req(0),_lastAccess(0),_lastSync(0),
-    _historyHeader()
+    _historyHeader(),_countsNamesByVGId()
 {
 
     if (!is_valid())
@@ -1505,11 +1458,11 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     //
     if (!(historyAtt = get_att("history"))) {
         string tmphist =
-            nidas::util::UTime(_lastAccess).format(true, "Created: %c\n");
+            nidas::util::UTime(_lastAccess).format(true, "Created: %F %T %z\n");
         put_history(tmphist);
     } else {
         _historyHeader =
-            nidas::util::UTime(_lastAccess).format(true, "Updated: %c\n");
+            nidas::util::UTime(_lastAccess).format(true, "Updated: %F %T %z\n");
         delete historyAtt;
     }
 
@@ -1564,14 +1517,44 @@ NcBool NS_NcFile::sync()
     return res;
 }
 
+std::string NS_NcFile::getCountsName(VariableGroup * vgroup)
+{
+    return _countsNamesByVGId[vgroup->getId()];
+}
+
+string NS_NcFile::resolveCountsName(const string& cntsNameInFile, VariableGroup* vgroup)
+{
+    string vgCntsName = vgroup->getCountsName();
+    int isuffix = 1;
+
+    string cntsName = cntsNameInFile;
+
+    if (vgCntsName.length() > 0) {
+        if (cntsNameInFile.length() == 0) {
+            cntsName = vgCntsName;
+            string newname = cntsName;
+            while (!checkCountsVariableName(cntsName,vgroup))
+                newname = createNewName(cntsName,isuffix);
+            cntsName = newname;
+        }
+    }
+    ILOG(("%s: %s: variable group counts name: \"%s\", in file: \"%s\", resolved=\"%s\"\n",
+                getName().c_str(),vgroup->getName().c_str(),
+                vgCntsName.c_str(),cntsNameInFile.c_str(),
+                cntsName.c_str()));
+#ifdef DEBUG
+#endif
+    return cntsName;
+}
+
 bool NS_NcFile::checkCountsVariableName(const string& name,VariableGroup * vgroup)
             throw(NetCDFAccessFailed)
 {
     // check if variable exists
-    // Y: correct dimension?  If not return false;
-    // Check if any variables in file, not in vgroup, have it's name
+    //     Y: correct dimension?  If not return false;
+    // Check if any other variables in file, not in vgroup, have it's name
     // as a counts attribute:
-    //  Y: return false
+    //  Y: return true, but issue warning about possible duplicate
     //  N: return true
     //
     NcVar *ncv;
@@ -1599,99 +1582,18 @@ bool NS_NcFile::checkCountsVariableName(const string& name,VariableGroup * vgrou
                         (attString = att->as_string(0)) &&
                         !strcmp(attString, name.c_str())) {
                     delete [] attString;
-                    return false;   // string match, this is not a good counts name
+#ifdef WARN_ABOUT_THIS_TOO
+                    WLOG(("%s: %s: counts variable \"%s\" also used by variable %s",
+                        getName().c_str(),vgroup->getName().c_str(),
+                        name.c_str(),ncv->name()));
+                    // return false;   // string match, this is not a good counts name
+#endif
                 }
-                delete [] attString;
+                else delete [] attString;
             }
         }
     }
     return true;
-}
-
-string NS_NcFile::resolveCountsName(
-        const set<string>& fileCntsAttrs,VariableGroup* vgroup)
-{
-    // non-empty requested counts name
-    //     no attributes in file
-    //         while (!checkCountsVariableName(req name,vg)) createNewName()
-    //     file attributes size 1, equal to requested
-    //         while (!checkCountsVariableName(req name,vg)) createNewName()
-    //     file attributes size 1, not equal to requested
-    //         warn
-    //         cntsName = file name
-    //         if (!checkCountsVariableName(cntsName,vg))
-    //             cntsName = req name
-    //             while (!checkCountsVariableName(cntsName,vg)) createNewName();
-    //     file attributes size > 1
-    //         warn
-    //         while (!checkCountsVariableName(req name,vg)) createNewName()
-    // empty requested name
-    //     no attributes in file: do nothing
-    //     file attributes size 1
-    //         while (!checkCountsVariableName(file name,vg)) createNewName()
-    //         update the requested counts name to the attribute from the file
-    //     file attributes size > 1
-    //         warn
-    //         what to do? Work with first one.
-
-    if (fileCntsAttrs.size() > 1)
-        WLOG(("%s: %s: multiple counts attributes: ",
-                getName().c_str(),vgroup->getName().c_str()) <<
-                *(fileCntsAttrs.begin()) << " and " << *(++fileCntsAttrs.begin()));
-
-    string fileCntsName;
-    if (fileCntsAttrs.size() > 0)
-        fileCntsName = *(fileCntsAttrs.begin());
-
-    string cntsName = vgroup->getCountsName();
-    int isuffix = 1;
-
-    if (vgroup->getCountsName().length() > 0) {
-        if (fileCntsName.length() > 0) {
-            if (fileCntsName == vgroup->getCountsName()) {
-                while (!checkCountsVariableName(cntsName,vgroup))
-                    cntsName = createNewName(fileCntsName,isuffix);
-            }
-            else {
-                // mismatch of what was requested and what's in the file
-                WLOG(("%s: %s: counts attribute: ",
-                        getName().c_str(),vgroup->getName().c_str()) <<
-                        vgroup->getCountsName() <<
-                        " does not match attributes in file: " <<
-                        fileCntsName);
-                cntsName = fileCntsName;
-                // try what's in file
-                if (!checkCountsVariableName(cntsName,vgroup)) {
-                    // didn't work, try what's requested
-                    cntsName = vgroup->getCountsName();
-                    while (!checkCountsVariableName(cntsName,vgroup))
-                        cntsName = createNewName(vgroup->getCountsName(),isuffix);
-                }
-            }
-        }
-        else {
-            while (!checkCountsVariableName(cntsName,vgroup))
-                cntsName = createNewName(vgroup->getCountsName(),isuffix);
-        }
-    }
-    else {
-        // no requested counts name, but counts attributes occur in file
-        if (fileCntsName.length() > 0) {
-            cntsName = fileCntsName;
-            if (checkCountsVariableName(cntsName,vgroup)) {
-                // no counts attributes in requested variables, but
-                // consistent counts attributes found in file.
-                // Set counts attribute for this group from file.
-                if (fileCntsAttrs.size() == 1) vgroup->setCountsName(cntsName);
-            }
-            else {
-                do {
-                    cntsName = createNewName(fileCntsName,isuffix);
-                } while (!checkCountsVariableName(cntsName,vgroup));
-            }
-        }
-    }
-    return cntsName;
 }
 
 string NS_NcFile::createNewName(const string& name,int & i)
@@ -1731,7 +1633,7 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
     //
     for (int i = _ndims = 0; i < _ndims_req; i++) {
 #ifdef DEBUG
-        DLOG(("VariableGroup %d dimension number %d %s, size=%d",
+        DLOG(("VariableGroup %d dimension number %d %s, size=%ld",
                     igroup,i,_dimNames[i].c_str(), _dimSizes[i]));
 #endif
 
@@ -1753,62 +1655,77 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
     DLOG(("creating outvariables"));
 #endif
 
-    int nv = vgroup->num_vars();    // number of variables in group
+    /* number of variables in group, not including  counts variable at this point */
+    int nv = vgroup->num_vars();
 
     _vars[groupid] = vector<NS_NcVar*>(nv);
     vector<NS_NcVar*>& vars = _vars[groupid];
 
-    set<string> fileCntsNames;
+    set<string> groupCntsNames;
 
     // Initialize any variables that are currently in this file,
-    // Check for validity. Accumulate counts attributes.
+    // Check for validity. Accumulate counts attributes of variables
+    // in this group
     for (int iv = 0; iv < nv; iv++) {
         OutVariable *ov = vgroup->get_var(iv);
         vars[iv] = 0;
-        if (!ov->isCnts()) {
-            NcVar* ncv = find_var(ov);
-            if (ncv) {
-                NS_NcVar* nsv =
-                    new NS_NcVar(ncv, &_dimIndices.front(), _ndims_req, ov->floatFill(),
-                        ov->intFill(), ov->isCnts());
-                vars[iv] = nsv;
+        NcVar* ncv = find_var(ov);
+        if (ncv) {
+            NS_NcVar* nsv =
+                new NS_NcVar(ncv, &_dimIndices.front(), _ndims_req, ov->floatFill(),
+                    ov->intFill(), ov->isCnts());
+            vars[iv] = nsv;
 
-                NcAtt *att = nsv->get_att("counts");
-                if (att) {
-                    // accumulate counts attributes of all variables in the file
-                    if (att->type() == ncChar && att->num_vals() > 0) {
-                        const char *cname = att->as_string(0);
-                        if (cname) {
-                            fileCntsNames.insert(cname);
-                            delete [] cname;
-                        }
+            NcAtt *att = nsv->get_att("counts");
+            if (att) {
+                // accumulate counts attributes of all variables in this group
+                // in this file
+                if (att->type() == ncChar && att->num_vals() > 0) {
+                    const char *cname = att->as_string(0);
+                    if (cname) {
+                        groupCntsNames.insert(cname);
+                        delete [] cname;
                     }
-                    delete att;
                 }
+                delete att;
             }
         }
     }
-    string cntsName = resolveCountsName(fileCntsNames,vgroup);
+
+    if (groupCntsNames.size() > 1)
+        WLOG(("%s: %s: multiple counts attributes for variables in group: ",
+                getName().c_str(),vgroup->getName().c_str()) <<
+                *(groupCntsNames.begin()) << " and " << *(++groupCntsNames.begin()));
+
+    // counts name from file
+    string cntsName;
+    if (groupCntsNames.size() > 0)
+        cntsName = *groupCntsNames.begin();
+    else
+        cntsName = "";
+
+    cntsName = resolveCountsName(cntsName,vgroup);
+    _countsNamesByVGId[groupid] = cntsName;
 
     bool doSync = false;
-    if (cntsName != vgroup->getCountsName())
-        ILOG(("%s: %s: new name for counts variable: %s",
-                   getName().c_str(),vgroup->getName().c_str(),
-                   cntsName.c_str()));
+    if (cntsName.length() > 0) {
+        Variable v(cntsName);
+        OutVariable ov(v, NS_INT, vgroup->floatFill(), vgroup->intFill());
+        ov.isCnts() = true;
+        vars.push_back(add_var(&ov,doSync));
+    }
 
     for (int iv = 0; iv < nv; iv++) {
         OutVariable *ov = vgroup->get_var(iv);
-        if (ov->isCnts() && ov->name() != cntsName) ov->set_name(cntsName);
-
-        NS_NcVar* nsv = vars[iv];
-        if (!nsv) vars[iv] = nsv = add_var(ov,doSync);
-        if (add_attrs(ov,nsv,cntsName)) doSync = true;
+        if (!vars[iv]) vars[iv] = add_var(ov,doSync);
+        if (add_attrs(ov,vars[iv],cntsName)) doSync = true;
     }
 
-#ifdef DEBUG
-    DLOG(("added vars"));
-#endif
     if (doSync) sync();
+
+#ifdef DEBUG
+    DLOG(("get_vars done"));
+#endif
     return vars;
 }
 
@@ -1825,7 +1742,7 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v, bool& modified)
     if (!(var = find_var(v))) {
         modified = true;
         if (!(var =
-                    NcFile::add_var(varName.c_str(), (NcType) v->data_type(), _ndims,
+                NcFile::add_var(varName.c_str(), (NcType) v->data_type(), _ndims,
                         &_dims.front())) || !var->is_valid()) {
 #ifdef DEBUG
             for (unsigned int i = 0; i < _ndims; i++)
@@ -2124,7 +2041,7 @@ int NS_NcFile::put_history(string val)
 
     string::size_type i1, i2 = 0;
 
-    // check \n delimited records in h and history
+    // check \n repeated records in h and history
     for (i1 = 0; i1 < val.length(); i1 = i2) {
 
         i2 = val.find('\n', i1);
@@ -2133,28 +2050,18 @@ int NS_NcFile::put_history(string val)
         else
             i2++;
 
-        string::size_type j1, j2 = 0;
-        for (j1 = 0; j1 < history.length(); j1 = j2) {
-            j2 = history.find('\n', j1);
-            if (j2 == string::npos)
-                j2 = history.length();
-            else
-                j2++;
-
-            if (history.substr(j1, j2 - j2).
-                    find(val.substr(i1, i2 - i1)) != string::npos) {
-                // match of a line in val with the existing history
-                val = val.substr(0, i1) + val.substr(i2);
-                i2 = i1;
-            }
+        if (history.find(val.substr(i1, i2 - i1)) != string::npos) {
+            // match of a line in val with the existing history
+            val = val.substr(0, i1) + val.substr(i2);
+            i2 = i1;
         }
+    }
 
-        if (val.length() > 0) {
-            history += _historyHeader + val;
-            if (!add_att("history", history.c_str()))
-                PLOG(("add history att: %s: %s", _fileName.c_str(),
-                            get_error_string().c_str()));
-        }
+    if (val.length() > 0) {
+        history += _historyHeader + val;
+        if (!add_att("history", history.c_str()))
+            PLOG(("add history att: %s: %s", _fileName.c_str(),
+                        get_error_string().c_str()));
     }
 
     _lastAccess = time(0);
@@ -2167,7 +2074,7 @@ int NS_NcFile::put_history(string val)
     return 0;
 }
 
-NcBool NS_NcFile::check_var_dims(NcVar * var)
+bool NS_NcFile::check_var_dims(NcVar * var)
 {
 
     //
@@ -2191,7 +2098,7 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
     //     sizes:    any     5        8
     //     _ndims_req: 3
     //    Returned:
-    //            function value: 1 (OK)
+    //            function value: true
     //            indices = 0,1,2 sample is dimension 1 of variable,
     //                            station is dimension 2
     //    Input:
@@ -2200,7 +2107,7 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
     //     sizes:    any      1       1
     //     _ndims_req: 3
     //    Returned:
-    //            function value: 1 (OK)
+    //            function value: true
     //            indices = 0,-1,-1 (variable has no sample or station dim)
     //    Input:
     //     variable: z
@@ -2208,7 +2115,7 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
     //     sizes:    any   1          2
     //     ndimin: 3
     //    Returned:
-    //            function value: 1 (OK)
+    //            function value: true
     //            indices = 0,-1,1 variable has no sample dim,
     //                            station_2 dim is dimension 1 (station_2)
     //                            Note that the dimension name can
@@ -2224,7 +2131,7 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
     //     sizes:      any    10      2
     //     ndimin: 3
     //    Returned:
-    //            function value: 1 (OK)
+    //            function value: true
     //            indices = 0,1,2 sample_10 is dimension 1 of variable,
     //                            station_2 is dimension 2
     //    Input:
@@ -2237,72 +2144,83 @@ NcBool NS_NcFile::check_var_dims(NcVar * var)
     //                            of value 9)
 
     int ndims;
-    NcDim *dim;
-    int i, ireq;
+    int ivdim, ireq;
 
     ndims = var->num_dims();
     if (ndims < 1) {
         PLOG(("%s: variable %s has no dimensions",
                     _fileName.c_str(), var->name()));
-        return 0;
+        return false;
     }
 
     // do the dimension checks only for time series variables
-    if (!var->get_dim(0)->is_unlimited())
-        return 0;
+    if (!var->get_dim(0)->is_unlimited()) {
+        WLOG(("%s: var=%s does not have an unlimited first dimension",
+           getName().c_str(),var->name()));
+        return false;
+    }
 
-    for (ireq = i = 0; i < ndims && ireq < _ndims_req;) {
-        dim = var->get_dim(i);
+    for (ireq = ivdim = 0; ivdim < ndims && ireq < _ndims_req;) {
+        NcDim* dim = var->get_dim(ivdim);
 
 #ifdef DEBUG
-        DLOG(("%s: dim[%d] = %s, size=%d ndims=%d",
-                    var->name(),i, dim->name(), dim->size(), ndims));
-        DLOG(("%s: req dim[%d] = %s, size=%d ndimin=%d",
+        DLOG(("%s: dim[%d] = %s, size=%ld ndims=%d",
+                    var->name(),ivdim, dim->name(), dim->size(), ndims));
+        DLOG(("%s: req dim[%d] = %s, size=%ld ndim_req=%d",
                     getName().c_str(),ireq, _dimNames[ireq].c_str(), _dimSizes[ireq], _ndims_req));
 #endif
         if (_dimSizes[ireq] == NC_UNLIMITED) {
             if (dim->is_unlimited())
-                _dimIndices[ireq++] = i++;
-            else
-                return 0;
+                _dimIndices[ireq++] = ivdim++;
+            else {
+                WLOG(("%s: var=%s dimension %s(%ld) is not unlimited",
+                   getName().c_str(),var->name(),dim->name(),dim->size()));
+                return false;
+            }
         } else if (!strncmp
                 (dim->name(),_dimNames[ireq].c_str(),_dimNames[ireq].length())) {
-            // name match
+            // dimensions name match
             if (dim->size() != _dimSizes[ireq]) {
+                WLOG(("%s:dimension size mismatch for var=%s, dim %s(%ld), expected size=%ld",
+                    getName().c_str(),var->name(),dim->name(),dim->size(),_dimSizes[ireq]));
 #ifdef DEBUG
-                DLOG(("dimension size mismatch for var=%s, dim %s=%d, expected size=%d",
-                            var->name(),dim->name(),dim->size(),_dimSizes[ireq]));
 #endif
-                return 0;
+                return false;
             }
-            _dimIndices[ireq++] = i++;
+            _dimIndices[ireq++] = ivdim++;
         }
         // If no name match, then the requested dimension must be 1.
         else {
             if (_dimSizes[ireq] != 1) {
+                WLOG(("%s: no dimension name match for var=%s, dim %s(%ld)",
+                   getName().c_str(),var->name(),dim->name(),dim->size()));
 #ifdef DEBUG
-                DLOG(("no dimension name match for var=%s, dim %s=%d",
-                            var->name(),dim->name(),dim->size()));
 #endif
-                return 0;
+                return false;
             }
             _dimIndices[ireq++] = -1;
         }
     }
 #ifdef DEBUG
-    DLOG(("ireq=%d _ndims_req=%d, i=%d, ndims=%d",
-                ireq, _ndims_req, i, ndims));
+    DLOG(("ireq=%d _ndims_req=%d, ivdim=%d, ndims=%d",
+                ireq, _ndims_req, ivdim, ndims));
 #endif
     // remaining requested or existing dimensions should be 1
     for (; ireq < _ndims_req; ireq++)
-        if (_dimSizes[ireq] > 1)
-            return 0;
-    for (; i < ndims; i++) {
-        dim = var->get_dim(i);
-        if (dim->size() != 1)
-            return 0;
+        if (_dimSizes[ireq] > 1) {
+            WLOG(("%s: no dimension for var=%s: dim %s(%ld)",
+                   getName().c_str(),var->name(),_dimNames[ireq].c_str(),_dimSizes[ireq]));
+            return false;
+        }
+    for (; ivdim < ndims; ivdim++) {
+        NcDim* dim = var->get_dim(ivdim);
+        if (dim->size() != 1) {
+            WLOG(("%s: extra dimension for var=%s, dim %s(%ld)",
+                   getName().c_str(),var->name(),dim->name(),dim->size()));
+            return false;
+        }
     }
-    return 1;
+    return true;
 }
 
 const NcDim *NS_NcFile::get_dim(NcToken prefix, long size)
@@ -2324,7 +2242,7 @@ const NcDim *NS_NcFile::get_dim(NcToken prefix, long size)
     for (i = 0; i < ndims; i++) {
         dim = NcFile::get_dim(i);
 #ifdef DEBUG
-        DLOG(("dim[%d]=%s, size %d", i, dim->name(), dim->size()));
+        DLOG(("dim[%d]=%s, size %ld", i, dim->name(), dim->size()));
 #endif
         if (!strncmp(dim->name(), prefix, l) && dim->size() == size)
             return dim;

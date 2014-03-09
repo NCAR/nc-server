@@ -358,6 +358,8 @@ public:
     }
     NcBool sync(void);
 
+    std::string getCountsName(VariableGroup* vg);
+
     /**
      * Check validity of a counts variable name for this file.
      * @returns:
@@ -374,7 +376,7 @@ public:
      * Determine a counts attribute for a VariableGroup, given the
      * current counts attributes found in the file for the group.
      */
-    std::string resolveCountsName(const std::set<std::string>& attrs, VariableGroup*);
+    std::string resolveCountsName(const std::string& cntsNameInFile, VariableGroup* vgroup);
 
     /**
      * Utility function to create a new name by appending and
@@ -443,14 +445,16 @@ private:
     NcVar *find_var(OutVariable *) throw(NetCDFAccessFailed);
 
     /**
-     * Add an attribute to the NS_NcFile. Return true if
+     * Add attributes to the NS_NcFile. Return true if
      * the NcFile was modified.
      */
     bool add_attrs(OutVariable * v, NS_NcVar * var,const std::string& countsAttr)
         throw(NetCDFAccessFailed);
 
-    NcBool check_var_dims(NcVar *);
+    bool check_var_dims(NcVar *);
     const NcDim *get_dim(NcToken name, long size);
+
+    std::map <int,std::string> _countsNamesByVGId;
 
     NS_NcFile(const NS_NcFile &);       // prevent copying
     NS_NcFile & operator=(const NS_NcFile &);   // prevent assignment
@@ -566,13 +570,9 @@ public:
         return _outvars[n];
     }
 
-    int same_var_group(const struct datadef *) const;
-
-    void update_attrs(const struct datadef *ddp);
+    bool same_var_group(const struct datadef *) const;
 
     const char *suffix() const;
-
-    void create_outvariables(void);
 
     void createCountsVariable(const std::string& name);
 
@@ -580,8 +580,6 @@ public:
     {
         return _countsName;
     }
-
-    void setCountsName(const std::string& val);
 
     double interval() const
     {
@@ -593,7 +591,7 @@ public:
     }
     int num_vars() const
     {
-        return _outvars.size();
+        return _vars.size();
     }
     NS_rectype rec_type() const
     {
@@ -629,7 +627,7 @@ private:
 
     double _interval;
 
-    std::vector <Variable *> _invars;
+    std::vector <Variable *> _vars;
 
     std::vector <OutVariable *> _outvars;
 
@@ -661,8 +659,8 @@ private:
      */
     std::string _countsName;
 
-
     VariableGroup(const VariableGroup &);       // prevent copying
+
     VariableGroup & operator=(const VariableGroup &);   // prevent assignment
 };
 
@@ -747,19 +745,18 @@ private:
 
 };
 
+/**
+ * Requested variable.
+ */
 class Variable
 {
 public:
-    Variable(const std::string &n);
+    Variable(const std::string& n);
 
     Variable(const Variable &);
 
     virtual ~ Variable(void) {}
 
-    bool &isCnts()
-    {
-        return _isCnts;
-    }
     const std::string& name() const
     {
         return _name;
@@ -783,21 +780,27 @@ public:
 protected:
     std::string _name;
 
-    /**
-     * If this variable is referenced as a counts variable by other variables.
-     */
-    bool _isCnts;
-
     std::map <std::string, std::string> _strAttrs;
 
     Variable & operator=(const Variable &);     // prevent assignment
 
 };
 
-class OutVariable:public Variable
+/**
+ * Requested variable, with named modified for compatibility with NetCDF,
+ * short_name attribute added.
+ */
+class OutVariable: public Variable
 {
 public:
-    OutVariable(const Variable &, NS_datatype, float, int);
+    OutVariable(const std::string& n, NS_datatype, float, int);
+
+    OutVariable(const Variable&, NS_datatype, float, int);
+
+    bool &isCnts()
+    {
+        return _isCnts;
+    }
 
     NS_datatype data_type() const
     {
@@ -808,22 +811,24 @@ public:
     {
         return _floatFill;
     }
+
     int intFill() const
     {
         return _intFill;
     }
 
 private:
+
+    /**
+     * If this variable is referenced as a counts variable by other variables.
+     */
+    bool _isCnts;
+
     NS_datatype _datatype;
 
     float _floatFill;
 
     int _intFill;
-
-    OutVariable & operator=(const OutVariable &);       // prevent assignment
-
-    OutVariable(const OutVariable &);   // prevent copying
-
 };
 
 template<class REC_T,class DATA_T>
