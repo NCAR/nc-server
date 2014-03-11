@@ -1655,7 +1655,8 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
     DLOG(("creating outvariables"));
 #endif
 
-    /* number of variables in group, not including  counts variable at this point */
+    /* number of input variables in group.
+     * This does not include a possible counts variable */
     int nv = vgroup->num_vars();
 
     _vars[groupid] = vector<NS_NcVar*>(nv);
@@ -1729,20 +1730,20 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
     return vars;
 }
 
-NS_NcVar *NS_NcFile::add_var(OutVariable * v, bool& modified)
+NS_NcVar *NS_NcFile::add_var(OutVariable* ov, bool& modified)
             throw(NetCDFAccessFailed)
 {
     NcVar *var;
     NS_NcVar *fsv;
-    bool isCnts = v->isCnts();
+    bool isCnts = ov->isCnts();
 
-    const string& varName = v->name();
+    const string& varName = ov->name();
 
     // No matching variables found, create new one
-    if (!(var = find_var(v))) {
+    if (!(var = find_var(ov))) {
         modified = true;
         if (!(var =
-                NcFile::add_var(varName.c_str(), (NcType) v->data_type(), _ndims,
+                NcFile::add_var(varName.c_str(), (NcType) ov->data_type(), _ndims,
                         &_dims.front())) || !var->is_valid()) {
 #ifdef DEBUG
             for (unsigned int i = 0; i < _ndims; i++)
@@ -1757,12 +1758,12 @@ NS_NcVar *NS_NcFile::add_var(OutVariable * v, bool& modified)
     if (!check_var_dims(var))
         throw NetCDFAccessFailed(getName(),string("check dimensions ") + varName,"wrong dimensions");
 
-    fsv = new NS_NcVar(var, &_dimIndices.front(), _ndims_req, v->floatFill(),
-            v->intFill(), isCnts);
+    fsv = new NS_NcVar(var, &_dimIndices.front(), _ndims_req, ov->floatFill(),
+            ov->intFill(), isCnts);
     return fsv;
 }
 
-bool NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName)
+bool NS_NcFile::add_attrs(OutVariable* ov, NS_NcVar * var,const string& cntsName)
                 throw(NetCDFAccessFailed)
 {
     // add attributes if they don't exist in file, otherwise leave them alone
@@ -1776,13 +1777,13 @@ bool NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName
     auto_ptr<NcAtt> nca(var->get_att("_FillValue"));
     if (!nca.get()) {
         modified = true;
-        switch (v->data_type()) {
+        switch (ov->data_type()) {
         case NS_INT:
-            if (!var->add_att("_FillValue",v->intFill()))
+            if (!var->add_att("_FillValue",ov->intFill()))
                 throw NetCDFAccessFailed(getName(),string("add_att _FillValue to ") + var->name(),get_error_string());
             break;
         case NS_FLOAT:
-            if (!var->add_att("_FillValue", v->floatFill()))
+            if (!var->add_att("_FillValue", ov->floatFill()))
                 throw NetCDFAccessFailed(getName(),string("add_att _FillValue to ") + var->name(),get_error_string());
             break;
         }
@@ -1791,15 +1792,15 @@ bool NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName
 
     try {
 #ifdef DO_UNITS_SEPARATELY
-        if (v->units().length() > 0) {
-            if (var->set_att("units",v->units())) modified = true;
+        if (ov->units().length() > 0) {
+            if (var->set_att("units",ov->units())) modified = true;
         }
 #endif
         // all string attributes
-        vector<string> attrNames = v->get_attr_names();
+        vector<string> attrNames = ov->get_attr_names();
         for (unsigned int i = 0; i < attrNames.size(); i++) {
             string aname = attrNames[i];
-            string aval = v->att_val(aname);
+            string aval = ov->att_val(aname);
             // do counts below
             if (aname == "counts") continue;
             if (aval.length() > 0) {
@@ -1809,7 +1810,7 @@ bool NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName
         // if cntsName is non-empty, set it in the file, even if it
         // isn't an attribute of the OutVariable
         // This logic will not change a counts attribute to an empty string
-        if (!v->isCnts() && cntsName.length() > 0) {
+        if (!ov->isCnts() && cntsName.length() > 0) {
             if (var->set_att("counts",cntsName)) modified = true;
         }
     }
@@ -1821,18 +1822,19 @@ bool NS_NcFile::add_attrs(OutVariable * v, NS_NcVar * var,const string& cntsName
 }
 
 //
-// Find the variable.
+// Find the variable in this file.
 // First lookup by the NetCDF variable name we've created for it.
 // If a variable is found by that name, check that the short_name
 // attribute is correct.  If it isn't, then someone has been
 // renaming variables and we have to create a new variable name.
+// Return NULL if variable is not found in file.
 //
-NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
+NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
 {
     int i;
     NcVar *var;
-    const string& varName = v->name();
-    const string& shortName = v->att_val("short_name");
+    const string& varName = ov->name();
+    const string& shortName = ov->att_val("short_name");
 
     bool nameExists = false;
 
@@ -1876,7 +1878,7 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
         var = 0;
     }
 
-    if (var && var->type() != (NcType) v->data_type()) {
+    if (var && var->type() != (NcType) ov->data_type()) {
         // we'll just warn about this at the moment.
         WLOG(("%s: variable %s is of wrong type",
                     _fileName.c_str(), var->name()));
@@ -1927,7 +1929,7 @@ NcVar *NS_NcFile::find_var(OutVariable * v) throw(NetCDFAccessFailed)
         DLOG(("%s: %s new name= %s\n",
                     _fileName.c_str(), var->name(), newname.c_str()));
 #endif
-        v->set_name(newname.c_str());
+        ov->set_name(newname.c_str());
     }
     return var;
 }
