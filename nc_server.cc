@@ -982,7 +982,7 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
     _vargroups[_vargroupId] = vg;
 
 #ifdef DEBUG
-    ILOG(("Created variable group %d", _vargroupId));
+    DLOG(("Created variable group %d", _vargroupId));
 #endif
 
     return _vargroupId++;
@@ -1538,11 +1538,11 @@ string NS_NcFile::resolveCountsName(const string& cntsNameInFile, VariableGroup*
             cntsName = newname;
         }
     }
-    ILOG(("%s: %s: variable group counts name: \"%s\", in file: \"%s\", resolved=\"%s\"\n",
+#ifdef DEBUG
+    DLOG(("%s: %s: variable group counts name: \"%s\", in file: \"%s\", resolved=\"%s\"\n",
                 getName().c_str(),vgroup->getName().c_str(),
                 vgCntsName.c_str(),cntsNameInFile.c_str(),
                 cntsName.c_str()));
-#ifdef DEBUG
 #endif
     return cntsName;
 }
