@@ -2,7 +2,6 @@
 
 script=`basename $0`
 
-dopkg=all
 install=false
 
 while [ $# -gt 0 ]; do
@@ -10,12 +9,11 @@ while [ $# -gt 0 ]; do
         -i)
             install="true"
             ;;
-        *)
-            dopkg=$1
-            ;;
     esac
     shift
 done
+
+pkg=nc_server
 
 source repo_scripts/repo_funcs.sh
 
