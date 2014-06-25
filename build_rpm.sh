@@ -2,6 +2,8 @@
 
 script=`basename $0`
 
+pkg=nc_server
+
 install=false
 
 while [ $# -gt 0 ]; do
@@ -13,7 +15,6 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-pkg=nc_server
 
 source repo_scripts/repo_funcs.sh
 
@@ -47,10 +48,10 @@ version=`get_version ${pkg}.spec`
 # jenkins sets SVN_REVISION
 release=${SVN_REVISION:=$(get_release .)}
 
-tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn -C .. \
-    ${pkg}/SConstruct ${pkg}/nc_server.h ${pkg}/nc_server.cc ${pkg}/nc_server_rpc.x \
-    ${pkg}/nc_server_rpc_procs.cc ${pkg}/nc_check.c ${pkg}/nc_close.cc ${pkg}/nc_shutdown.cc \
-    ${pkg}/nc_sync.cc ${pkg}/site_scons ${pkg}/scripts ${pkg}/etc ${pkg}/usr
+# use --transform to put the package name in the tar path names
+tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --transform="s,./,$pkg/," \
+    ./SConstruct ./nc_server.h ./*.cc ./nc_check.c ./nc_server_rpc.x \
+    ./site_scons ./scripts ./etc ./usr
 
 rpmbuild -v -ba \
     --define "_topdir $topdir"  \
