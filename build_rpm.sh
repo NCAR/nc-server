@@ -44,23 +44,21 @@ get_release()
     echo $v
 }
 
+version=`get_version ${pkg}.spec`
 
-pkg=nc_server
-if [ $dopkg == all -o $dopkg == $pkg ];then
-    version=`get_version ${pkg}.spec`
-    release=$(get_release .)
+# jenkins sets SVN_REVISION
+release=${SVN_REVISION:=$(get_release .)}
 
-    tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn -C .. \
-        ${pkg}/SConstruct ${pkg}/nc_server.h ${pkg}/nc_server.cc ${pkg}/nc_server_rpc.x \
-        ${pkg}/nc_server_rpc_procs.cc ${pkg}/nc_check.c ${pkg}/nc_close.cc ${pkg}/nc_shutdown.cc \
-        ${pkg}/nc_sync.cc ${pkg}/site_scons ${pkg}/scripts ${pkg}/etc ${pkg}/usr
+tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn -C .. \
+    ${pkg}/SConstruct ${pkg}/nc_server.h ${pkg}/nc_server.cc ${pkg}/nc_server_rpc.x \
+    ${pkg}/nc_server_rpc_procs.cc ${pkg}/nc_check.c ${pkg}/nc_close.cc ${pkg}/nc_shutdown.cc \
+    ${pkg}/nc_sync.cc ${pkg}/site_scons ${pkg}/scripts ${pkg}/etc ${pkg}/usr
 
-    rpmbuild -v -ba \
-        --define "_topdir $topdir"  \
-        --define "release $release" \
-        --define "debug_package %{nil}" \
-        ${pkg}.spec | tee -a $log  || exit $?
-fi
+rpmbuild -v -ba \
+    --define "_topdir $topdir"  \
+    --define "release $release" \
+    --define "debug_package %{nil}" \
+    ${pkg}.spec | tee -a $log  || exit $?
 
 echo "RPMS:"
 egrep "^Wrote:" $log
@@ -72,7 +70,7 @@ if $install && [ -d $rroot ]; then
     copy_rpms_to_eol_repo $rpms
 elif $install; then
     echo "$rroot not found. Leaving RPMS in $topdir"
-else
+    else
     echo "-i option not specified. RPMS will not be installed in $rroot"
 fi
 
