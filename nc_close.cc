@@ -38,7 +38,7 @@ currently writing to.  nc_close is part of the nc_server-auxprogs package\n\
         exit(1);
     }
 
-    res = closefiles_1((void *)0, clnt);
+    res = close_files_2((void *)0, clnt);
     if (res == (int *) NULL) {
         clnt_perror(clnt, "call failed");
     }

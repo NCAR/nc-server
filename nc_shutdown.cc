@@ -36,6 +36,6 @@ currently writing to and exit.  nc_shutdown is part of the nc_server-auxprogs pa
         exit(1);
     }
 
-    shutdown_1((void *)0, clnt);
+    shutdown_2((void *)0, clnt);
     clnt_destroy(clnt);
 }

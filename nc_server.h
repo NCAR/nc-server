@@ -211,7 +211,11 @@ public:
 
     int put_rec(const datarec_int * writerec) throw();
 
-    int put_history(const std::string &);
+    int put_history(const std::string &) throw();
+
+    int write_global_attr(const std::string & name, const std::string& value) throw();
+
+    int write_global_attr(const std::string & name, int value) throw();
 
     /**
      * @return: non-negative group id or -1 on error.
@@ -255,7 +259,9 @@ public:
 
 private:
     FileGroup *_filegroup;
+
     std::string _history;
+
     int _histlen;
 
     NS_NcFile *_lastf;          // last file written to, saved for efficiency
@@ -276,10 +282,10 @@ class AllFiles
 public:
     static AllFiles *Instance();
     FileGroup *get_file_group(const struct connection *);
-    void close();
-    void sync();
-    void close_old_files(void);
-    void close_oldest_file(void);
+    void close() throw();
+    void sync() throw();
+    void close_old_files(void) throw();
+    void close_oldest_file(void) throw();
     int num_files(void) const;
 
     static void hangup(int sig);
@@ -351,12 +357,20 @@ public:
             throw(NetCDFAccessFailed);
 
     long put_time(double) throw(NetCDFAccessFailed);;
-    int put_history(std::string history);
+
+    void put_history(std::string history) throw(NetCDFAccessFailed);
+
+    void write_global_attr(const std::string& name, const std::string& val)
+            throw(NetCDFAccessFailed);
+
+    void write_global_attr(const std::string& name, int val)
+            throw(NetCDFAccessFailed);
+
     time_t LastAccess() const
     {
         return _lastAccess;
     }
-    NcBool sync(void);
+    NcBool sync(void) throw();
 
     std::string getCountsName(VariableGroup* vg);
 
@@ -476,10 +490,10 @@ public:
     int match(const std::string & dir, const std::string & file);
     NS_NcFile *get_file(double time) throw(NetCDFAccessFailed);
     NS_NcFile *open_file(double time) throw(NetCDFAccessFailed);
-    void close();
-    void sync();
-    void close_old_files(void);
-    void close_oldest_file(void);
+    void close() throw();
+    void sync() throw();
+    void close_old_files(void) throw();
+    void close_oldest_file(void) throw();
     void add_connection(Connection *);
     void remove_connection(Connection *);
 
@@ -523,6 +537,14 @@ public:
     {
     };
 
+    void write_global_attr(const std::string & name, const std::string& value)
+        throw(NetCDFAccessFailed);
+
+    void write_global_attr(const std::string & name, int value)
+        throw(NetCDFAccessFailed);
+
+    void update_global_attrs() throw(NetCDFAccessFailed);
+
 private:
 
     std::vector < Connection * >_connections;
@@ -542,6 +564,10 @@ private:
     int _vargroupId;
     double _interval;
     double _fileLength;
+
+    std::map<std::string,std::string> _globalAttrs;
+
+    std::map<std::string,int> _globalIntAttrs;
 
 };
 
@@ -848,7 +874,7 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
     /* Check if last file is still current */
     if (!(f && (f->StartTimeLE(dtime) && f->EndTimeGT(dtime)))) {
 #ifdef DEBUG
-        DLOG(("time not contained in current file"));
+        DLOG(("time not contained in current file: %s",(f ? f->getName().c_str():"none")));
 #endif
         if (f)
             f->sync();
@@ -1020,7 +1046,10 @@ void NS_NcFile::put_rec(const REC_T * writerec,
         throw NetCDFAccessFailed(getName(),"put_rec",ost.str());
     }
 
-    if ((tnow = time(0)) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
+    if ((tnow = time(0)) - _lastSync > SYNC_CHECK_INTERVAL_SECS) {
+        // DLOG(("put_rec syncing %s",getName().c_str()));
+        sync();
+    }
     _lastAccess = tnow;
 }
 

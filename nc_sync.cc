@@ -39,7 +39,7 @@ currently writing to.  nc_sync is part of the nc_server-auxprogs package\n\
         exit(1);
     }
 
-    res = syncfiles_1((void *)0, clnt);
+    res = sync_files_2((void *)0, clnt);
     if (res == (int *) NULL) {
         clnt_perror(clnt, "call failed");
     }

@@ -35,7 +35,7 @@
 
 extern "C"
 {
-    void netcdfserverprog_1(struct svc_req *rqstp,
+    void netcdfserverprog_2(struct svc_req *rqstp,
             register SVCXPRT * transp);
 }
 
@@ -218,7 +218,8 @@ std::string Connection::getIdStr(int id)
 }
 
 Connection::Connection(const connection * conn, int id)
-:  _filegroup(0),_history(),_histlen(),_lastf(0),_lastRequest(time(0)),
+:  _filegroup(0),_history(),_histlen(),
+    _lastf(0),_lastRequest(time(0)),
     _id(id),_errorMsg(),_state(CONN_OK)
 {
 
@@ -313,11 +314,45 @@ int Connection::put_rec(const datarec_int * writerec) throw()
 //
 // Cache the history records, to be written when we close files.
 //
-int Connection::put_history(const string & h)
+int Connection::put_history(const string & h) throw()
 {
     _history += h;
     if (_history.length() > 0 && _history[_history.length() - 1] != '\n')
         _history += '\n';
+    _lastRequest = time(0);
+    return 0;
+}
+
+//
+//
+int Connection::write_global_attr(const string& name, const string& value) throw()
+{
+    try {
+        _filegroup->write_global_attr(name,value);
+        _state = CONN_OK;
+    }
+    catch (const nidas::util::Exception& e) {
+        PLOG(("%s",e.what()));
+        _state = CONN_ERROR;
+        _errorMsg = e.what();
+        return -1;
+    }
+    _lastRequest = time(0);
+    return 0;
+}
+
+int Connection::write_global_attr(const string& name, int value) throw()
+{
+    try {
+        _filegroup->write_global_attr(name,value);
+        _state = CONN_OK;
+    }
+    catch (const nidas::util::Exception& e) {
+        PLOG(("%s",e.what()));
+        _state = CONN_ERROR;
+        _errorMsg = e.what();
+        return -1;
+    }
     _lastRequest = time(0);
     return 0;
 }
@@ -418,7 +453,7 @@ int AllFiles::num_files() const
     return n;
 }
 
-void AllFiles::close()
+void AllFiles::close() throw()
 {
     unsigned int i, n = 0;
 
@@ -444,7 +479,7 @@ void AllFiles::close()
 #endif
 }
 
-void AllFiles::sync()
+void AllFiles::sync() throw()
 {
     // sync all filegroups.
     for (unsigned int i = 0; i < _filegroups.size(); i++) {
@@ -453,7 +488,7 @@ void AllFiles::sync()
     }
 }
 
-void AllFiles::close_old_files(void)
+void AllFiles::close_old_files(void) throw()
 {
     unsigned int i, n = 0;
 
@@ -478,7 +513,7 @@ void AllFiles::close_old_files(void)
 #endif
 }
 
-void AllFiles::close_oldest_file(void)
+void AllFiles::close_oldest_file(void) throw()
 {
     unsigned int i;
     time_t lastaccess = time(0) - 10;
@@ -503,7 +538,7 @@ FileGroup::FileGroup(const struct connection *conn)
     _outputDir(),_fileNameFormat(),
     _CDLFileName(),_vargroups(),
     _vargroupId(0),_interval(conn->interval),
-    _fileLength(conn->filelength)
+    _fileLength(conn->filelength),_globalAttrs(),_globalIntAttrs()
 {
 
 #ifdef DEBUG
@@ -609,17 +644,26 @@ int FileGroup::match(const string & dir, const string & file)
     return match;
 }
 
-// delete all NS_NcFile objects
-void FileGroup::close()
+// close and delete all NS_NcFile objects
+void FileGroup::close() throw()
 {
     unsigned int i;
-    list < NS_NcFile * >::const_iterator ni;
 
     for (i = 0; i < _connections.size(); i++) {
         _connections[i]->unset_last_file();
-        // write history
-        for (ni = _files.begin(); ni != _files.end(); ni++)
-            (*ni)->put_history(_connections[i]->get_history());
+
+        // write history and global attributes
+        list < NS_NcFile * >::const_iterator ni;
+        for (ni = _files.begin(); ni != _files.end(); ni++) {
+
+            try {
+                (*ni)->put_history(_connections[i]->get_history());
+                update_global_attrs();
+            }
+            catch(const nidas::util::Exception& e) {
+                PLOG(("%s",e.what()));
+            }
+        }
     }
 
     while (_files.size() > 0) {
@@ -629,7 +673,7 @@ void FileGroup::close()
 }
 
 // sync all NS_NcFile objects
-void FileGroup::sync()
+void FileGroup::sync() throw()
 {
     list < NS_NcFile * >::const_iterator ni;
     for (ni = _files.begin(); ni != _files.end(); ni++)
@@ -648,8 +692,15 @@ void FileGroup::remove_connection(Connection * cp)
 
     list < NS_NcFile * >::const_iterator ni;
     // write history
-    for (ni = _files.begin(); ni != _files.end(); ni++)
-        (*ni)->put_history(cp->get_history());
+    for (ni = _files.begin(); ni != _files.end(); ni++) {
+        try {
+            (*ni)->put_history(cp->get_history());
+            update_global_attrs();
+        }
+        catch(const nidas::util::Exception& e) {
+            PLOG(("%s",e.what()));
+        }
+    }
 
     for (ic = _connections.begin(); ic < _connections.end(); ic++) {
         p = *ic;
@@ -767,8 +818,19 @@ NS_NcFile *FileGroup::open_file(double dtime) throw(NetCDFAccessFailed)
                 && !ncgen_file(_CDLFileName, fileName)))
         openmode = NcFile::Replace;
 
-    return new NS_NcFile(fileName.c_str(), openmode, _interval,
+    NS_NcFile *ncfile = new NS_NcFile(fileName.c_str(), openmode, _interval,
             _fileLength, dtime);
+
+    // write global attributes to file
+    map<string,string>::const_iterator ai =  _globalAttrs.begin();
+    for ( ; ai != _globalAttrs.end(); ++ai)
+        ncfile->write_global_attr(ai->first,ai->second);
+
+    map<string,int>::const_iterator iai =  _globalIntAttrs.begin();
+    for ( ; iai != _globalIntAttrs.end(); ++iai)
+        ncfile->write_global_attr(iai->first,iai->second);
+
+    return ncfile;
 }
 
 string FileGroup::build_name(const string & outputDir,
@@ -887,7 +949,7 @@ int FileGroup::ncgen_file(const string & CDLFileName,
     return res;
 }
 
-void FileGroup::close_old_files(void)
+void FileGroup::close_old_files(void) throw()
 {
     NS_NcFile *f;
     time_t now = time(0);
@@ -903,8 +965,22 @@ void FileGroup::close_old_files(void)
                 cp = *ic;
                 if (cp->last_file() == f)
                     cp->unset_last_file();
-                // write history
-                f->put_history(cp->get_history());
+                try {
+                    // write history
+                    f->put_history(cp->get_history());
+
+                    map<string,string>::const_iterator ai =  _globalAttrs.begin();
+                    for ( ; ai != _globalAttrs.end(); ++ai)
+                        f->write_global_attr(ai->first,ai->second);
+
+                    map<string,int>::const_iterator iai =  _globalIntAttrs.begin();
+                    for ( ; iai != _globalIntAttrs.end(); ++iai)
+                        f->write_global_attr(iai->first,iai->second);
+                }
+                catch(const nidas::util::Exception& e) {
+                    PLOG(("%s",e.what()));
+                }
+
             }
             ni = _files.erase(ni);
             delete f;
@@ -929,7 +1005,7 @@ time_t FileGroup::oldest_file(void)
     return lastaccess;
 }
 
-void FileGroup::close_oldest_file(void)
+void FileGroup::close_oldest_file(void) throw()
 {
     NS_NcFile *f;
     time_t lastaccess = time(0);
@@ -954,8 +1030,22 @@ void FileGroup::close_oldest_file(void)
             cp = *ic;
             if (cp->last_file() == f)
                 cp->unset_last_file();
-            // write history
-            f->put_history(cp->get_history());
+
+            try {
+                // write history
+                f->put_history(cp->get_history());
+
+                map<string,string>::const_iterator ai =  _globalAttrs.begin();
+                for ( ; ai != _globalAttrs.end(); ++ai)
+                    f->write_global_attr(ai->first,ai->second);
+
+                map<string,int>::const_iterator iai =  _globalIntAttrs.begin();
+                for ( ; iai != _globalIntAttrs.end(); ++iai)
+                    f->write_global_attr(iai->first,iai->second);
+            }
+            catch(const nidas::util::Exception& e) {
+                PLOG(("%s",e.what()));
+            }
         }
         _files.erase(oldest);
         delete f;
@@ -988,6 +1078,46 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
     return _vargroupId++;
 }
 
+void FileGroup::write_global_attr(const string& name, const string& value)
+        throw(NetCDFAccessFailed)
+{
+    _globalAttrs[name] = value;
+
+    // write global attribute to existing files
+    list < NS_NcFile * >::const_iterator ni;
+    for (ni = _files.begin(); ni != _files.end(); ni++) {
+        (*ni)->write_global_attr(name,value);
+    }
+}
+
+void FileGroup::write_global_attr(const string& name, int value)
+        throw(NetCDFAccessFailed)
+{
+    _globalIntAttrs[name] = value;
+
+    // write global attribute to existing files
+    list < NS_NcFile * >::const_iterator ni;
+    for (ni = _files.begin(); ni != _files.end(); ni++) {
+        (*ni)->write_global_attr(name,value);
+    }
+}
+
+void FileGroup::update_global_attrs()
+    throw(NetCDFAccessFailed)
+{
+    // write global attributes to existing files
+    list < NS_NcFile * >::const_iterator ni;
+    for (ni = _files.begin(); ni != _files.end(); ni++) {
+        map<string,string>::const_iterator ai =  _globalAttrs.begin();
+        for ( ; ai != _globalAttrs.end(); ++ai)
+            (*ni)->write_global_attr(ai->first,ai->second);
+    
+        map<string,int>::const_iterator iai =  _globalIntAttrs.begin();
+        for ( ; iai != _globalIntAttrs.end(); ++iai)
+            (*ni)->write_global_attr(iai->first,iai->second);
+    }
+}
+
 VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
     throw(BadVariable):
     _name(),_interval(dd->interval),_vars(),_outvars(),
@@ -1001,7 +1131,7 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
     unsigned int i, j, n;
     unsigned int nv;
 
-    nv = dd->fields.fields_len;
+    nv = dd->variables.variables_len;
     if (nv == 0) throw BadVariable("empty variable group");
 
     if (dd->rectype  != NS_TIMESERIES) 
@@ -1034,7 +1164,8 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
 
     // _vars does not include a counts variable
     for (i = 0; i < nv; i++) {
-        Variable* v = new Variable(dd->fields.fields_val[i].name);
+        struct variable& dvar = dd->variables.variables_val[i];
+        Variable* v = new Variable(dvar.name);
         _vars.push_back(v);
 
         // generate name for log messages
@@ -1048,7 +1179,7 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
 #ifdef DEBUG
         DLOG(("%s: %d", v->name().c_str(), i));
 #endif
-        const char *cp = dd->fields.fields_val[i].units;
+        const char *cp = dvar.units;
 
         // if (!strncmp(v->name(),"chksumOK",8))
         // DLOG(("%s units=%s",v->name(),cp ? cp : "none"));
@@ -1056,10 +1187,10 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
         if (cp && strlen(cp) > 0)
             v->add_att("units", cp);
 
-        n = dd->attrs.attrs_val[i].attrs.attrs_len;
+        n = dvar.attrs.attrs_len;
 
         for (j = 0; j < n; j++) {
-            str_attr *a = dd->attrs.attrs_val[i].attrs.attrs_val + j;
+            str_attr *a = dvar.attrs.attrs_val + j;
 #ifdef DEBUG
             DLOG(("%s: %s adding attribute: %d %s %s",
                         getName().c_str(),v->name().c_str(), j, a->name, a->value));
@@ -1098,7 +1229,7 @@ VariableGroup::~VariableGroup(void)
 //
 bool VariableGroup::same_var_group(const struct datadef *ddp) const
 {
-    unsigned int nv = ddp->fields.fields_len;
+    unsigned int nv = ddp->variables.variables_len;
 #ifdef DEBUG
     DLOG(("%s same_var_group,nv=%u,_vars.size()=%ld",
         getName().c_str(),nv,_vars.size()));
@@ -1139,16 +1270,17 @@ bool VariableGroup::same_var_group(const struct datadef *ddp) const
 
     // check that variable names are the same, and attributes
     for (ic = 0; ic < nv; ic++) {
-        if (_vars[ic]->name() != string(ddp->fields.fields_val[ic].name)) {
+        struct variable& dvar = ddp->variables.variables_val[ic];
+        if (_vars[ic]->name() != string(dvar.name)) {
 #ifdef DEBUG
             DLOG(("%s: ic=%d, different var names: %s != %s",
                 getName().c_str(),ic,_vars[ic]->name().c_str(),
-                ddp->fields.fields_val[ic].name));
+                dvar.name));
 #endif
             return false;
         }
-        unsigned int na = ddp->attrs.attrs_val[ic].attrs.attrs_len;
-        const char *units = ddp->fields.fields_val[ic].units;
+        unsigned int na = dvar.attrs.attrs_len;
+        const char *units = dvar.units;
         if (units && strlen(units) > 0) {
 #ifdef DEBUG
             DLOG(("%s same_var_group,na=%u,_vars[ic]->get_attr_names().size()=%ld,units=\"%s\",\"%s\"",
@@ -1167,7 +1299,7 @@ bool VariableGroup::same_var_group(const struct datadef *ddp) const
         }
 
         for (j = 0; j < na; j++) {
-            str_attr *a = ddp->attrs.attrs_val[ic].attrs.attrs_val + j;
+            str_attr *a = dvar.attrs.attrs_val + j;
 #ifdef DEBUG
             DLOG(("%d %s %s", j, a->name, a->value));
 #endif
@@ -1505,7 +1637,7 @@ const string & NS_NcFile::getName() const
     return _fileName;
 }
 
-NcBool NS_NcFile::sync()
+NcBool NS_NcFile::sync() throw()
 {
     _lastSync = time(0);
     NcBool res = NcFile::sync();
@@ -1722,7 +1854,7 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
         if (add_attrs(ov,vars[iv],cntsName)) doSync = true;
     }
 
-    if (doSync) sync();
+    if (doSync && time(0) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
 
 #ifdef DEBUG
     DLOG(("get_vars done"));
@@ -1839,7 +1971,8 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
     bool nameExists = false;
 
     if ((var = get_var(varName.c_str()))) {
-        nameExists = 1;
+        // DLOG(("%s found %s",getName().c_str(),varName.c_str()));
+        nameExists = true;
         // Check its short_name attribute
         if (shortName.length() > 0) {
             NcAtt *att;
@@ -1847,8 +1980,9 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
                 char *attString = 0;
                 if (att->type() != ncChar || att->num_vals() == 0 ||
                         !(attString = att->as_string(0)) ||
-                        strcmp(attString, shortName.c_str()))
+                        ::strcmp(attString, shortName.c_str())) {
                     var = 0;
+                }
                 delete [] attString;
                 delete att;
             }
@@ -1867,7 +2001,10 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
             char* attString = 0;
             if (att->type() == ncChar && att->num_vals() > 0 &&
                     (attString = att->as_string(0)) &&
-                    !strcmp(attString, shortName.c_str())) {
+                    !::strcmp(attString, shortName.c_str())) {
+                // DLOG(("%s: %s match for shortName %s %s",
+                //             getName().c_str(),varName.c_str(),
+                //             shortName.c_str(),attString));
                 delete att;
                 delete [] attString;
                 break;          // match
@@ -1877,6 +2014,12 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
         }
         var = 0;
     }
+#ifdef DEBUG
+    if (!var)
+        DLOG(("%s: %s nomatch for shortName %s",
+                    getName().c_str(),varName.c_str(),
+                    shortName.c_str()));
+#endif
 
     if (var && var->type() != (NcType) ov->data_type()) {
         // we'll just warn about this at the moment.
@@ -2023,10 +2166,9 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
     return nrec;
 }
 
-int NS_NcFile::put_history(string val)
+void NS_NcFile::put_history(string val) throw(NetCDFAccessFailed)
 {
-    if (val.length() == 0)
-        return 0;
+    if (val.length() == 0) return;
 
     string history;
 
@@ -2061,19 +2203,69 @@ int NS_NcFile::put_history(string val)
 
     if (val.length() > 0) {
         history += _historyHeader + val;
-        if (!add_att("history", history.c_str()))
-            PLOG(("add history att: %s: %s", _fileName.c_str(),
-                        get_error_string().c_str()));
+        write_global_attr("history",history);
     }
-
-    _lastAccess = time(0);
 
 #ifdef DEBUG
     DLOG(("NS_NcFile::put_history"));
 #endif
+}
 
-    // Don't sync;
-    return 0;
+void NS_NcFile::write_global_attr(const string& name, const string& value)
+    throw(NetCDFAccessFailed)
+{
+
+    bool needsUpdate = true;
+    NcAtt *att = get_att(name.c_str());
+    if (att) {
+        if (att->type() == ncChar) {
+            char *htmp = att->as_string(0);
+            needsUpdate = ::strcmp(htmp,value.c_str());
+            delete [] htmp;
+        }
+        delete att;
+    }
+    if (needsUpdate) {
+        if (!add_att(name.c_str(), value.c_str()))
+            throw NetCDFAccessFailed(getName(),string("add_att ") + name,get_error_string());
+        _lastAccess = time(0);
+#ifdef DEBUG
+        DLOG(("%s: NS_NcFile::write_global_attr %s, syncing",
+                    getName().c_str(),name.c_str()));
+#endif
+        if (time(0) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
+    }
+
+#ifdef DEBUG
+    DLOG(("NS_NcFile::write_global_attr"));
+#endif
+
+}
+
+void NS_NcFile::write_global_attr(const string& name, int value)
+    throw(NetCDFAccessFailed)
+{
+    bool needsUpdate = true;
+    NcAtt *att = get_att(name.c_str());
+    if (att) {
+        if (att->type() == ncInt && att->num_vals() == 1)
+            needsUpdate = value != att->as_int(0);
+        delete att;
+    }
+    if (needsUpdate) {
+        if (!add_att(name.c_str(), value))
+            throw NetCDFAccessFailed(getName(),string("add_att ") + name,get_error_string());
+        _lastAccess = time(0);
+#ifdef DEBUG
+        DLOG(("%s: NS_NcFile::write_global_attr %s, syncing",
+                    getName().c_str(),name.c_str()));
+#endif
+        if (time(0) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
+    }
+
+#ifdef DEBUG
+    DLOG(("NS_NcFile::write_global_attr"));
+#endif
 }
 
 bool NS_NcFile::check_var_dims(NcVar * var)
@@ -2548,7 +2740,7 @@ int NcServerApp::run(void)
         return 1;
     }
     if (!svc_register(transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
-                netcdfserverprog_1, IPPROTO_TCP)) {
+                netcdfserverprog_2, IPPROTO_TCP)) {
         PLOG(("Unable to register (NETCDFSERVERPROG=%x, NETCDFSERVERVERS, tcp): %m", NETCDFSERVERPROG));
         return 1;
     }

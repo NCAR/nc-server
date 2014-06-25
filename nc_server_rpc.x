@@ -15,33 +15,43 @@ enum NS_datatype { NS_INT=4, NS_FLOAT=5 };
    If a procedure returns a string, it is not declared with <>, but there
    doesn't seem to be any documentation on this difference.
  */
-struct field {
-    string name<>;
-    string units<>;
-};
 
-struct dimension {
-    string name<>;
-    int size;
-};
-
+/**
+  * A NetCDF attribute.
+  */
 struct str_attr {
     string name<>;
     string value<>;
 };
 
-struct str_attrs {
+/**
+  * A NetCDF dimension.
+  */
+struct dimension {
+    string name<>;
+    int size;
+};
+
+/**
+  * A NetCDF variable
+  */
+struct variable {
+    string name<>;
+    string units<>;
     str_attr attrs<>;
 };
 
+/**
+  * Definition of a data record sent to nc_server. All variables in the
+  * record will have the same dimension and fill value.
+  */
 struct datadef {
     double interval;
     int connectionId;
     NS_rectype rectype;
     NS_datatype datatype;
-    field fields<>;
+    variable variables<>;
     dimension dimensions<>;
-    str_attrs attrs<>;	/* for each variable, a vector of string attributes */
     float floatFill;
     int intFill;
     bool fillmissingrecords;
@@ -67,8 +77,28 @@ struct datarec_int {
     int count<>;
 };
 
-struct historyrec {
+/**
+  * Global NetCDF string attribute, "history".
+  */
+struct history_attr {
     string history<>;
+    int connectionId;
+};
+
+/**
+  * Global NetCDF string attribute.
+  */
+struct global_attr {
+    str_attr attr;
+    int connectionId;
+};
+
+/**
+  * Global NetCDF integer attribute.
+  */
+struct global_int_attr {
+    string name<>;
+    int value;
     int connectionId;
 };
 
@@ -82,18 +112,34 @@ struct connection {
 
 program NETCDFSERVERPROG {
     version NETCDFSERVERVERS {
-        int OPENCONNECTION(connection) = 1;
-        int WRITEDATAREC_FLOAT(datarec_float) = 2;
-        int CLOSECONNECTION(int) = 3;
-        void WRITEDATARECBATCH_FLOAT(datarec_float) = 4;
-        void WRITEHISTORYRECBATCH(historyrec) = 5;
-        int DEFINEDATAREC(datadef) = 6;
-        int WRITEHISTORYREC(historyrec) = 7;
-        int WRITEDATAREC_INT(datarec_int) = 8;
-        void WRITEDATARECBATCH_INT(datarec_int) = 9;
-        int CLOSEFILES(void) = 10;
-        void SHUTDOWN(void) = 11;
-        int SYNCFILES(void) = 12;
-        string CHECKERROR(int id) = 13;
-    } = 1;
+        int OPEN_CONNECTION(connection) = 1;
+
+        int CLOSE_CONNECTION(int) = 2;
+
+        int DEFINE_DATAREC(datadef) = 3;
+
+        int WRITE_DATAREC_FLOAT(datarec_float) = 4;
+
+        void WRITE_DATAREC_BATCH_FLOAT(datarec_float) = 5;
+
+        int WRITE_DATAREC_INT(datarec_int) = 6;
+
+        void WRITE_DATAREC_BATCH_INT(datarec_int) = 7;
+
+        int WRITE_HISTORY(history_attr) = 8;
+
+        void WRITE_HISTORY_BATCH(history_attr) = 9;
+
+        int WRITE_GLOBAL_ATTR(global_attr) = 10;
+
+        int WRITE_GLOBAL_INT_ATTR(global_int_attr) = 11;
+
+        int CLOSE_FILES(void) = 12;
+
+        void SHUTDOWN(void) = 13;
+
+        int SYNC_FILES(void) = 14;
+
+        string CHECK_ERROR(int id) = 15;
+    } = 2;
 } = 0x20000004;
