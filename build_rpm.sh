@@ -19,7 +19,8 @@ done
 
 source repo_scripts/repo_funcs.sh
 
-topdir=`get_rpm_topdir`
+topdir=${TOPDIR:-`get_rpm_topdir`}
+
 rroot=`get_eol_repo_root`
 
 log=/tmp/$script.$$
