@@ -55,7 +55,9 @@ if [ $dopkg == all -o $dopkg == $pkg ];then
         ${pkg}/nc_server_rpc_procs.cc ${pkg}/nc_check.c ${pkg}/nc_close.cc ${pkg}/nc_shutdown.cc \
         ${pkg}/nc_sync.cc ${pkg}/site_scons ${pkg}/scripts ${pkg}/etc ${pkg}/usr
 
-    rpmbuild -v -ba --define "release $release" \
+    rpmbuild -v -ba \
+        --define "_topdir $topdir"  \
+        --define "release $release" \
         --define "debug_package %{nil}" \
         ${pkg}.spec | tee -a $log  || exit $?
 fi
