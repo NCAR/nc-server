@@ -21,6 +21,9 @@ source repo_scripts/repo_funcs.sh
 
 topdir=${TOPDIR:-`get_rpm_topdir`}
 
+sourcedir=$(rpm --define "_topdir $topdir" --eval %_sourcedir)
+[ -d $sourcedir ] || mkdir -p $sourcedir
+
 rroot=`get_eol_repo_root`
 
 log=/tmp/$script.$$
@@ -47,9 +50,7 @@ if [ $dopkg == all -o $dopkg == $pkg ];then
     version=`get_version ${pkg}.spec`
     release=$(get_release .)
 
-    # tar czf $topdir/SOURCES/${pkg}-${version}.tar.gz --exclude .svn -C ../../.. --transform="s/^nidas/nidas-bin/" nidas/src/SConstruct nidas/src/nidas nidas/src/site_scons nidas/xml
-
-    tar czf $topdir/SOURCES/${pkg}-${version}.tar.gz --exclude .svn -C .. \
+    tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn -C .. \
         ${pkg}/SConstruct ${pkg}/nc_server.h ${pkg}/nc_server.cc ${pkg}/nc_server_rpc.x \
         ${pkg}/nc_server_rpc_procs.cc ${pkg}/nc_check.c ${pkg}/nc_close.cc ${pkg}/nc_shutdown.cc \
         ${pkg}/nc_sync.cc ${pkg}/site_scons ${pkg}/scripts ${pkg}/etc ${pkg}/usr
