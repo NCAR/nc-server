@@ -27,6 +27,7 @@ env.RPCGenClient('nc_server_rpc.x')
 env.RPCGenHeader('nc_server_rpc.x')
 env.RPCGenService('nc_server_rpc.x')
 env.RPCGenXDR('nc_server_rpc.x')
+env.Depends('nc_server_rpc_xdr.c', 'nc_server_rpc.h')
 
 libsrcs = Split("""
     nc_server_rpc_xdr.c
