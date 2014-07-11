@@ -1844,8 +1844,13 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
     if (cntsName.length() > 0) {
         Variable v(cntsName);
         OutVariable ov(v, NS_INT, vgroup->floatFill(), vgroup->intFill());
+        // remove the short_name attribute
+        ov.add_att("short_name","");
+        ov.add_att("units"," ");
         ov.isCnts() = true;
-        vars.push_back(add_var(&ov,doSync));
+        NS_NcVar* var = add_var(&ov,doSync);
+        vars.push_back(var);
+        if (add_attrs(&ov,var,cntsName)) doSync = true;
     }
 
     for (int iv = 0; iv < nv; iv++) {
