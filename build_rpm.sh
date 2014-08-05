@@ -15,7 +15,6 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-
 source repo_scripts/repo_funcs.sh
 
 topdir=${TOPDIR:-`get_rpm_topdir`}
@@ -48,10 +47,22 @@ version=`get_version ${pkg}.spec`
 # jenkins sets SVN_REVISION
 release=${SVN_REVISION:=$(get_release .)}
 
-# use --transform to put the package name in the tar path names
-tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --transform="s,./,$pkg/," \
-    ./SConstruct ./nc_server.h ./*.cc ./nc_check.c ./nc_server_rpc.x \
-    ./site_scons ./scripts ./etc ./usr
+# tar 1.15.1 doesn't have --transform option
+tarversion=$(tar --version | cut -d \  -f 4)
+if echo $tarversion | fgrep -q 1.15; then
+    cd ..
+    tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn \
+	nc_server/SC* nc_server/nc_server.h nc_server/*.cc \
+	nc_server/nc_check.c nc_server/*.x \
+	nc_server/site_scons nc_server/scripts \
+	nc_server/etc nc_server/usr || exit $?
+    cd -
+else
+    # use --transform to put the package name in the tar path names
+    tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --transform="s,./,$pkg/," \
+	./SConstruct ./nc_server.h ./*.cc ./nc_check.c ./nc_server_rpc.x \
+	./site_scons ./scripts ./etc ./usr || exit $?
+fi
 
 rpmbuild -v -ba \
     --define "_topdir $topdir"  \
