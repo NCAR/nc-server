@@ -27,7 +27,7 @@ get_groups() {
 
 start_nc_server() {
 	echo -n "Starting nc_server ..."
-        nc_server -u $nuser $(get_groups) -z -l 6
+        su -l -s /usr/bin/sh -c 'PATH=$PATH:/opt/nc_server/bin; nc_server -z -l 6'" $(get_groups)" $nuser
 	echo " done."
 }
 

@@ -2704,11 +2704,6 @@ int NcServerApp::parseRunstring(int argc, char **argv)
 
 void NcServerApp::setup()
 {
-    if (getuid() != 0) {
-        struct passwd *pwent = getpwuid(getuid());
-        WLOG(("Warning: userid=%s (%d) is not root. Calls to rpcbind may fail since we can't use a restricted port number", (pwent == NULL ? "unknown" : pwent->pw_name), getuid()));
-    }
-
     nidas::util::Logger * logger = 0;
     nidas::util::LogScheme logscheme("nc_server");
 
@@ -2735,6 +2730,76 @@ void NcServerApp::setup()
 int NcServerApp::run(void)
 {
     ILOG(("nc_server starting"));
+
+    if (getuid() == 0) {
+
+#ifdef HAS_CAPABILITY_H 
+        /* man 7 capabilities:
+         * If a thread that has a 0 value for one or more of its user IDs wants to
+         * prevent its permitted capability set being cleared when it  resets  all
+         * of  its  user  IDs  to  non-zero values, it can do so using the prctl()
+         * PR_SET_KEEPCAPS operation.
+         *
+         * If we are started as uid=0 from sudo, and then setuid(x) below
+         * we want to keep our permitted capabilities.
+         */
+        try {
+            if (prctl(PR_SET_KEEPCAPS,1,0,0,0) < 0)
+                throw nidas::util::Exception("prctl(PR_SET_KEEPCAPS,1)",errno);
+        }
+        catch (const nidas::util::Exception& e) {
+            WLOG(("%s: %s. Will not be able to keep capabilities ","nc_server",e.what()));
+        }
+#endif
+    }
+
+    // add CAP_SETGID capability so that we can add to our supplmental group ids
+    try {
+        nidas::util::Process::addEffectiveCapability(CAP_SETGID);
+    }
+    catch (const nidas::util::Exception& e) {
+        DLOG(("CAP_SETGID = ") << nidas::util::Process::getEffectiveCapability(CAP_SETGID));
+        WLOG(("%s: %s","nc_server",e.what()));
+        struct passwd *pwent = getpwuid(getuid());
+        WLOG(("Warning: userid=%s (%d). Calls to setgroups() may fail since we don't have CAP_SETGID",
+                    (pwent == NULL ? "unknown" : pwent->pw_name), getuid()));
+    }
+
+    // add CAP_NET_BIND_SERVICE capability so that we can bind to port numbers < 1024
+    try {
+        nidas::util::Process::addEffectiveCapability(CAP_NET_BIND_SERVICE);
+    }
+    catch (const nidas::util::Exception& e) {
+        DLOG(("CAP_NET_BIND_SERVICE = ") << nidas::util::Process::getEffectiveCapability(CAP_NET_BIND_SERVICE));
+        WLOG(("%s: %s","nc_server",e.what()));
+        struct passwd *pwent = getpwuid(getuid());
+        WLOG(("Warning: userid=%s (%d). Calls to rpcbind may fail since we can't use a restricted port number", (pwent == NULL ? "unknown" : pwent->pw_name), getuid()));
+    }
+
+    if (_groupid != 0 && getegid() != _groupid) {
+        if (setgid(_groupid) < 0)
+            WLOG(("%s: cannot change group id to %d (%s): %m","nc_server",
+                        _groupid,_groupname.c_str()));
+    }
+
+    if (_userid != 0 && geteuid() != _userid) {
+        if (setuid(_userid) < 0)
+            WLOG(("%s: cannot change userid to %d (%s): %m", "nc_server",
+                        _userid,_username.c_str()));
+    }
+
+
+    // even if user didn't specify -g and _suppGroupIds.size() is 0
+    // we want to do a setgroups to reset them, otherwise the
+    // root group is still in the list of supplemental group ids.
+    for (unsigned int i = 0; i < _suppGroupIds.size(); i++) {
+        DLOG(("%s: groupid=%d","nc_server",_suppGroupIds[i]));
+    }
+    if (setgroups(_suppGroupIds.size(),&_suppGroupIds.front()) < 0) {
+        WLOG(("%s: failure in setgroups system call, ngroup=%d: %m",
+                    "nc_server",_suppGroupIds.size()));
+    }
+
     SVCXPRT *transp;
 
     (void) pmap_unset(NETCDFSERVERPROG, NETCDFSERVERVERS);
@@ -2749,58 +2814,6 @@ int NcServerApp::run(void)
         PLOG(("Unable to register (NETCDFSERVERPROG=%x, NETCDFSERVERVERS, tcp): %m", NETCDFSERVERPROG));
         return 1;
     }
-
-#ifdef HAS_CAPABILITY_H 
-    /* man 7 capabilities:
-     * If a thread that has a 0 value for one or more of its user IDs wants to
-     * prevent its permitted capability set being cleared when it  resets  all
-     * of  its  user  IDs  to  non-zero values, it can do so using the prctl()
-     * PR_SET_KEEPCAPS operation.
-     *
-     * If we are started as uid=0 from sudo, and then setuid(x) below
-     * we want to keep our permitted capabilities.
-     */
-    try {
-        if (prctl(PR_SET_KEEPCAPS,1,0,0,0) < 0)
-            throw nidas::util::Exception("prctl(PR_SET_KEEPCAPS,1)",errno);
-    }
-    catch (const nidas::util::Exception& e) {
-        WLOG(("%s: %s. Will not be able to add supplement group ids","nc_server",e.what()));
-    }
-#endif
-
-    if (_groupid != 0 && getegid() != _groupid) {
-        if (setgid(_groupid) < 0)
-            WLOG(("%s: cannot change group id to %d (%s): %m","nc_server",
-                        _groupid,_groupname.c_str()));
-    }
-
-    if (_userid != 0 && geteuid() != _userid) {
-        if (setuid(_userid) < 0)
-            WLOG(("%s: cannot change userid to %d (%s): %m", "nc_server",
-                        _userid,_username.c_str()));
-    }
-
-    // add CAP_SETGID capability so that we can add to our supplmental group ids
-    try {
-        nidas::util::Process::addEffectiveCapability(CAP_SETGID);
-        DLOG(("CAP_SETGID = ") << nidas::util::Process::getEffectiveCapability(CAP_SETGID));
-    }
-    catch (const nidas::util::Exception& e) {
-        WLOG(("%s: %s","nc_server",e.what()));
-    }
-
-    // even if user didn't specify -g and _suppGroupIds.size() is 0
-    // we want to do a setgroups to reset them, otherwise the
-    // root group is still in the list of supplemental group ids.
-    for (unsigned int i = 0; i < _suppGroupIds.size(); i++) {
-        DLOG(("%s: groupid=%d","nc_server",_suppGroupIds[i]));
-    }
-    if (setgroups(_suppGroupIds.size(),&_suppGroupIds.front()) < 0) {
-        WLOG(("%s: failure in setgroups system call, ngroup=%d: %m",
-                    "nc_server",_suppGroupIds.size()));
-    }
-
     // create files with group write
     umask(S_IWOTH);
 

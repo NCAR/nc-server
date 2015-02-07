@@ -1,3 +1,6 @@
+%define has_systemd 0
+%{?systemd_requires: %define has_systemd 1}
+
 Summary: Server for NetCDF file writing.
 Name: nc_server
 Version: 1.0
@@ -42,89 +45,40 @@ scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server
 %install
 rm -rf $RPM_BUILD_ROOT
 scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server install
+
 cp scripts/* ${RPM_BUILD_ROOT}/opt/nc_server/bin
-install -d $RPM_BUILD_ROOT%{_sysconfdir}/init.d
-install -d $RPM_BUILD_ROOT%{_sysconfdir}/ld.so.conf.d
-cp -r etc/* $RPM_BUILD_ROOT%{_sysconfdir}
+
+install -d $RPM_BUILD_ROOT%{_sysconfdir}
+cp -r etc/{ld.so.conf.d,profile.d} $RPM_BUILD_ROOT%{_sysconfdir}
 install -d $RPM_BUILD_ROOT%{_libdir}/pkgconfig
 cp -r usr/lib/pkgconfig/* $RPM_BUILD_ROOT%{_libdir}/pkgconfig
 
-%pre
+%if %has_systemd == 1
+cp -r systemd $RPM_BUILD_ROOT/opt/nc_server
+%endif
 
-adduser=false
-addgroup=false
-grep -q ^nidas %{_sysconfdir}/passwd || adduser=true
-grep -q ^eol %{_sysconfdir}/group || addgroup=true
-
-# check if NIS is running. If so, check if nidas.eol is known to NIS
-if which ypwhich > /dev/null 2>&1 && ypwhich > /dev/null 2>&1; then
-    ypmatch nidas passwd > /dev/null 2>&1 && adduser=false
-    ypmatch eol group > /dev/null 2>&1 && addgroup=false
-fi
-
-$addgroup && /usr/sbin/groupadd -g 1342 -o eol
-$adduser && /usr/sbin/useradd  -u 10035 -o -N -M -g eol -s /sbin/nologin -d /tmp -c NIDAS -K PASS_MAX_DAYS=-1 nidas || :
+cp -r etc/init.d $RPM_BUILD_ROOT%{_sysconfdir}
 
 %post
-# To enable the boot script, uncomment this:
-if ! chkconfig --level 3 nc_server; then
-    chkconfig --add nc_server 
-fi
 
-if ! chkconfig --list nc_server > /dev/null 2>&1; then
-    echo "nc_server is not setup to run at boot time"
-    chkconfig --list nc_server
-fi
+%if %has_systemd == 1
+echo "See /opt/nc_server/systemd/user/README"
+%else
+    # To enable the boot script, uncomment this:
+    if ! chkconfig --level 3 nc_server; then
+        chkconfig --add nc_server 
+    fi
+
+    if ! chkconfig --list nc_server > /dev/null 2>&1; then
+        echo "nc_server is not setup to run at boot time"
+        chkconfig --list nc_server
+    fi
+%endif
 exit 0
 
 %post -n nc_server-devel
 ldconfig
 exit 0
-
-%triggerin -- sudo
-# trigger script for nc_server
-
-tmpsudo=/tmp/sudoers_$$
-cp %{_sysconfdir}/sudoers $tmpsudo
-
-# Remove requiretty requirement for nidas account so that we can
-# do sudo from non-login (crontab) scripts.
-if grep -E -q "^Defaults[[:space:]]+requiretty" $tmpsudo; then
-    if ! grep -E -q '^Defaults[[:space:]]*:[[:space:]]*[^[:space:]]+[[:space:]]+!requiretty' $tmpsudo; then
-        sed -i '
-/^Defaults[[:space:]]*requiretty/a\
-# The /opt/nc_server/bin/nc_server.check script runs /etc/init.d/nc_server via sudo,\
-# which may be handy if it needs to be started from a crontab or at other\
-# than boot time.\
-# The following statements add permission for the "nidas" user to start\
-# nc_server via sudo. If nidas is not a login account, change "nidas"\
-# to a login account that will want to run nc_server.check or otherwise\
-# start nc_server via sudo. Change this !requiretty\ line and the\
-# nc_server lines below.\
-Defaults:nidas !requiretty\
-' $tmpsudo
-    fi
-fi
-
-if ! { grep NOPASSWD $tmpsudo | grep -q /etc/init.d/nc_server; }; then
-cat << \EOD >> $tmpsudo
-nidas ALL=NOPASSWD: /etc/init.d/nc_server
-EOD
-fi
-
-if ! { grep NOPASSWD $tmpsudo | grep -q /opt/nc_server/bin/nc_server; }; then
-cat << \EOD >> $tmpsudo
-nidas ALL=NOPASSWD: /opt/nc_server/bin/nc_server
-EOD
-fi
-
-# remove old sudo entries
-if grep -q /usr/bin/nc_server $tmpsudo; then
-    sed -i \\,/usr/bin/nc_server,d $tmpsudo
-fi
-
-visudo -c -f $tmpsudo && cp $tmpsudo %{_sysconfdir}/sudoers
-rm -f $tmpsudo
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -133,6 +87,13 @@ rm -rf $RPM_BUILD_ROOT
 /opt/nc_server/bin/nc_server
 /opt/nc_server/bin/nc_shutdown
 /opt/nc_server/bin/nc_server.check
+
+%caps(cap_net_bind_service,cap_setgid+ep) /opt/nc_server/bin/nc_server
+
+%if %has_systemd == 1
+/opt/nc_server/systemd
+%endif
+
 %config(noreplace) %{_sysconfdir}/init.d/nc_server
 
 %files devel
@@ -151,6 +112,10 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
+* Sat Feb  7 2014 Gordon Maclean <maclean@ucar.edu> 1.0-590
+- Add cap_setgid,cap_net_bind_service capabilties to nc_server executable.
+- With this one doesn't need sudo.
+- Add systemd/user service file and README for how to run from systemd.
 * Mon Apr  2 2012 Gordon Maclean <maclean@ucar.edu> 1.0-12
 - Create counts variable in existing variable group if necessary.
 * Mon Jan  2 2012 Gordon Maclean <maclean@ucar.edu> 1.0-11

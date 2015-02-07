@@ -55,13 +55,13 @@ if echo $tarversion | fgrep -q 1.15; then
 	nc_server/SC* nc_server/nc_server.h nc_server/*.cc \
 	nc_server/nc_check.c nc_server/*.x \
 	nc_server/site_scons nc_server/scripts \
-	nc_server/etc nc_server/usr || exit $?
+	nc_server/etc nc_server/usr nc_server/systemd || exit $?
     cd -
 else
     # use --transform to put the package name in the tar path names
     tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --transform="s,./,$pkg/," \
 	./SConstruct ./nc_server.h ./*.cc ./nc_check.c ./nc_server_rpc.x \
-	./site_scons ./scripts ./etc ./usr || exit $?
+	./site_scons ./scripts ./etc ./usr ./systemd || exit $?
 fi
 
 rpmbuild -v -ba \

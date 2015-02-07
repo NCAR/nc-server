@@ -1,5 +1,7 @@
 #!/bin/bash
+
 # sh script to check for nc_server
+# shouldn't be necessary if nc_server is started with systemd
 
 itry=0
 ntry=3
@@ -12,7 +14,8 @@ done
 host=`uname -n`
 if [ $itry -eq $ntry ]; then
     echo "***** restarting nc_server on $host ******"
-    sudo /etc/init.d/nc_server start
+    PATH=$PATH:/opt/nc_server/bin
+    nc_server -z
     sleep 5
 fi
 
