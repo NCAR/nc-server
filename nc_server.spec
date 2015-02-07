@@ -88,7 +88,7 @@ rm -rf $RPM_BUILD_ROOT
 /opt/nc_server/bin/nc_shutdown
 /opt/nc_server/bin/nc_server.check
 
-%caps(cap_net_bind_service,cap_setgid+ep) /opt/nc_server/bin/nc_server
+%caps(cap_net_bind_service,cap_setgid+p) /opt/nc_server/bin/nc_server
 
 %if %has_systemd == 1
 /opt/nc_server/systemd
