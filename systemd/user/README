@@ -1,67 +1,85 @@
-** Capabilities
+** Setting executable capabilities instead of running as root
 
     nc_server needs the CAP_NET_BIND_SERVICE capability to open a socket on a
     port numbered less than 1024. If passed the "-g groups" option, it also
     uses the CAP_SETGID capability.
 
-    If installed from the nc_server RPM, these capabiltiies should be enabled on
+    If installed from the nc_server RPM, these capabiltiies will be enabled on
     the executable file. To check:
 
         getcap /opt/nc_server/bin/nc_server
         nc_server = cap_setgid,cap_net_bind_service+p
 
-    If that file has been over-written, or the ownership changed, you will have to
-    add the capabilities:
+    If the executable file has been over-written, or the ownership changed,
+    you will have to add the capabilities:
 
         sudo setcap cap_setgid,cap_net_bind_service+p /opt/nc_server/bin/nc_server
 
 ** Systemd
 
-    systemd is an alternative to SysV init scripts.  It is supported on RHEL7 (CentOS 7)
-    and Fedora 18.
+    systemd is an alternative to SysV init scripts.  It is supported
+    on RedHat systems, starting with RHEL7 (CentOS 7) and Fedora 18.
 
-    Instead of using /etc/init.d/nc_server, one setup systemd to start nc_server
+    Instead of using an init script on /etc/init.d to start nc_server, it can
+    by started by systemd at boot time to run from a non-root user's account.
     at boot time from a non-root user's account.
 
-    ** Configure systemd to start a user manager for a non-root user at boot time.
-     
-        When logged into the user's account, if it has sudo privileges:
+** Configure systemd to start a manager process for a non-root user at boot time.
+ 
+    When logged into the user's account, if it has sudo privileges:
 
-            sudo loginctl enable-linger $USER
+        sudo loginctl enable-linger $USER
 
-        or as root:
+    or as root:
 
-            user=whomever
-            loginctl enable-linger $user
+        user=whomever
+        loginctl enable-linger $user
 
-    ** Enable nc_server.service to start on boot from the user's account:
+    After this is done, all the following commands are done from
+    the user's account, not the root account, or with sudo.
 
-        When logged in as that user (not root):
+** Enable nc_server.service to start on boot from the user's account:
 
-            # copy nc_server.service file to $HOME/.local/share/systemd/user
-            # where systemd can find it.
-            usersysd=$HOME/.local/share/systemd/user 
-            [ -d $usersysd ] || mkdir -p $usersysd
-            cp /opt/nc_server/systemd/user/nc_server.service $usersysd
+    When logged in as that user (not root):
 
-            systemctl --user daemon-reload
+        # copy nc_server.service file to $HOME/.local/share/systemd/user
+        # where systemd can find it.
+        mkdir -p $HOME/.local/share/systemd/user 
+        cp /opt/nc_server/systemd/user/nc_server.service \
+            $HOME/.local/share/systemd/user 
 
-            systemctl --user enable nc_server
+    Customize $HOME/.local/share/systemd/user/nc_server.service
+    if you need to.  See man pages:  systemd.unit, systemd.exec
+    for more information.
 
-    ** To start the service the first time
+    Load the unit into systemd, and enable it.
+
+        systemctl --user daemon-reload
+
+        systemctl --user enable nc_server
+
+** To start the service the first time:
 
         systemctl --user start nc_server
 
-    ** To disable and stop nc_server:
+** To stop nc_server:
+
+    Note that if another service is running which lists nc_server.service
+    in its "Wants" or "Requires" statement, then nc_server will be
+    restarted immediately.
+
+        systemctl --user stop nc_server
+
+** To disable and stop nc_server:
 
         systemctl --user disable nc_server
         systemctl --user stop nc_server
 
-    ** To check status of nc_server:
+** To check status of nc_server:
 
         systemctl --user status -l nc_server
 
-    ** To check status of all user's "lingering" processes
+** To check status of the user's "lingering" processes:
 
-        systemctl status -l user@$UID
+        systemctl status user@$UID
 
