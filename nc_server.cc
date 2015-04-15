@@ -1444,6 +1444,8 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         _baseTime = ut.toSecs();
     } else if (_lengthSecs > 0)
         _baseTime = (int) (floor(dtime / _lengthSecs) * _lengthSecs);
+    else 
+        _baseTime = (int) (floor(dtime / 86400.0) * 86400);
 
     _timeOffset = -_interval * .5;      // _interval may be 0
     _nrecs = 0;
