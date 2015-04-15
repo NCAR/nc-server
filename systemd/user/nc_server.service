@@ -12,9 +12,9 @@ TimeoutStopSec=10
 
 Restart=on-failure
 
-ExecStop=/bin/kill -TERM ${MAINPID}
+RestartSec=5
 
-KillMode=process
+KillMode=control-group
 
 [Install]
 WantedBy=default.target
