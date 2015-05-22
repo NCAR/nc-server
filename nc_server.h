@@ -76,6 +76,28 @@ class NS_NcVar;
 class Variable;
 class OutVariable;
 
+class InvalidInterval: public nidas::util::Exception
+{
+public:
+    InvalidInterval(const std::string& msg): nidas::util::Exception(msg)
+        {}
+};
+
+class InvalidFileLength: public nidas::util::Exception
+{
+public:
+    InvalidFileLength(const std::string& msg): nidas::util::Exception(msg)
+        {}
+};
+
+class InvalidOutputDir: public nidas::util::Exception
+{
+public:
+    InvalidOutputDir(const std::string& msg): nidas::util::Exception(msg)
+        {}
+};
+
+
 class NcServerApp
 {
 public:
@@ -200,7 +222,8 @@ protected:
 class Connection
 {
 public:
-    Connection(const struct connection *,int id);
+    Connection(const struct connection *,int id)
+        throw(InvalidFileLength, InvalidInterval, InvalidOutputDir);
     ~Connection(void);
 
     int getId() const { return _id; }
@@ -235,10 +258,6 @@ public:
     NS_NcFile *last_file() const;
 
     void unset_last_file();     // the file has been closed
-
-    class InvalidOutputDir
-    {
-    };                          // exception class
 
     enum state {CONN_OK, CONN_ERROR };
 
@@ -281,7 +300,8 @@ class AllFiles
 {
 public:
     static AllFiles *Instance();
-    FileGroup *get_file_group(const struct connection *);
+    FileGroup *get_file_group(const struct connection *)
+        throw(InvalidFileLength, InvalidInterval, InvalidOutputDir);
     void close() throw();
     void sync() throw();
     void close_old_files(void) throw();
@@ -481,7 +501,7 @@ class FileGroup
 {
 public:
 
-    FileGroup(const struct connection *) throw(Connection::InvalidOutputDir);
+    FileGroup(const struct connection *) throw(InvalidOutputDir);
     ~FileGroup(void);
 
     template<class REC_T, class DATA_T>
@@ -530,13 +550,6 @@ public:
     int check_file(const std::string &) const;
     int ncgen_file(const std::string &, const std::string &) const;
 
-    class InvalidInterval
-    {
-    };
-    class InvalidFileLength
-    {
-    };
-
     void write_global_attr(const std::string & name, const std::string& value)
         throw(NetCDFAccessFailed);
 
@@ -544,6 +557,10 @@ public:
         throw(NetCDFAccessFailed);
 
     void update_global_attrs() throw(NetCDFAccessFailed);
+
+    std::string toString() const {
+        return _outputDir + '/' + _fileNameFormat;
+    }
 
 private:
 

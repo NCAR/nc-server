@@ -87,6 +87,7 @@ rm -rf $RPM_BUILD_ROOT
 /opt/nc_server/bin/nc_server
 /opt/nc_server/bin/nc_shutdown
 /opt/nc_server/bin/nc_server.check
+/opt/nc_server/bin/nc_check
 
 %caps(cap_net_bind_service,cap_setgid+p) /opt/nc_server/bin/nc_server
 
@@ -104,7 +105,6 @@ rm -rf $RPM_BUILD_ROOT
 %config %{_libdir}/pkgconfig/nc_server.pc
 
 %files clients
-/opt/nc_server/bin/nc_check
 /opt/nc_server/bin/nc_ping
 /opt/nc_server/bin/nc_close
 /opt/nc_server/bin/nc_sync

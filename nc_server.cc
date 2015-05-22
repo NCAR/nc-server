@@ -151,8 +151,8 @@ int Connections::openConnection(const struct connection *conn)
     try {
         cp = new Connection(conn,id);
     }
-    catch(Connection::InvalidOutputDir) {
-        delete cp;
+    catch(const nidas::util::Exception& e) {
+        PLOG(("%s",e.what()));
         return -1;
     }
     _connections[id] = cp;
@@ -218,6 +218,7 @@ std::string Connection::getIdStr(int id)
 }
 
 Connection::Connection(const connection * conn, int id)
+    throw(InvalidFileLength, InvalidInterval, InvalidOutputDir)
 :  _filegroup(0),_history(),_histlen(),
     _lastf(0),_lastRequest(time(0)),
     _id(id),_errorMsg(),_state(CONN_OK)
@@ -227,9 +228,7 @@ Connection::Connection(const connection * conn, int id)
     _lastRequest = time(0);
 
     _filegroup = allfiles->get_file_group(conn);
-
     _filegroup->add_connection(this);
-
 }
 
 Connection::~Connection(void)
@@ -412,6 +411,7 @@ void AllFiles::shutdown(int sig)
 // If not found, allocate a new group
 //
 FileGroup *AllFiles::get_file_group(const struct connection *conn)
+    throw(InvalidFileLength, InvalidInterval, InvalidOutputDir)
 {
     FileGroup *p;
     vector < FileGroup * >::iterator ip;
@@ -425,10 +425,20 @@ FileGroup *AllFiles::get_file_group(const struct connection *conn)
         if (p) {
             if (!p->match(conn->outputdir, conn->filenamefmt))
                 continue;
-            if (conn->interval != p->interval())
-                throw FileGroup::InvalidInterval();
-            if (conn->filelength != p->length())
-                throw FileGroup::InvalidFileLength();
+            if (conn->interval != p->interval()) {
+                ostringstream ost;
+                ost << "interval=" << p->interval() <<
+                    " seconds is not equal to previous value=" << conn->interval <<
+                    " for this file group " << p->toString();
+                throw InvalidInterval(ost.str());
+            }
+            if (conn->filelength != p->length()) {
+                ostringstream ost;
+                ost << "file length=" << p->length() <<
+                    " seconds is not equal to previous value=" << conn->filelength <<
+                    " for this file group " << p->toString();
+                throw InvalidFileLength(ost.str());
+            }
             return p;
         }
     }
@@ -533,7 +543,7 @@ void AllFiles::close_oldest_file(void) throw()
 }
 
 FileGroup::FileGroup(const struct connection *conn)
-    throw(Connection::InvalidOutputDir):
+    throw(InvalidOutputDir):
     _connections(),_files(),
     _outputDir(),_fileNameFormat(),
     _CDLFileName(),_vargroups(),
@@ -548,7 +558,7 @@ FileGroup::FileGroup(const struct connection *conn)
 
     if (access(conn->outputdir, F_OK)) {
         PLOG(("%s: %m", conn->outputdir));
-        throw Connection::InvalidOutputDir();
+        throw InvalidOutputDir(conn->outputdir);
     }
 
     _outputDir = conn->outputdir;
