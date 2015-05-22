@@ -129,7 +129,7 @@ Connections::~Connections(void)
     for ( ; ci != _connections.end(); ++ci) delete ci->second;
 }
 
-int Connections::openConnection(const struct connection *conn)
+int Connections::openConnection(const struct connection *conn) throw()
 {
     Connection *cp = 0;
 

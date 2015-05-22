@@ -198,7 +198,7 @@ public:
      * Open a connection and return a positive connection id
      * handle. If return value is negative an error occurred.
      */
-    int openConnection(const struct connection *);
+    int openConnection(const struct connection *) throw();
 
     /**
      * Close a connection, given the id. Return 0 on success, -1 if
