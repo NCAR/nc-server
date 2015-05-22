@@ -93,7 +93,8 @@ public:
 class InvalidOutputDir: public nidas::util::Exception
 {
 public:
-    InvalidOutputDir(const std::string& msg): nidas::util::Exception(msg)
+    InvalidOutputDir(const std::string& msg, const std::string& op, int ierr):
+        nidas::util::Exception(msg, op, ierr)
         {}
 };
 

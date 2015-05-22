@@ -556,9 +556,9 @@ FileGroup::FileGroup(const struct connection *conn)
                 conn->outputdir, conn->filenamefmt));
 #endif
 
-    if (access(conn->outputdir, F_OK)) {
+    if (access(conn->outputdir, W_OK | X_OK)) {
         PLOG(("%s: %m", conn->outputdir));
-        throw InvalidOutputDir(conn->outputdir);
+        throw InvalidOutputDir(conn->outputdir, "write and execute access", errno);
     }
 
     _outputDir = conn->outputdir;
