@@ -112,7 +112,10 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
-* Sat Feb  7 2014 Gordon Maclean <maclean@ucar.edu> 1.0-590
+* Fri May 22 2015 Gordon Maclean <maclean@ucar.edu> 1.0-620
+- Improved exception handling for invalid directory, interval and
+- file length.
+* Sat Feb  7 2015 Gordon Maclean <maclean@ucar.edu> 1.0-590
 - Add cap_setgid,cap_net_bind_service capabilties to nc_server executable.
 - With this one doesn't need sudo.
 - Add systemd/user service file and README for how to run from systemd.
