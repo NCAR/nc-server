@@ -2801,13 +2801,14 @@ int NcServerApp::run(void)
     }
 
 
-    // even if user didn't specify -g and _suppGroupIds.size() is 0
-    // we want to do a setgroups to reset them, otherwise the
-    // root group is still in the list of supplemental group ids.
+    // Even if user didn't specify -g and _suppGroupIds.size() is 0,
+    // we want to do a setgroups to reset them if we're changing the uid,
+    // otherwise the root group is still in the list of supplemental group ids.
     for (unsigned int i = 0; i < _suppGroupIds.size(); i++) {
         DLOG(("%s: groupid=%d","nc_server",_suppGroupIds[i]));
     }
-    if (setgroups(_suppGroupIds.size(),&_suppGroupIds.front()) < 0) {
+    if ((_userid != 0 || _suppGroupIds.size())
+        && setgroups(_suppGroupIds.size(),&_suppGroupIds.front()) < 0) {
         WLOG(("%s: failure in setgroups system call, ngroup=%d: %m",
                     "nc_server",_suppGroupIds.size()));
     }
