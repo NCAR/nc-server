@@ -55,9 +55,9 @@ cp -r usr/lib/pkgconfig/* $RPM_BUILD_ROOT%{_libdir}/pkgconfig
 
 %if %has_systemd == 1
 cp -r systemd $RPM_BUILD_ROOT/opt/nc_server
-%endif
-
+%else
 cp -r etc/init.d $RPM_BUILD_ROOT%{_sysconfdir}
+%endif
 
 %post
 
@@ -93,9 +93,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %if %has_systemd == 1
 /opt/nc_server/systemd
-%endif
-
+%else
 %config(noreplace) %{_sysconfdir}/init.d/nc_server
+%endif
 
 %files devel
 /opt/nc_server/include/nc_server_rpc.h
