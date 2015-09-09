@@ -1,4 +1,3 @@
-
 import eol_scons
 
 env = Environment(tools=['default','sharedlibrary','symlink','nidas'])
