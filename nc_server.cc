@@ -862,7 +862,7 @@ string FileGroup::build_name(const string & outputDir,
         nidas::util::UTime ut(true, &tm);
         dtime = ut.toDoubleSecs();
     } else if (fileLength > 0)
-        dtime = floor(dtime / fileLength) * fileLength;
+        dtime = ::floor(dtime / fileLength) * fileLength;
 
     nidas::util::UTime utime(dtime);
 
@@ -1149,7 +1149,7 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
 
     if (_datatype == NS_FLOAT)
         _intFill = 0;
-    _nsamples = (int) floor(finterval / _interval + .5);
+    _nsamples = (int) ::floor(finterval / _interval + .5);
     if (_nsamples < 1)
         _nsamples = 1;
     if (_interval < NS_NcFile::minInterval)
@@ -1453,9 +1453,9 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         nidas::util::UTime ut(true, &tm);
         _baseTime = ut.toSecs();
     } else if (_lengthSecs > 0)
-        _baseTime = (int) (floor(dtime / _lengthSecs) * _lengthSecs);
+        _baseTime = (int) (::floor(dtime / _lengthSecs) * _lengthSecs);
     else 
-        _baseTime = (int) (floor(dtime / 86400.0) * 86400);
+        _baseTime = (int) (::floor(dtime / 86400.0) * 86400);
 
     _timeOffset = -_interval * .5;      // _interval may be 0
     _nrecs = 0;
@@ -1524,14 +1524,14 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
             delete val;
 
             if (_ttType == FIXED_DELTAT) {
-                _timesAreMidpoints = fabs(fmod(_timeOffset, _interval) - _interval * .5) <
+                _timesAreMidpoints = ::fabs(::fmod(_timeOffset, _interval) - _interval * .5) <
                     _interval * 1.e-3;
 #ifdef DEBUG
                 DLOG(("_timeOffset=") << _timeOffset << " interval=" << _interval <<
                         " timesAreMidpoints=" << _timesAreMidpoints);
 #endif
                 if (_timesAreMidpoints) {
-                    if (fabs(((nrec + .5) * _interval) - _timeOffset) > _interval * 1.e-3) {
+                    if (::fabs(((nrec + .5) * _interval) - _timeOffset) > _interval * 1.e-3) {
                         PLOG(("%s: Invalid timeOffset (NS_NcFile) = %f, nrec=%d,_nrecs=%d,interval=%f",
                                     _fileName.c_str(), _timeOffset, nrec, _nrecs, _interval));
                         // rewrite them all
@@ -1540,7 +1540,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
                     }
                 }
                 else {
-                    if (fabs((nrec * _interval) - _timeOffset) > _interval * 1.e-3) {
+                    if (::fabs((nrec * _interval) - _timeOffset) > _interval * 1.e-3) {
                         PLOG(("%s: Invalid timeOffset (NS_NcFile) = %f, nrec=%d,_nrecs=%d,interval=%f",
                                     _fileName.c_str(), _timeOffset, nrec, _nrecs, _interval));
                         // rewrite them all
@@ -2108,9 +2108,9 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
     if (_ttType == VARIABLE_DELTAT)
         nrec = _nrecs;
     else if (_timesAreMidpoints)
-        nrec = (long) floor(timeoffset / _interval);
+        nrec = (long) ::floor(timeoffset / _interval);
     else
-        nrec = (long) rint(timeoffset / _interval);
+        nrec = (long) ::rint(timeoffset / _interval);
 
 #ifdef DEBUG
     DLOG(("timeoffset=%f, _timeOffset=%f,nrec=%d, nrecs=%d,interval=%f",
@@ -2139,7 +2139,7 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
         }
         delete val;
 
-        if (fabs((double) tmpOffset - (double) timeoffset) >
+        if (::fabs((double) tmpOffset - (double) timeoffset) >
                 _interval * 1.e-3) {
             PLOG(("Invalid timeoffset=%f, file timeOffset=%f, nrec=%d, _nrecs=%d, _interval=%f", (double) timeoffset, (double) tmpOffset, nrec, _nrecs, _interval));
         }
@@ -2174,7 +2174,7 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
 
 #ifdef LAST_TIME_CHECK
     if (_ttType == FIXED_DELTAT && nrec == _nrecs - 1) {
-        if (fabs((double) _timeOffset - (double) timeoffset) >
+        if (::fabs((double) _timeOffset - (double) timeoffset) >
                 _interval * 1.e-3) {
             PLOG(("Invalid timeoffset = %f, file timeOffset=%f,nrec=%d, _nrecs=%d, interval=%f", timeoffset, _timeOffset, nrec, _nrecs, _interval));
         }
