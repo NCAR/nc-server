@@ -973,7 +973,7 @@ void NS_NcFile::put_rec(const REC_T * writerec,
          */
 
         if (_timesAreMidpoints < 0) {
-            _timesAreMidpoints = fabs(::fmod(dtime, groupInt) - groupInt * .5) <
+            _timesAreMidpoints = ::fabs(::fmod(dtime, groupInt) - groupInt * .5) <
                 groupInt * 1.e-3;
             if (_timesAreMidpoints) _timeOffset = -_interval * .5;
             else _timeOffset = -_interval;
