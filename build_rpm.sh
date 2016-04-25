@@ -78,6 +78,7 @@ echo "rpms=$rpms"
 
 if [ -n "$dest" -a -d "$dest" ]; then
     echo "Moving rpms to $dest"
+    source $dest/scripts/repo_funcs.sh
     move_rpms_to_eol_repo $rpms
 else
     echo "$dest not found. Leaving RPMS in $topdir"
