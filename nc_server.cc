@@ -32,6 +32,7 @@
 #include <iostream>
 
 #include <nidas/util/Process.h>
+#include <nidas/util/Socket.h>
 
 extern "C"
 {
@@ -2601,8 +2602,14 @@ int NS_NcVar::put_len(const long *counts)
 NcServerApp::NcServerApp(): 
     _username(), _userid(0),_groupname(),_groupid(0),
     _suppGroupNames(),_suppGroupIds(),
-    _daemon(true),_logLevel(defaultLogLevel)
+    _daemon(true),_logLevel(defaultLogLevel),
+    _rpcport(DEFAULT_RPC_PORT),_transp(0)
 {
+}
+
+NcServerApp::~NcServerApp()
+{
+    if (_transp) svc_destroy(_transp);
 }
 
 void NcServerApp::usage(const char *argv0)
@@ -2621,6 +2628,7 @@ void NcServerApp::usage(const char *argv0)
         Specify a -l option after -d to change the log level from debug\n\
         -l loglevel: set logging level, 7=debug,6=info,5=notice,4=warning,3=err,...\n\
         The default level if no -d option is " << defaultLogLevel << "\n\
+        -p port: port number, default " << DEFAULT_RPC_PORT << "\n\
         -u name: change user id of the process to given user name and their default group\n\
         after opening RPC portmap socket\n\
         -g name: add name to the list of supplementary group ids of the process.\n\
@@ -2633,7 +2641,7 @@ int NcServerApp::parseRunstring(int argc, char **argv)
 {
     int c;
     int daemonOrforeground = -1;
-    while ((c = getopt(argc, argv, "dl:g:u:z")) != -1) {
+    while ((c = getopt(argc, argv, "dl:g:p:u:z")) != -1) {
         switch (c) {
         case 'd':
             daemonOrforeground = 0;
@@ -2662,6 +2670,9 @@ int NcServerApp::parseRunstring(int argc, char **argv)
             break;
         case 'l':
             _logLevel = atoi(optarg);
+            break;
+        case 'p':
+            _rpcport = atoi(optarg);
             break;
         case 'u':
             {
@@ -2813,16 +2824,26 @@ int NcServerApp::run(void)
                     "nc_server",_suppGroupIds.size()));
     }
 
-    SVCXPRT *transp;
+    int sockfd;
 
     (void) pmap_unset(NETCDFSERVERPROG, NETCDFSERVERVERS);
 
-    transp = svctcp_create(RPC_ANYSOCK, 0, 0);
-    if (transp == NULL) {
+    try {
+        // ServerSocket destructor does not close the socket
+        nidas::util::ServerSocket sock = nidas::util::ServerSocket(_rpcport);
+        sockfd = sock.getFd();
+    }
+    catch(const nidas::util::IOException& e) {
+        PLOG(("%s",e.what()));
+        return 1;
+    }
+
+    _transp = svctcp_create(sockfd, 0, 0);
+    if (_transp == NULL) {
         PLOG(("cannot create tcp service."));
         return 1;
     }
-    if (!svc_register(transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
+    if (!svc_register(_transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
                 netcdfserverprog_2, IPPROTO_TCP)) {
         PLOG(("Unable to register (NETCDFSERVERPROG=%x, NETCDFSERVERVERS, tcp): %m", NETCDFSERVERPROG));
         return 1;

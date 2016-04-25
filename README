@@ -1,0 +1,24 @@
+
+If nc_ping reports 
+
+rpcinfo: RPC: Port mapper failure - Unable to receive: errno 113 (No route to host)
+
+You probably need to open ports in the firewall on the host running nc_server.
+
+Port 111 is used by rpcbind, which RPC clients query to find out
+what port to contact for a specific RPM service.
+
+nc_server by default, provides its service on port 30005.
+
+If firewalld.service is running on the server host:
+
+firewall-cmd  --add-port=111/udp 
+firewall-cmd --permanent --add-port=111/udp
+
+firewall-cmd  --add-port=111/tcp
+firewall-cmd --permanent --add-port=111/tcp
+
+# if necessary
+firewall-cmd  --add-port=30005/udp --add-port=30005/tcp
+firewall-cmd --permanent --add-port=30005/udp --add-port=30005/tcp
+

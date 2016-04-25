@@ -20,8 +20,8 @@ trap "{ rm -f $log $tmpspec $awkcom; }" EXIT
 
 if ! gitdesc=$(git describe --match "v[0-9]*"); then
     echo "git describe failed, looking for a tag of the form v[0-9]*"
-    gitdesc="v1.0"
-    # exit 1
+    # gitdesc="v1.0"
+    exit 1
 fi
 
 # example output of git describe: v2.0-14-gabcdef123

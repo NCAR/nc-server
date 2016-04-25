@@ -51,6 +51,8 @@
 #ifndef NC_SERVER_H
 #define NC_SERVER_H
 
+#define DEFAULT_RPC_PORT 30005
+
 extern NcError ncerror;
 
 /**
@@ -105,6 +107,8 @@ public:
 
     NcServerApp();
 
+    ~NcServerApp();
+
     /**
      * Parse the runstring parameters.
      * If the runstring parameters are not OK, then DSMEngine::usage()
@@ -153,6 +157,16 @@ private:
     int _daemon;
 
     int _logLevel;
+
+    int _rpcport;
+
+    SVCXPRT* _transp;
+
+    /** No copying */
+    NcServerApp(const NcServerApp&);
+
+    /** No assignment */
+    NcServerApp& operator=(const NcServerApp&);
 
 };
 
