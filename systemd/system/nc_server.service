@@ -6,10 +6,12 @@ Type=forking
 Environment=LANG=C PATH=/usr/bin:/opt/nc_server/bin
 EnvironmentFile=/etc/default/nc_server
 
-User=${NC_USER}
-Group=${NC_GROUP}
+# Setting User and Group to env vars doesn't work.
+# env vars are apparently not available when these are set:
+# User=${NC_USER}
+# Group=${NC_GROUP}
 
-ExecStart=/opt/nc_server/bin/nc_server -z
+ExecStart=/opt/nc_server/bin/nc_server -z -u ${NC_USER} -g ${NC_GROUP)
 
 TimeoutStartSec=5
 TimeoutStopSec=10
