@@ -11,7 +11,7 @@ EnvironmentFile=/etc/default/nc_server
 # User=${NC_USER}
 # Group=${NC_GROUP}
 
-ExecStart=/opt/nc_server/bin/nc_server -z -u ${NC_USER} -g ${NC_GROUP}
+ExecStart=/opt/nc_server/bin/nc_server -z -u ${NC_USER} -g ${NC_GROUP} -p ${NC_PORT}
 
 TimeoutStartSec=5
 TimeoutStopSec=10

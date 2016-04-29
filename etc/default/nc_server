@@ -3,3 +3,5 @@
 # The files will be owned by this user and group.
 NC_USER=maclean
 NC_GROUP=eol
+# tcp port
+NC_PORT=30005
