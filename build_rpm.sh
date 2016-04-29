@@ -2,11 +2,39 @@
 
 script=$(basename $0)
 
+hashcheck=false
+while [ $# -gt 0 ]; do
+    case $1 in
+        -c)
+            hashcheck=true
+            ;;
+        *)
+            echo "Usage: $script [-c]"
+            echo "  -c: check git hash to see if build is required"
+            exit 1
+    esac
+    shift
+done
+
+# directory containing script
+srcdir=$(readlink -f ${0%/*})
+
+hashfile=$srcdir/.last_hash
+
 set -o pipefail
 
 pkg=nc_server
 
-[ $# -gt 0 ] && dest=$1
+if $hashcheck; then
+    [ -f $hashfile ] && last_hash=$(cat $hashfile)
+    pushd $srcdir
+    this_hash=$(git log -1 --format=%H .)
+    popd
+    if [ "$this_hash" == "$last_hash" ]; then
+        echo "No updates since last build"
+        exit 0
+    fi
+fi
 
 topdir=${TOPDIR:-$(rpmbuild --eval %_topdir)_$(hostname)}
 sourcedir=$(rpm --define "_topdir $topdir" --eval %_sourcedir)
@@ -71,16 +99,10 @@ rpmbuild -v -ba \
     --define "debug_package %{nil}" \
     $tmpspec | tee -a $log  || exit $?
 
+$hashcheck && echo $this_hash > $hashfile
+
 echo "RPMS:"
 egrep "^Wrote:" $log
 rpms=`egrep '^Wrote:' $log | egrep /S?RPMS/ | awk '{print $2}'`
 echo "rpms=$rpms"
-
-if [ -n "$dest" -a -d "$dest" ]; then
-    echo "Moving rpms to $dest"
-    source $dest/scripts/repo_funcs.sh
-    move_rpms_to_eol_repo $rpms
-else
-    echo "$dest not found. Leaving RPMS in $topdir"
-fi
 

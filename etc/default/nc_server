@@ -1,0 +1,5 @@
+# User and group account which will be used to run nc_server.
+# nc_server creates NetCDF files from RPC requests.
+# The files will be owned by this user and group.
+NC_USER=maclean
+NC_GROUP=eol

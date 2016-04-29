@@ -9,3 +9,4 @@ nc_server_rpc.h
 nc_server_rpc_clnt.c
 nc_server_rpc_svc.c
 nc_server_rpc_xdr.c
+.last_hash

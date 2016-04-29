@@ -1,5 +1,3 @@
-%define has_systemd 0
-%{?systemd_requires: %define has_systemd 1}
 
 Summary: Server for NetCDF file writing.
 Name: nc_server
@@ -12,10 +10,11 @@ Packager: Gordon Maclean <maclean@ucar.edu>
 # Allow this package to be relocatable to other places than /opt/nc_server
 # rpm --relocate /opt/nc_server=/usr
 Prefix: /opt/nc_server
-BuildRequires: netcdf-devel libcap-devel nidas-devel eol_scons
+BuildRequires: netcdf-devel libcap-devel nidas-devel eol_scons systemd
+%{?systemd_requires}
 Vendor: UCAR
 Source: %{name}-%{version}.tar.gz
-Requires: nc_server-clients
+Requires: nc_server-clients isfs-syslog
 %description
 Server for NetCDF file writing.
 
@@ -46,31 +45,26 @@ scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server install
 cp scripts/* ${RPM_BUILD_ROOT}/opt/nc_server/bin
 
 install -d $RPM_BUILD_ROOT%{_sysconfdir}
-cp -r etc/{ld.so.conf.d,profile.d} $RPM_BUILD_ROOT%{_sysconfdir}
+cp -r etc/{ld.so.conf.d,profile.d,default} $RPM_BUILD_ROOT%{_sysconfdir}
 install -d $RPM_BUILD_ROOT%{_libdir}/pkgconfig
 cp -r usr/lib/pkgconfig/* $RPM_BUILD_ROOT%{_libdir}/pkgconfig
 
-%if %has_systemd == 1
-cp -r systemd $RPM_BUILD_ROOT/opt/nc_server
-%else
-cp -r etc/init.d $RPM_BUILD_ROOT%{_sysconfdir}
-%endif
+install -d $RPM_BUILD_ROOT/opt/nc_server/systemd
+cp -r systemd/user $RPM_BUILD_ROOT/opt/nc_server/systemd
+
+install -d $RPM_BUILD_ROOT%{_unitdir}
+cp systemd/system/nc_server.service $RPM_BUILD_ROOT%{_unitdir}
 
 %post
+%systemd_post nc_server.service
+exit 0
 
-%if %has_systemd == 1
-echo "See /opt/nc_server/systemd/user/README"
-%else
-    # To enable the boot script, uncomment this:
-    if ! chkconfig --level 3 nc_server; then
-        chkconfig --add nc_server 
-    fi
+%preun
+%systemd_preun nc_server.service
+exit 0
 
-    if ! chkconfig --list nc_server > /dev/null 2>&1; then
-        echo "nc_server is not setup to run at boot time"
-        chkconfig --list nc_server
-    fi
-%endif
+%postun
+%systemd_postun_with_restart nc_server.service
 exit 0
 
 %post -n nc_server-devel
@@ -81,18 +75,14 @@ exit 0
 rm -rf $RPM_BUILD_ROOT
 
 %files
-/opt/nc_server/bin/nc_server
+%caps(cap_net_bind_service,cap_setgid+p) /opt/nc_server/bin/nc_server
 /opt/nc_server/bin/nc_shutdown
 /opt/nc_server/bin/nc_server.check
 /opt/nc_server/bin/nc_check
+%config(noreplace) %{_sysconfdir}/default/nc_server
 
-%caps(cap_net_bind_service,cap_setgid+p) /opt/nc_server/bin/nc_server
-
-%if %has_systemd == 1
-/opt/nc_server/systemd
-%else
-%config(noreplace) %{_sysconfdir}/init.d/nc_server
-%endif
+/opt/nc_server/systemd/user
+%{_unitdir}/nc_server.service
 
 %files devel
 /opt/nc_server/include/nc_server_rpc.h

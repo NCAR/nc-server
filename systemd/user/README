@@ -1,6 +1,7 @@
 ** Setting executable capabilities instead of running as root
 
-    nc_server needs the CAP_NET_BIND_SERVICE capability to open a socket on a
+    If the -p option is used to specify a port value less than 1024
+    then nc_server needs the CAP_NET_BIND_SERVICE capability to open a socket on a
     port numbered less than 1024. If passed the "-g groups" option, it also
     uses the CAP_SETGID capability.
 
@@ -22,7 +23,6 @@
 
     Instead of using an init script on /etc/init.d to start nc_server, it can
     by started by systemd at boot time to run from a non-root user's account.
-    at boot time from a non-root user's account.
 
 ** Configure systemd to start a manager process for a non-root user at boot time.
  
