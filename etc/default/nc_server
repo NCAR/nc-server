@@ -5,3 +5,5 @@ NC_USER=maclean
 NC_GROUP=eol
 # tcp port
 NC_PORT=30005
+# loglevel,  7=debug,6=info,5=notice,4=warning,3=err,...
+NC_LOGLEVEL=5
