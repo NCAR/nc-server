@@ -84,11 +84,13 @@ git log --max-count=100 --date-order --format="%H%n* %cd %aN%n- %s%n" --date=loc
     sed -r 's/[0-9]+:[0-9]+:[0-9]+ //' | sed -r 's/(^- .{,60}).*/\1/' | \
     awk --re-interval -f $awkcom | cat ${pkg}.spec - > $tmpspec
 
+scons version.h
+
 cd ..
 
 tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --exclude .git \
     nc_server/SC* nc_server/nc_server.h nc_server/*.cc \
-    nc_server/nc_check.c nc_server/*.x \
+    nc_server/nc_check.c nc_server/*.x nc_server/version.h \
     nc_server/scripts \
     nc_server/etc nc_server/usr nc_server/systemd || exit $?
 cd -

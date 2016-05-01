@@ -1,4 +1,3 @@
-
 Summary: Server for NetCDF file writing.
 Name: nc_server
 Version: %{gitversion}
@@ -18,11 +17,17 @@ Requires: nc_server-clients isfs-syslog
 %description
 Server for NetCDF file writing.
 
+%package lib
+Summary: nc_server library
+Group: Applications/Engineering
+%description lib
+libnc_server_rpc.so library
+
 %package devel
 Summary: nc_server library and header file
 Group: Applications/Engineering
 %description devel
-libnc_server_rpc.so library and header file
+Header file and symbolic links to library
 
 %package clients
 Summary: Some client programs of nc_server
@@ -36,11 +41,11 @@ Some client programs of nc_server
 
 %build
 pwd
-scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server
+scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server REPO_TAG=v%{version}
  
 %install
 rm -rf $RPM_BUILD_ROOT
-scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server install
+scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server REPO_TAG=v%{version} install
 
 cp scripts/* ${RPM_BUILD_ROOT}/opt/nc_server/bin
 
@@ -84,11 +89,14 @@ rm -rf $RPM_BUILD_ROOT
 /opt/nc_server/systemd/user
 %{_unitdir}/nc_server.service
 
+%files lib
+%config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
+/opt/nc_server/lib/libnc_server_rpc.so.%{gitversion}
+
 %files devel
 /opt/nc_server/include/nc_server_rpc.h
-/opt/nc_server/lib/libnc_server_rpc.so.*
+/opt/nc_server/lib/libnc_server_rpc.so.[0-9]
 /opt/nc_server/lib/libnc_server_rpc.so
-%config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
 %config %{_libdir}/pkgconfig/nc_server.pc
 
 %files clients

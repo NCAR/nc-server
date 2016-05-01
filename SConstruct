@@ -1,8 +1,7 @@
 
-
 import eol_scons
 
-env = Environment(tools=['default','sharedlibrary','symlink','nidas'])
+env = Environment(tools=['default', 'gitinfo', 'symlink', 'nidas'])
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
@@ -11,14 +10,18 @@ if conf.CheckLib('cap'):
     conf.env.AppendUnique(LIBS = 'cap')
 env = conf.Finish()
 
-# library major and minor numbers
-env['SHLIBMAJORVERSION'] = '1'
-env['SHLIBMINORVERSION'] = '0'
-
 opts = Variables()
 opts.AddVariables(PathVariable('PREFIX','installation path',
     '/opt/nc_server', PathVariable.PathAccept))
+opts.Add('REPO_TAG',
+    'git tag of the source, in the form "vX.Y", when building outside of a git repository')
+
 opts.Update(env)
+
+# Must wait to load sharedlibrary until REPO_TAG is set in all situations
+env = env.Clone(tools=['sharedlibrary'])
+
+env.GitInfo("version.h", "#")
 
 env['CCFLAGS'] = [ '-g', '-Wall', '-O2' ]
 env['CXXFLAGS'] = [ '-Weffc++' ]
@@ -30,7 +33,7 @@ env.RPCGenClient('nc_server_rpc.x')
 env.RPCGenHeader('nc_server_rpc.x')
 env.RPCGenService('nc_server_rpc.x')
 env.RPCGenXDR('nc_server_rpc.x')
-env.Depends('nc_server_rpc_xdr.c', 'nc_server_rpc.h')
+env.Depends('nc_server_rpc_xdr.c', ['nc_server_rpc.h'])
 
 libsrcs = Split("""
     nc_server_rpc_xdr.c

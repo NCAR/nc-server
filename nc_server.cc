@@ -15,6 +15,7 @@
  */
 
 #include "nc_server.h"
+#include "version.h"
 
 #include <unistd.h>
 #include <assert.h>
@@ -2641,7 +2642,7 @@ int NcServerApp::parseRunstring(int argc, char **argv)
 {
     int c;
     int daemonOrforeground = -1;
-    while ((c = getopt(argc, argv, "dl:g:p:u:z")) != -1) {
+    while ((c = getopt(argc, argv, "dl:g:p:u:vz")) != -1) {
         switch (c) {
         case 'd':
             daemonOrforeground = 0;
@@ -2709,6 +2710,9 @@ int NcServerApp::parseRunstring(int argc, char **argv)
                 _groupname = groupinfo.gr_name;
             }
             break;
+        case 'v':
+            cout << "nc_server " << REPO_REVISION << '\n' << "Copyright (C) UCAR" << endl;
+            exit(0);
         case 'z':
             daemonOrforeground = 1;
             _daemon = true;
