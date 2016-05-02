@@ -52,7 +52,13 @@ cp scripts/* ${RPM_BUILD_ROOT}/opt/nc_server/bin
 install -d $RPM_BUILD_ROOT%{_sysconfdir}
 cp -r etc/{ld.so.conf.d,profile.d,default} $RPM_BUILD_ROOT%{_sysconfdir}
 install -d $RPM_BUILD_ROOT%{_libdir}/pkgconfig
-cp -r usr/lib/pkgconfig/* $RPM_BUILD_ROOT%{_libdir}/pkgconfig
+
+# Edit nc_server.pc replacing @XX@ fields:
+sed -r -e '
+    s,@PREFIX@,/opt/nc_server,
+    s,/@DEB_HOST_GNU_TYPE@,,
+    s,@REPO_TAG@,%{gitversion},
+    ' nc_server.pc > $RPM_BUILD_ROOT%{_libdir}/pkgconfig/nc_server.pc
 
 install -d $RPM_BUILD_ROOT/opt/nc_server/systemd
 cp -r systemd/user $RPM_BUILD_ROOT/opt/nc_server/systemd

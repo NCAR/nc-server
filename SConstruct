@@ -72,7 +72,7 @@ env.Append(LIBPATH='.')
 
 p1 = env.Program('nc_server', srcs,
     CPPPATH=[nidas_flags['CPPPATH']],
-    LIBS=["nc_server_rpc", nidas_flags['LIBS'], 'netcdf_c++', nc_flags['LIBS']],
+    LIBS=["nc_server_rpc", 'nidas_util', 'netcdf_c++', nc_flags['LIBS']],
     LIBPATH=['.', nidas_flags['LIBPATH'], nc_flags['LIBPATH']])
 
 #    CPPDEFINES = ['RPC_SVC_FG']

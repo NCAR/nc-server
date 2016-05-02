@@ -92,7 +92,7 @@ tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --exclude .git \
     nc-server/SC* nc-server/nc_server.h nc-server/*.cc \
     nc-server/nc_check.c nc-server/*.x nc-server/version.h \
     nc-server/scripts \
-    nc-server/etc nc-server/usr nc-server/systemd || exit $?
+    nc-server/etc nc-server/nc_server.pc nc-server/systemd || exit $?
 cd -
 
 rpmbuild -v -ba \

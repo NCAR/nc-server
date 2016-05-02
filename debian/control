@@ -1,0 +1,32 @@
+Source: nc-server
+Section: science
+Priority: optional
+Maintainer: Gordon Maclean <maclean@ucar.edu>
+Build-Depends: debhelper (>= 9), nidas-dev, libhdf5-dev, libnetcdf-dev
+Standards-Version: 3.9.6
+Homepage: https://github.com/ncareol/nidas.git
+Vcs-Git: git://github.com/ncareol/nidas.git
+
+Package: nc-server
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, nc-server-lib
+Description: RPC server for writing to NetCDF files
+ RPC server for writing to NetCDF files.
+
+Package: nc-server-lib
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Shareable library for nc-server
+ Shareable library for nc-server.
+
+Package: nc-server-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, nc-server-lib
+Description: Header files and library symbolic links for nc-server
+ Header files and library symbolic links for nc-server.
+
+Package: nc-server-clients
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, nc-server-lib
+Description: Client programs for controlling nc-server
+ Client programs for controlling nc-server.

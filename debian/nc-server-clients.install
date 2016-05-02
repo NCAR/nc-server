@@ -1,0 +1,5 @@
+opt/nc_server/bin/nc_check
+opt/nc_server/bin/nc_close
+opt/nc_server/bin/nc_ping
+opt/nc_server/bin/nc_shutdown
+opt/nc_server/bin/nc_sync

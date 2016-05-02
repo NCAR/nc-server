@@ -1,0 +1,5 @@
+opt/nc_server/include/*
+opt/nc_server/lib/*/*.so
+usr/lib/*/pkgconfig/*
+
+
