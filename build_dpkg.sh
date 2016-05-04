@@ -119,7 +119,7 @@ if [ -n "$repo" ]; then
     pkgs=$(grep "^Binary:" $chngs | sed 's/Binary: //')
 
     flock $repo sh -c "
-        reprepro -V -b $repo remove jessie $pkgs;
+        reprepro -A 'source|$arch' -V -b $repo remove jessie $pkgs;
         reprepro -V -b $repo deleteunreferenced;
         reprepro -V -b $repo include jessie $chngs"
 
