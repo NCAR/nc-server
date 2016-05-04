@@ -13,12 +13,24 @@ env = conf.Finish()
 opts = Variables()
 opts.AddVariables(PathVariable('PREFIX','installation path',
     '/opt/nc_server', PathVariable.PathAccept))
+
 opts.Add('REPO_TAG',
     'git tag of the source, in the form "vX.Y", when building outside of a git repository')
+
 opts.Add('BUILDS',
     'A host architecture to build for: host, armbe, armel or armhf.', 'host')
 
+opts.Add('ARCHLIBDIR', 
+         'Where to install nc_server libraries relative to $PREFIX')
+
+opts.Add('PKG_CONFIG_PATH', 
+         'Path to pkg-config files, if you need other than the system default')
 opts.Update(env)
+
+# print("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
+
+if env.has_key('PKG_CONFIG_PATH'):
+    env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
 
 BUILDS = Split(env['BUILDS'])
 
@@ -32,7 +44,10 @@ elif 'armhf' in BUILDS:
     # Must wait to load sharedlibrary until REPO_TAG is set in all situations
     env = env.Clone(tools=['armhfcross', 'sharedlibrary'])
 
-nidas_flags = env.ParseFlags('!pkg-config --cflags --libs nidas')
+try:
+    nidas_flags = env.ParseFlags('!pkg-config --cflags --libs nidas')
+except:
+    nidas_flags = {}
 # hdf_flags = env.ParseFlags('!pkg-config --cflags --libs hdf5')
 nc_flags = env.ParseFlags('!pkg-config --cflags --libs netcdf')
 
@@ -68,31 +83,47 @@ srcs = Split("""
     nc_server_rpc_svc.c
 """)
 
+print("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
+
 env.Append(LIBPATH='.')
 
 p1 = env.Program('nc_server', srcs,
-    CPPPATH=[nidas_flags['CPPPATH']],
+    CPPPATH=[nidas_flags.get('CPPPATH')],
     LIBS=["nc_server_rpc", 'nidas_util', 'netcdf_c++', nc_flags['LIBS']],
-    LIBPATH=['.', nidas_flags['LIBPATH'], nc_flags['LIBPATH']])
+    LIBPATH=['.', nidas_flags.get('LIBPATH'), nc_flags['LIBPATH']])
+
+# RPATH=[nidas_flags.get('LIBPATH'),'$PREFIX/$ARCHLIBDIR'])
 
 #    CPPDEFINES = ['RPC_SVC_FG']
 
 p2 = env.Program('nc_close','nc_close.cc',
     LIBS=["nc_server_rpc"],LIBPATH=['.'])
 
+# RPATH=['$PREFIX/$ARCHLIBDIR'])
+
 p3 = env.Program('nc_sync','nc_sync.cc',
     LIBS=["nc_server_rpc"],LIBPATH=['.'])
+
+# RPATH=['$PREFIX/$ARCHLIBDIR'])
 
 p4 = env.Program('nc_shutdown','nc_shutdown.cc',
     LIBS=["nc_server_rpc"],LIBPATH=['.'])
 
+# RPATH=['$PREFIX/$ARCHLIBDIR'])
+
 p5 = env.Program('nc_check','nc_check.c',
-    LIBS=['nc_server_rpc', 'netcdf_c++', nc_flags['LIBS']],
-    LIBPATH=['.',nc_flags['LIBPATH']])
+    LIBS=[nc_flags['LIBS']],
+    LIBPATH=[nc_flags['LIBPATH']])
 
 libtgt = env.SharedLibrary3Install('$PREFIX',lib)
 env.Install('$PREFIX/bin',[p1,p2,p3,p4,p5])
 env.Install('$PREFIX/include','nc_server_rpc.h')
 env.Alias('install', [ '$PREFIX' ])
 env.Alias('install',libtgt)
+
+# Create nc_server.pc, replacing @token@
+env.Command('nc_server.pc', '#nc_server.pc.in',
+        "sed -e 's,@PREFIX@,$PREFIX,' -e 's,@ARCHLIBDIR@,$ARCHLIBDIR,' -e 's,@REPO_TAG@,$REPO_TAG,' < $SOURCE > $TARGET")
+
+Alias('install', env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', 'nc_server.pc'))
 

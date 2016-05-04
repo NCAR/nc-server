@@ -47,7 +47,8 @@ override_dh_auto_build:
 	dh_auto_build -- BUILDS=$(BUILDS) REPO_TAG=v$(DEBVER)
 
 override_dh_auto_install:
-	dh_auto_install -- BUILDS=$(BUILDS) REPO_TAG=v$(DEBVER) PREFIX=/opt/nc_server
+	dh_auto_install -- BUILDS=$(BUILDS) REPO_TAG=v$(DEBVER) \
+		PREFIX=/opt/nc_server
 
 override_dh_auto_clean:
 	dh_auto_clean -- BUILDS=$(BUILDS)

@@ -2,6 +2,8 @@
 
 script=$(basename $0)
 
+pkg=nc_server
+
 hashcheck=false
 while [ $# -gt 0 ]; do
     case $1 in
@@ -22,8 +24,6 @@ srcdir=$(readlink -f ${0%/*})
 hashfile=$srcdir/.last_hash
 
 set -o pipefail
-
-pkg=nc_server
 
 if $hashcheck; then
     [ -f $hashfile ] && last_hash=$(cat $hashfile)
@@ -92,7 +92,7 @@ tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --exclude .git \
     nc-server/SC* nc-server/nc_server.h nc-server/*.cc \
     nc-server/nc_check.c nc-server/*.x nc-server/version.h \
     nc-server/scripts \
-    nc-server/etc nc-server/nc_server.pc nc-server/systemd || exit $?
+    nc-server/etc nc-server/nc_server.pc.in nc-server/systemd || exit $?
 cd -
 
 rpmbuild -v -ba \

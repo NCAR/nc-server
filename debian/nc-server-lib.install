@@ -1,1 +1,2 @@
+etc/ld.so.conf.d/*
 opt/nc_server/lib/*/*.so.*

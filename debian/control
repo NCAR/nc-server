@@ -15,13 +15,13 @@ Description: RPC server for writing to NetCDF files
 
 Package: nc-server-lib
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}
 Description: Shareable library for nc-server
  Shareable library for nc-server.
 
 Package: nc-server-dev
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, nc-server-lib
+Depends: ${misc:Depends}, nc-server-lib
 Description: Header files and library symbolic links for nc-server
  Header files and library symbolic links for nc-server.
 

@@ -41,7 +41,7 @@ Some client programs of nc_server
 
 %build
 pwd
-scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server REPO_TAG=v%{version}
+scons PREFIX=/opt/nc_server REPO_TAG=v%{version}
  
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -51,14 +51,15 @@ cp scripts/* ${RPM_BUILD_ROOT}/opt/nc_server/bin
 
 install -d $RPM_BUILD_ROOT%{_sysconfdir}
 cp -r etc/{ld.so.conf.d,profile.d,default} $RPM_BUILD_ROOT%{_sysconfdir}
-install -d $RPM_BUILD_ROOT%{_libdir}/pkgconfig
+sed -e 's,/lib,/%{_lib},' $RPM_BUILD_ROOT%{_sysconfdir}/ld.so.conf.d/nc_server.conf
 
-# Edit nc_server.pc replacing @XX@ fields:
-sed -r -e '
-    s,@PREFIX@,/opt/nc_server,
-    s,/@DEB_HOST_GNU_TYPE@,,
-    s,@REPO_TAG@,%{gitversion},
-    ' nc_server.pc > $RPM_BUILD_ROOT%{_libdir}/pkgconfig/nc_server.pc
+install -d $RPM_BUILD_ROOT%{_libdir}/pkgconfig
+#  scons puts entire $RPM_BUILD_ROOT in nc_server.pc, remove it.
+sed -i -e "s,$RPM_BUILD_ROOT,," \
+    $RPM_BUILD_ROOT/opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
+
+cp $RPM_BUILD_ROOT/opt/nc_server/%{_lib}/pkgconfig/nc_server.pc \
+        $RPM_BUILD_ROOT%{_libdir}/pkgconfig
 
 install -d $RPM_BUILD_ROOT/opt/nc_server/systemd
 cp -r systemd/user $RPM_BUILD_ROOT/opt/nc_server/systemd
@@ -97,12 +98,13 @@ rm -rf $RPM_BUILD_ROOT
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
-/opt/nc_server/lib/libnc_server_rpc.so.%{gitversion}
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{gitversion}
 
 %files devel
 /opt/nc_server/include/nc_server_rpc.h
-/opt/nc_server/lib/libnc_server_rpc.so.[0-9]
-/opt/nc_server/lib/libnc_server_rpc.so
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.[0-9]
+/opt/nc_server/%{_lib}/libnc_server_rpc.so
+/opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
 %config %{_libdir}/pkgconfig/nc_server.pc
 
 %files clients
