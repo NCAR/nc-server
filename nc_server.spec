@@ -51,7 +51,7 @@ cp scripts/* ${RPM_BUILD_ROOT}/opt/nc_server/bin
 
 install -d $RPM_BUILD_ROOT%{_sysconfdir}
 cp -r etc/{ld.so.conf.d,profile.d,default} $RPM_BUILD_ROOT%{_sysconfdir}
-sed -e 's,/lib,/%{_lib},' $RPM_BUILD_ROOT%{_sysconfdir}/ld.so.conf.d/nc_server.conf
+sed -i -e 's,/lib,/%{_lib},' $RPM_BUILD_ROOT%{_sysconfdir}/ld.so.conf.d/nc_server.conf
 
 install -d $RPM_BUILD_ROOT%{_libdir}/pkgconfig
 #  scons puts entire $RPM_BUILD_ROOT in nc_server.pc, remove it.
