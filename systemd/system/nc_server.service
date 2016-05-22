@@ -1,5 +1,7 @@
 [Unit]
 Description=RPC server for writing to NetCDF files
+After=rpcbind.service
+Requires=rpcbind.service
 
 [Service]
 Type=forking
