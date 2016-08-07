@@ -47,8 +47,16 @@ const int Connections::CONNECTIONTIMEOUT = 43200;
 const int FileGroup::FILEACCESSTIMEOUT = 900;
 const int FileGroup::MAX_FILES_OPEN = 16;
 
-namespace {
+namespace local {
     int defaultLogLevel = nidas::util::LOGGER_NOTICE;
+
+#if __cplusplus >= 201103L
+    template <typename T>
+    using auto_ptr = std::unique_ptr<T>;
+#else
+    using std::auto_ptr;
+#endif
+
 };
 
 /*
@@ -1721,7 +1729,7 @@ bool NS_NcFile::checkCountsVariableName(const string& name,VariableGroup * vgrou
         }
         // check counts attributes of time series variables not in this group
         if (j == gvars.size()) {
-            auto_ptr<NcAtt> att(ncv->get_att("counts"));
+            local::auto_ptr<NcAtt> att(ncv->get_att("counts"));
             if (att.get()) {
                 const char* attString = 0;
                 if (att->type() == ncChar && att->num_vals() > 0 &&
@@ -1925,7 +1933,7 @@ bool NS_NcFile::add_attrs(OutVariable* ov, NS_NcVar * var,const string& cntsName
 
     bool modified = false;
 
-    auto_ptr<NcAtt> nca(var->get_att("_FillValue"));
+    local::auto_ptr<NcAtt> nca(var->get_att("_FillValue"));
     if (!nca.get()) {
         modified = true;
         switch (ov->data_type()) {
@@ -2511,9 +2519,9 @@ bool NS_NcVar::set_att(const string& aname, const string& aval)
 {
     bool modified = false;
     const char* faval = 0;
-    auto_ptr<NcAtt> nca(get_att(aname.c_str()));
+    local::auto_ptr<NcAtt> nca(get_att(aname.c_str()));
     if (nca.get()) {
-        auto_ptr<NcValues> uvals(nca->values());
+        local::auto_ptr<NcValues> uvals(nca->values());
         if (uvals.get() && nca->num_vals() >= 1 && nca->type() == ncChar) {
             faval = uvals->as_string(0);
             if (!faval || string(faval) != aval) {
@@ -2603,7 +2611,7 @@ int NS_NcVar::put_len(const long *counts)
 NcServerApp::NcServerApp(): 
     _username(), _userid(0),_groupname(),_groupid(0),
     _suppGroupNames(),_suppGroupIds(),
-    _daemon(true),_logLevel(defaultLogLevel),
+    _daemon(true),_logLevel(local::defaultLogLevel),
     _rpcport(DEFAULT_RPC_PORT),_transp(0)
 {
 }
@@ -2628,7 +2636,7 @@ void NcServerApp::usage(const char *argv0)
         Otherwise run in the background, cd to /, and log messages to syslog\n\
         Specify a -l option after -d to change the log level from debug\n\
         -l loglevel: set logging level, 7=debug,6=info,5=notice,4=warning,3=err,...\n\
-        The default level if no -d option is " << defaultLogLevel << "\n\
+        The default level if no -d option is " << local::defaultLogLevel << "\n\
         -p port: port number, default " << DEFAULT_RPC_PORT << "\n\
         -u name: change user id of the process to given user name and their default group\n\
         after opening RPC portmap socket\n\
