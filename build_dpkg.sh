@@ -119,13 +119,11 @@ if [ -n "$repo" ]; then
     pkgs=$(grep "^Binary:" $chngs | sed 's/Binary: //')
 
     flock $repo sh -c "
-        reprepro -A 'source|$arch' -V -b $repo remove jessie $pkgs;
-        reprepro -V -b $repo deleteunreferenced;
-        reprepro -V -b $repo include jessie $chngs"
+        # reprepro -A 'source|$arch' -V -b $repo remove jessie $pkgs;
+        reprepro -V -b $repo --keepunreferencedfiles include jessie $chngs"
 
     rm -f nc-server_*_$arch.build nc-server_*.dsc nc-server_*.tar.xz nc-server*_all.deb nc-server*_$arch.deb $chngs
 
 else
     echo "build results are in $PWD"
 fi
-
