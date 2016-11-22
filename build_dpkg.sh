@@ -74,6 +74,17 @@ dir=$(dirname $0)
 dir=$(readlink -f $dir)
 cd $dir
 
+hashfile=$dir/.last_hash_$arch
+
+if $repo; then
+    [ -f $hashfile ] && last_hash=$(cat $hashfile)
+    this_hash=$(git log -1 --format=%H .)
+    if [ "$this_hash" == "$last_hash" ]; then
+        echo "No updates in $PWD since last build"
+        exit 0
+    fi
+fi
+
 # create changelog
 ./deb_changelog.sh > debian/changelog
 
@@ -116,11 +127,11 @@ cd ..
 if [ -n "$repo" ]; then
     umask 0002
     chngs=nc-server_*_$arch.changes 
-    pkgs=$(grep "^Binary:" $chngs | sed 's/Binary: //')
+    # pkgs=$(grep "^Binary:" $chngs | sed 's/Binary: //')
 
     flock $repo sh -c "
-        # reprepro -A 'source|$arch' -V -b $repo remove jessie $pkgs;
-        reprepro -V -b $repo --keepunreferencedfiles include jessie $chngs"
+        reprepro -V -b $repo --keepunreferencedfiles include jessie $chngs;" \
+            && echo $this_hash > $hashfile
 
     rm -f nc-server_*_$arch.build nc-server_*.dsc nc-server_*.tar.xz nc-server*_all.deb nc-server*_$arch.deb $chngs
 
