@@ -10,7 +10,9 @@ Packager: Gordon Maclean <maclean@ucar.edu>
 # rpm --relocate /opt/nc_server=/usr
 Prefix: /opt/nc_server
 BuildRequires: netcdf-devel libcap-devel nidas-devel eol_scons systemd
+%if ! 0%{?el6}
 %{?systemd_requires}
+%endif
 Vendor: UCAR
 Source: %{name}-%{version}.tar.gz
 Requires: nc_server-clients isfs-syslog
@@ -68,15 +70,21 @@ install -d $RPM_BUILD_ROOT%{_unitdir}
 cp systemd/system/nc_server.service $RPM_BUILD_ROOT%{_unitdir}
 
 %post
+%if ! 0%{?el6}
 %systemd_post nc_server.service
+%endif
 exit 0
 
 %preun
+%if ! 0%{?el6}
 %systemd_preun nc_server.service
+%endif
 exit 0
 
 %postun
+%if ! 0%{?el6}
 %systemd_postun_with_restart nc_server.service
+%endif
 exit 0
 
 %post -n nc_server-devel
@@ -94,7 +102,10 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/default/nc_server
 
 /opt/nc_server/systemd/user
+
+%if ! 0%{?el6}
 %{_unitdir}/nc_server.service
+%endif
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
