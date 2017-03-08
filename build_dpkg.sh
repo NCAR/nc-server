@@ -126,12 +126,22 @@ cd ..
 
 if [ $repo ]; then
     umask 0002
-    chngs=nc-server_*_$arch.changes 
-    # pkgs=$(grep "^Binary:" $chngs | sed 's/Binary: //')
 
-    flock $repo sh -c "
-        reprepro -V -b $repo --keepunreferencedfiles include jessie $chngs;" \
-            && echo $this_hash > $hashfile
+    # only install source for armel, otherwise if a source is installed
+    # twice with the same version, you'll get errors about bad checksums
+    if [ $arch == armel ]; then
+        chngs=nc-server_*_$arch.changes 
+        # pkgs=$(grep "^Binary:" $chngs | sed 's/Binary: //')
+
+        flock $repo sh -c "
+            reprepro -V -b $repo --keepunreferencedfiles include jessie $chngs;" \
+                && echo $this_hash > $hashfile
+    else
+        debs=nc-server*_$arch.deb
+        flock $repo sh -c "
+            reprepro -V -b $repo -A $arch --keepunreferencedfiles includedeb jessie $debs;" \
+                && echo $this_hash > $hashfile
+    fi
 
     rm -f nc-server_*_$arch.build nc-server_*.dsc nc-server_*.tar.xz nc-server*_all.deb nc-server*_$arch.deb $chngs
 
