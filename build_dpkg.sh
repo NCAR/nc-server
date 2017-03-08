@@ -76,7 +76,7 @@ cd $dir
 
 hashfile=$dir/.last_hash_$arch
 
-if $repo; then
+if [ $repo ]; then
     [ -f $hashfile ] && last_hash=$(cat $hashfile)
     this_hash=$(git log -1 --format=%H .)
     if [ "$this_hash" == "$last_hash" ]; then
@@ -124,7 +124,7 @@ fi
 # debuild puts results in parent directory
 cd ..
 
-if [ -n "$repo" ]; then
+if [ $repo ]; then
     umask 0002
     chngs=nc-server_*_$arch.changes 
     # pkgs=$(grep "^Binary:" $chngs | sed 's/Binary: //')
