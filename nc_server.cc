@@ -1,4 +1,4 @@
-// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 4; tab-width: 4; -*-
+// -*- mode: C++; indent-tabs-mode: nil; c-basic-offset: 4; -*-
 // vim: set shiftwidth=4 softtabstop=4 expandtab:
 /*
  ********************************************************************
@@ -42,6 +42,8 @@ extern "C"
 }
 
 using namespace std;
+using nidas::util::LogContext;
+using nidas::util::LogMessage;
 
 const int Connections::CONNECTIONTIMEOUT = 43200;
 const int FileGroup::FILEACCESSTIMEOUT = 900;
@@ -59,10 +61,6 @@ namespace local {
 
 };
 
-/*
-#define VARNAME_DEBUG
-#define DEBUG
-*/
 
 unsigned long heap()
 {
@@ -143,9 +141,7 @@ int Connections::openConnection(const struct connection *conn) throw()
 {
     Connection *cp = 0;
 
-#ifdef DEBUG
-    DLOG(("_connections.size()=%d", _connections.size()));
-#endif
+    VLOG(("_connections.size()=%d", _connections.size()));
 
     closeOldConnections();
 
@@ -267,9 +263,7 @@ int Connection::add_var_group(const struct datadef *dd) throw()
 
 Connection *Connections::operator[] (int i) const
 {
-#ifdef DEBUG
-    DLOG(("i=%d,_connections.size()=%d", i, _connections.size()));
-#endif
+    VLOG(("i=%d,_connections.size()=%d", i, _connections.size()));
     map <int, Connection*>::const_iterator ci = _connections.find(i);
     if (ci != _connections.end()) return ci->second;
     return 0;
@@ -426,9 +420,7 @@ FileGroup *AllFiles::get_file_group(const struct connection *conn)
     FileGroup *p;
     vector < FileGroup * >::iterator ip;
 
-#ifdef DEBUG
-    DLOG(("filegroups.size=%d", _filegroups.size()));
-#endif
+    VLOG(("filegroups.size=%d", _filegroups.size()));
 
     for (ip = _filegroups.begin(); ip < _filegroups.end(); ++ip) {
         p = *ip;
@@ -485,18 +477,14 @@ void AllFiles::close() throw()
                 delete _filegroups[i];
                 _filegroups[i] = 0;
             } else {
-#ifdef DEBUG
-                DLOG(("filegroup %d has %d open files, %d var groups",
-                            n, _filegroups[i]->num_files(),
-                            _filegroups[i]->num_var_groups()));
-#endif
+                VLOG(("filegroup %d has %d open files, %d var groups",
+                      n, _filegroups[i]->num_files(),
+                      _filegroups[i]->num_var_groups()));
                 n++;
             }
         }
     }
-#ifdef DEBUG
-    DLOG(("%d current file groups, heap=%d", n, heap()));
-#endif
+    VLOG(("%d current file groups, heap=%d", n, heap()));
 }
 
 void AllFiles::sync() throw()
@@ -519,18 +507,14 @@ void AllFiles::close_old_files(void) throw()
                 delete _filegroups[i];
                 _filegroups[i] = 0;
             } else {
-#ifdef DEBUG
-                DLOG(("filegroup %d has %d open files, %d var groups",
-                            n, _filegroups[i]->num_files(),
-                            _filegroups[i]->num_var_groups()));
-#endif
+                VLOG(("filegroup %d has %d open files, %d var groups",
+                      n, _filegroups[i]->num_files(),
+                      _filegroups[i]->num_var_groups()));
                 n++;
             }
         }
     }
-#ifdef DEBUG
-    DLOG(("%d current file groups, heap=%d", n, heap()));
-#endif
+    VLOG(("%d current file groups, heap=%d", n, heap()));
 }
 
 void AllFiles::close_oldest_file(void) throw()
@@ -560,11 +544,8 @@ FileGroup::FileGroup(const struct connection *conn)
     _vargroupId(0),_interval(conn->interval),
     _fileLength(conn->filelength),_globalAttrs(),_globalIntAttrs()
 {
-
-#ifdef DEBUG
-    DLOG(("creating FileGroup, dir=%s,file=%s",
-                conn->outputdir, conn->filenamefmt));
-#endif
+    VLOG(("creating FileGroup, dir=%s,file=%s",
+          conn->outputdir, conn->filenamefmt));
 
     if (access(conn->outputdir, W_OK | X_OK)) {
         PLOG(("%s: %m", conn->outputdir));
@@ -577,10 +558,8 @@ FileGroup::FileGroup(const struct connection *conn)
 
     _CDLFileName = conn->cdlfile;
 
-#ifdef DEBUG
-    DLOG(("created FileGroup, dir=%s,file=%s",
-                _outputDir.c_str(), _fileNameFormat.c_str()));
-#endif
+    VLOG(("created FileGroup, dir=%s,file=%s",
+          _outputDir.c_str(), _fileNameFormat.c_str()));
 }
 
 FileGroup::~FileGroup(void)
@@ -753,20 +732,16 @@ NS_NcFile *FileGroup::get_file(double dtime) throw(NetCDFAccessFailed)
 
     AllFiles *allfiles = AllFiles::Instance();
     if (ni == nie) {
-#ifdef DEBUG
-        DLOG(("new NS_NcFile: %s %s", _outputDir.c_str(),
-                    _fileNameFormat.c_str()));
-#endif
+        VLOG(("new NS_NcFile: %s %s", _outputDir.c_str(),
+              _fileNameFormat.c_str()));
         if ((f = open_file(dtime)))
             _files.push_back(f);
         close_old_files();
         if (allfiles->num_files() > MAX_FILES_OPEN)
             allfiles->close_oldest_file();
     } else if (!(f = *ni)->StartTimeLE(dtime)) {
-#ifdef DEBUG
-        DLOG(("new NS_NcFile: %s %s", _outputDir.c_str(),
-                    _fileNameFormat.c_str()));
-#endif
+        VLOG(("new NS_NcFile: %s %s", _outputDir.c_str(),
+              _fileNameFormat.c_str()));
 
         // If the file length is less than 0, then the file has "infinite"
         // length.  We will have problems here, because you can't
@@ -820,14 +795,12 @@ NS_NcFile *FileGroup::open_file(double dtime) throw(NetCDFAccessFailed)
     enum FileMode openmode = NcFile::Write;
 #endif
 
-#ifdef DEBUG
-    ILOG(("NetCDF fileName=%s, exists=%d", fileName.c_str(), fileExists));
-    ILOG(("access(%s,F_OK)=%d, eaccess=%d, getuid()=%d, geteuid()=%d",
-            _CDLFileName.c_str(),
-            access(_CDLFileName.c_str(),F_OK),
-            eaccess(_CDLFileName.c_str(),F_OK),
-            getuid(),geteuid()));
-#endif
+    DLOG(("NetCDF fileName=%s, exists=%d", fileName.c_str(), fileExists));
+    DLOG(("access(%s,F_OK)=%d, eaccess=%d, getuid()=%d, geteuid()=%d",
+          _CDLFileName.c_str(),
+          access(_CDLFileName.c_str(),F_OK),
+          eaccess(_CDLFileName.c_str(),F_OK),
+          getuid(),geteuid()));
 
     // If the NetCDF file doesn't exist (or is size 0) then
     //   if a CDL file was specified and exists, try to ncgen it.
@@ -905,12 +878,10 @@ int FileGroup::check_file(const string & fileName) const
         if (WIFEXITED(status)) {
             if (WEXITSTATUS(status))
                 WLOG(("nc_check exited with status=%d, err output=",
-                            WEXITSTATUS(status)) << errmsg);
+                      WEXITSTATUS(status)) << errmsg);
             else {
-#ifdef DEBUG
-                DLOG(("nc_check exited with status=%d, err output=",
-                            WEXITSTATUS(status)) << errmsg);
-#endif
+                VLOG(("nc_check exited with status=%d, err output=",
+                      WEXITSTATUS(status)) << errmsg);
                 fileok = true;
             }
         } else if (WIFSIGNALED(status))
@@ -1091,9 +1062,7 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
     VariableGroup *vg = new VariableGroup(dd, _vargroupId, _interval);
     _vargroups[_vargroupId] = vg;
 
-#ifdef DEBUG
-    DLOG(("Created variable group %d", _vargroupId));
-#endif
+    VLOG(("Created variable group %d", _vargroupId));
 
     return _vargroupId++;
 }
@@ -1196,9 +1165,7 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
             _name = ost.str();
         }
 
-#ifdef DEBUG
-        DLOG(("%s: %d", v->name().c_str(), i));
-#endif
+        VLOG(("%s: %d", v->name().c_str(), i));
         const char *cp = dvar.units;
 
         // if (!strncmp(v->name(),"chksumOK",8))
@@ -1211,10 +1178,8 @@ VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
 
         for (j = 0; j < n; j++) {
             str_attr *a = dvar.attrs.attrs_val + j;
-#ifdef DEBUG
-            DLOG(("%s: %s adding attribute: %d %s %s",
-                        getName().c_str(),v->name().c_str(), j, a->name, a->value));
-#endif
+            VLOG(("%s: %s adding attribute: %d %s %s",
+                  getName().c_str(),v->name().c_str(), j, a->name, a->value));
             v->add_att(a->name, a->value);
             if (!strcmp(a->name,"counts")) cntsNames.insert(a->value);
         }
@@ -1250,10 +1215,8 @@ VariableGroup::~VariableGroup(void)
 bool VariableGroup::same_var_group(const struct datadef *ddp) const
 {
     unsigned int nv = ddp->variables.variables_len;
-#ifdef DEBUG
-    DLOG(("%s same_var_group,nv=%u,_vars.size()=%ld",
-        getName().c_str(),nv,_vars.size()));
-#endif
+    VLOG(("%s same_var_group,nv=%u,_vars.size()=%ld",
+          getName().c_str(),nv,_vars.size()));
 
     if (_vars.size() != nv)
         return false;
@@ -1283,59 +1246,47 @@ bool VariableGroup::same_var_group(const struct datadef *ddp) const
     if (_datatype != ddp->datatype)
         return false;
 
-#ifdef DEBUG
-    DLOG(("%s interval, dimensions, rectype OK",
-        getName().c_str()));
-#endif
+    VLOG(("%s interval, dimensions, rectype OK",
+          getName().c_str()));
 
     // check that variable names are the same, and attributes
     for (ic = 0; ic < nv; ic++) {
         struct variable& dvar = ddp->variables.variables_val[ic];
         if (_vars[ic]->name() != string(dvar.name)) {
-#ifdef DEBUG
-            DLOG(("%s: ic=%d, different var names: %s != %s",
-                getName().c_str(),ic,_vars[ic]->name().c_str(),
-                dvar.name));
-#endif
+            VLOG(("%s: ic=%d, different var names: %s != %s",
+                  getName().c_str(),ic,_vars[ic]->name().c_str(),
+                  dvar.name));
             return false;
         }
         unsigned int na = dvar.attrs.attrs_len;
         const char *units = dvar.units;
-        if (units && strlen(units) > 0) {
-#ifdef DEBUG
-            DLOG(("%s same_var_group,na=%u,_vars[ic]->get_attr_names().size()=%ld,units=\"%s\",\"%s\"",
-                getName().c_str(),nv,_vars[ic]->get_attr_names().size(),
-                units,_vars[ic]->att_val("units").c_str()));
-#endif
+        if (units && strlen(units) > 0)
+        {
+            VLOG(("%s same_var_group,na=%u,"
+                  "_vars[ic]->get_attr_names().size()=%ld,units=\"%s\",\"%s\"",
+                  getName().c_str(), nv, _vars[ic]->get_attr_names().size(),
+                  units, _vars[ic]->att_val("units").c_str()));
             if (_vars[ic]->att_val("units") != string(units)) return false;
             if (na != _vars[ic]->get_attr_names().size()-1) return false;
         }
         else {
-#ifdef DEBUG
-            DLOG(("%s same_var_group,na=%u,_vars[ic]->get_attr_names().size()=%ld",
-                getName().c_str(),nv,_vars[ic]->get_attr_names().size()));
-#endif
+            VLOG(("%s same_var_group,na=%u,_vars[ic]->get_attr_names().size()=%ld",
+                  getName().c_str(),nv,_vars[ic]->get_attr_names().size()));
             if (na != _vars[ic]->get_attr_names().size()) return false;
         }
 
         for (j = 0; j < na; j++) {
             str_attr *a = dvar.attrs.attrs_val + j;
-#ifdef DEBUG
-            DLOG(("%d %s %s", j, a->name, a->value));
-#endif
+            VLOG(("%d %s %s", j, a->name, a->value));
             if (_vars[ic]->att_val(a->name) != string(a->value)) {
-#ifdef DEBUG
-                DLOG(("%s: %s: ic=%d, j=%d, different attrs: %s != %s",
-                    getName().c_str(),ic,_vars[ic]->name().c_str(),
-                    _vars[ic]->att_val(a->name).c_str(),a->value));
-#endif
+                VLOG(("%s: %s: ic=%d, j=%d, different attrs: %s != %s",
+                      getName().c_str(),ic,_vars[ic]->name().c_str(),
+                      _vars[ic]->att_val(a->name).c_str(),a->value));
                 return false;
             }
         }
     }
-#ifdef DEBUG
-    DLOG(("%s: match", getName().c_str()));
-#endif
+    VLOG(("%s: match", getName().c_str()));
     return true;
 }
 
@@ -1536,10 +1487,9 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
             if (_ttType == FIXED_DELTAT) {
                 _timesAreMidpoints = ::fabs(::fmod(_timeOffset, _interval) - _interval * .5) <
                     _interval * 1.e-3;
-#ifdef DEBUG
-                DLOG(("_timeOffset=") << _timeOffset << " interval=" << _interval <<
-                        " timesAreMidpoints=" << _timesAreMidpoints);
-#endif
+                VLOG(("_timeOffset=") << _timeOffset
+                     << " interval=" << _interval
+                     << " timesAreMidpoints=" << _timesAreMidpoints);
                 if (_timesAreMidpoints) {
                     if (::fabs(((nrec + .5) * _interval) - _timeOffset) > _interval * 1.e-3) {
                         PLOG(("%s: Invalid timeOffset (NS_NcFile) = %f, nrec=%d,_nrecs=%d,interval=%f",
@@ -1587,10 +1537,8 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     if (!_baseTimeVar->put(&_baseTime, &_nrecs))
         throw NetCDFAccessFailed(getName(),
                 string("put ") + _baseTimeVar->name(),get_error_string());
-#ifdef DEBUG
-    DLOG(("%s: nrecs=%d, baseTime=%d, timeOffset=%f, length=%f",
-                _fileName.c_str(), _nrecs, _baseTime, _timeOffset, _lengthSecs));
-#endif
+    VLOG(("%s: nrecs=%d, baseTime=%d, timeOffset=%f, length=%f",
+          _fileName.c_str(), _nrecs, _baseTime, _timeOffset, _lengthSecs));
 
     _lastAccess = _lastSync = time(0);
     //
@@ -1692,12 +1640,11 @@ string NS_NcFile::resolveCountsName(const string& cntsNameInFile, VariableGroup*
             cntsName = newname;
         }
     }
-#ifdef DEBUG
-    DLOG(("%s: %s: variable group counts name: \"%s\", in file: \"%s\", resolved=\"%s\"\n",
-                getName().c_str(),vgroup->getName().c_str(),
-                vgCntsName.c_str(),cntsNameInFile.c_str(),
-                cntsName.c_str()));
-#endif
+    VLOG(("%s: %s: variable group counts name: "
+          "\"%s\", in file: \"%s\", resolved=\"%s\"\n",
+          getName().c_str(),vgroup->getName().c_str(),
+          vgCntsName.c_str(),cntsNameInFile.c_str(),
+          cntsName.c_str()));
     return cntsName;
 }
 
@@ -1760,7 +1707,6 @@ string NS_NcFile::createNewName(const string& name,int & i)
 const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
             throw(NetCDFAccessFailed)
 {
-
     int groupid = vgroup->getId();
 
     // variables have been initialzed for this VariableGroup and file.
@@ -1786,10 +1732,8 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
     // get dimensions for those group dimensions that are > 1
     //
     for (int i = _ndims = 0; i < _ndims_req; i++) {
-#ifdef DEBUG
-        DLOG(("VariableGroup %d dimension number %d %s, size=%ld",
-                    igroup,i,_dimNames[i].c_str(), _dimSizes[i]));
-#endif
+        VLOG(("VariableGroup %d dimension number %d %s, size=%ld",
+              groupid, i, _dimNames[i].c_str(), _dimSizes[i]));
 
         // The _dims array is only used when creating a new variable
         // don't create dimensions of size 1
@@ -1801,13 +1745,17 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
             _ndims++;
         }
     }
-#ifdef DEBUG
-    for (unsigned int i = 0; i < _ndims; i++)
-        DLOG(("%s: dimension %s, size=%d",
-                    getName().c_str(),_dims[i]->name(), _dims[i]->size()));
-
-    DLOG(("creating outvariables"));
-#endif
+    {
+        static LogContext vlp(LOG_VERBOSE);
+        if (vlp.active())
+        {
+            for (unsigned int i = 0; i < _ndims; i++)
+                vlp.log(LogMessage().format("%s: dimension %s, size=%d",
+                                            getName().c_str(),
+                                            _dims[i]->name(), _dims[i]->size()));
+        }
+        vlp.log("creating outvariables");
+    }
 
     /* number of input variables in group.
      * This does not include a possible counts variable */
@@ -1883,9 +1831,7 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
 
     if (doSync && time(0) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
 
-#ifdef DEBUG
-    DLOG(("get_vars done"));
-#endif
+    VLOG(("get_vars done"));
     return vars;
 }
 
@@ -1899,16 +1845,22 @@ NS_NcVar *NS_NcFile::add_var(OutVariable* ov, bool& modified)
     const string& varName = ov->name();
 
     // No matching variables found, create new one
-    if (!(var = find_var(ov))) {
+    if (!(var = find_var(ov)))
+    {
         modified = true;
         if (!(var =
-                NcFile::add_var(varName.c_str(), (NcType) ov->data_type(), _ndims,
-                        &_dims.front())) || !var->is_valid()) {
-#ifdef DEBUG
-            for (unsigned int i = 0; i < _ndims; i++)
-                DLOG(("dims=%d id=%d size=%d", i, _dims[i]->id(),
-                            _dims[i]->size()));
-#endif
+              NcFile::add_var(varName.c_str(), (NcType) ov->data_type(), _ndims,
+                              &_dims.front())) || !var->is_valid()) {
+            {
+                static LogContext vlp(LOG_VERBOSE);
+                if (vlp.active())
+                {
+                    for (unsigned int i = 0; i < _ndims; i++)
+                        vlp.log(LogMessage().format("dims=%d id=%d size=%d",
+                                                    i, _dims[i]->id(),
+                                                    _dims[i]->size()));
+                }
+            }
             throw NetCDFAccessFailed(getName(),string("add_var ") + varName,get_error_string());
         }
     }
@@ -2041,12 +1993,10 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
         }
         var = 0;
     }
-#ifdef DEBUG
     if (!var)
-        DLOG(("%s: %s nomatch for shortName %s",
-                    getName().c_str(),varName.c_str(),
-                    shortName.c_str()));
-#endif
+        VLOG(("%s: %s nomatch for shortName %s",
+              getName().c_str(),varName.c_str(),
+              shortName.c_str()));
 
     if (var && var->type() != (NcType) ov->data_type()) {
         // we'll just warn about this at the moment.
@@ -2095,10 +2045,8 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
             if (!(get_var(newname.c_str())))
                 break;
         }
-#ifdef DEBUG
-        DLOG(("%s: %s new name= %s\n",
-                    _fileName.c_str(), var->name(), newname.c_str()));
-#endif
+        VLOG(("%s: %s new name= %s",
+              _fileName.c_str(), var->name(), newname.c_str()));
         ov->set_name(newname.c_str());
     }
     return var;
@@ -2122,11 +2070,9 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
     else
         nrec = (long) ::rint(timeoffset / _interval);
 
-#ifdef DEBUG
-    DLOG(("timeoffset=%f, _timeOffset=%f,nrec=%d, nrecs=%d,interval=%f",
-                (double) timeoffset, (double) _timeOffset, nrec, _nrecs,
-                _interval));
-#endif
+    VLOG(("timeoffset=%f, _timeOffset=%f,nrec=%d, nrecs=%d,interval=%f",
+          (double) timeoffset, (double) _timeOffset, nrec, _nrecs,
+          _interval));
 
 #ifdef DOUBLE_CHECK
     if (nrec < _nrecs - 1) {
@@ -2177,10 +2123,10 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
         if (!i)
             throw NetCDFAccessFailed(getName(),string("put_rec ") + _timeOffsetVar->name(),get_error_string());
     }
-#ifdef DEBUG
-    DLOG(("after fill timeoffset = %f, timeOffset=%f,nrec=%d, _nrecs=%d,interval=%f",
-                (double)timeoffset,(double)_timeOffset, nrec, _nrecs, (double)_interval));
-#endif
+    VLOG(("after fill timeoffset = %f, timeOffset=%f,nrec=%d, "
+          "_nrecs=%d,interval=%f",
+          (double)timeoffset, (double)_timeOffset, nrec,
+          _nrecs, (double)_interval));
 
 #ifdef LAST_TIME_CHECK
     if (_ttType == FIXED_DELTAT && nrec == _nrecs - 1) {
@@ -2204,9 +2150,7 @@ void NS_NcFile::put_history(string val) throw(NetCDFAccessFailed)
         char *htmp = historyAtt->as_string(0);
         history = htmp;
         delete [] htmp;
-#ifdef DEBUG
-        DLOG(("history=%.40s", history.c_str()));
-#endif
+        VLOG(("history=%.40s", history.c_str()));
         delete historyAtt;
     }
 
@@ -2233,9 +2177,7 @@ void NS_NcFile::put_history(string val) throw(NetCDFAccessFailed)
         write_global_attr("history",history);
     }
 
-#ifdef DEBUG
-    DLOG(("NS_NcFile::put_history"));
-#endif
+    VLOG(("NS_NcFile::put_history"));
 }
 
 void NS_NcFile::write_global_attr(const string& name, const string& value)
@@ -2256,16 +2198,12 @@ void NS_NcFile::write_global_attr(const string& name, const string& value)
         if (!add_att(name.c_str(), value.c_str()))
             throw NetCDFAccessFailed(getName(),string("add_att ") + name,get_error_string());
         _lastAccess = time(0);
-#ifdef DEBUG
-        DLOG(("%s: NS_NcFile::write_global_attr %s, syncing",
-                    getName().c_str(),name.c_str()));
-#endif
+        VLOG(("%s: NS_NcFile::write_global_attr %s, syncing",
+              getName().c_str(),name.c_str()));
         if (time(0) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
     }
 
-#ifdef DEBUG
-    DLOG(("NS_NcFile::write_global_attr"));
-#endif
+    VLOG(("NS_NcFile::write_global_attr"));
 
 }
 
@@ -2283,16 +2221,12 @@ void NS_NcFile::write_global_attr(const string& name, int value)
         if (!add_att(name.c_str(), value))
             throw NetCDFAccessFailed(getName(),string("add_att ") + name,get_error_string());
         _lastAccess = time(0);
-#ifdef DEBUG
-        DLOG(("%s: NS_NcFile::write_global_attr %s, syncing",
-                    getName().c_str(),name.c_str()));
-#endif
+        VLOG(("%s: NS_NcFile::write_global_attr %s, syncing",
+              getName().c_str(),name.c_str()));
         if (time(0) - _lastSync > SYNC_CHECK_INTERVAL_SECS) sync();
     }
 
-#ifdef DEBUG
-    DLOG(("NS_NcFile::write_global_attr"));
-#endif
+    VLOG(("NS_NcFile::write_global_attr"));
 }
 
 bool NS_NcFile::check_var_dims(NcVar * var)
@@ -2384,12 +2318,11 @@ bool NS_NcFile::check_var_dims(NcVar * var)
     for (ireq = ivdim = 0; ivdim < ndims && ireq < _ndims_req;) {
         NcDim* dim = var->get_dim(ivdim);
 
-#ifdef DEBUG
-        DLOG(("%s: dim[%d] = %s, size=%ld ndims=%d",
-                    var->name(),ivdim, dim->name(), dim->size(), ndims));
-        DLOG(("%s: req dim[%d] = %s, size=%ld ndim_req=%d",
-                    getName().c_str(),ireq, _dimNames[ireq].c_str(), _dimSizes[ireq], _ndims_req));
-#endif
+        VLOG(("%s: dim[%d] = %s, size=%ld ndims=%d",
+              var->name(),ivdim, dim->name(), dim->size(), ndims));
+        VLOG(("%s: req dim[%d] = %s, size=%ld ndim_req=%d",
+              getName().c_str(),ireq, _dimNames[ireq].c_str(),
+              _dimSizes[ireq], _ndims_req));
         if (_dimSizes[ireq] == NC_UNLIMITED) {
             if (dim->is_unlimited())
                 _dimIndices[ireq++] = ivdim++;
@@ -2404,8 +2337,6 @@ bool NS_NcFile::check_var_dims(NcVar * var)
             if (dim->size() != _dimSizes[ireq]) {
                 WLOG(("%s:dimension size mismatch for var=%s, dim %s(%ld), expected size=%ld",
                     getName().c_str(),var->name(),dim->name(),dim->size(),_dimSizes[ireq]));
-#ifdef DEBUG
-#endif
                 return false;
             }
             _dimIndices[ireq++] = ivdim++;
@@ -2415,17 +2346,13 @@ bool NS_NcFile::check_var_dims(NcVar * var)
             if (_dimSizes[ireq] != 1) {
                 WLOG(("%s: no dimension name match for var=%s, dim %s(%ld)",
                    getName().c_str(),var->name(),dim->name(),dim->size()));
-#ifdef DEBUG
-#endif
                 return false;
             }
             _dimIndices[ireq++] = -1;
         }
     }
-#ifdef DEBUG
-    DLOG(("ireq=%d _ndims_req=%d, ivdim=%d, ndims=%d",
-                ireq, _ndims_req, ivdim, ndims));
-#endif
+    VLOG(("ireq=%d _ndims_req=%d, ivdim=%d, ndims=%d",
+          ireq, _ndims_req, ivdim, ndims));
     // remaining requested or existing dimensions should be 1
     for (; ireq < _ndims_req; ireq++)
         if (_dimSizes[ireq] > 1) {
@@ -2462,9 +2389,7 @@ const NcDim *NS_NcFile::get_dim(NcToken prefix, long size)
     //
     for (i = 0; i < ndims; i++) {
         dim = NcFile::get_dim(i);
-#ifdef DEBUG
-        DLOG(("dim[%d]=%s, size %ld", i, dim->name(), dim->size()));
-#endif
+        VLOG(("dim[%d]=%s, size %ld", i, dim->name(), dim->size()));
         if (!strncmp(dim->name(), prefix, l) && dim->size() == size)
             return dim;
     }
@@ -2487,9 +2412,7 @@ const NcDim *NS_NcFile::get_dim(NcToken prefix, long size)
     // found a unique dimension name, starting with prefix
 
     dim = add_dim(tmpString, size);
-#ifdef DEBUG
-    DLOG(("new dimension %s, size %d", tmpString, size));
-#endif
+    VLOG(("new dimension %s, size %d", tmpString, size));
     return dim;
 }
 
@@ -2567,9 +2490,7 @@ int NS_NcVar::put(const float *d, const long *counts)
         return (_var->put(&dl, _count) ? nout : 0);
     }
     int i = _var->put(d, _count);
-#ifdef DEBUG
-    DLOG(("_var->put of %s, i=%d, nout=%d", name(), i, nout));
-#endif
+    VLOG(("_var->put of %s, i=%d, nout=%d", name(), i, nout));
     return (i ? nout : 0);
     // return (_var->put(d,_count) ? nout : 0);
 }
@@ -2592,17 +2513,13 @@ int NS_NcVar::put_len(const long *counts)
     _count[0] = 1;
     if ((k = _dimIndices[1]) > 0)
         _count[k] = 1;
-#ifdef DEBUG
-    DLOG(("%s: _dimIndices[1]=%d", name(), _dimIndices[1]));
-#endif
+    VLOG(("%s: _dimIndices[1]=%d", name(), _dimIndices[1]));
 
     for (i = 0, j = 2; j < _ndimIndices; i++, j++)
         if ((k = _dimIndices[j]) > 0) {
             _count[k] = counts[i];
-#ifdef DEBUG
-            DLOG(("%s: _dimIndices[%d]=%d,counts[%d]=%d",
-                        name(), j, _dimIndices[j], i, counts[i]));
-#endif
+            VLOG(("%s: _dimIndices[%d]=%d,counts[%d]=%d",
+                  name(), j, _dimIndices[j], i, counts[i]));
             nout *= _count[k];
         }
     return nout;
@@ -2612,7 +2529,9 @@ NcServerApp::NcServerApp():
     _username(), _userid(0),_groupname(),_groupid(0),
     _suppGroupNames(),_suppGroupIds(),
     _daemon(true),_logLevel(local::defaultLogLevel),
-    _rpcport(DEFAULT_RPC_PORT),_transp(0)
+    _rpcport(DEFAULT_RPC_PORT),
+    _standalone(false),
+    _transp(0)
 {
 }
 
@@ -2638,6 +2557,7 @@ void NcServerApp::usage(const char *argv0)
         -l loglevel: set logging level, 7=debug,6=info,5=notice,4=warning,3=err,...\n\
         The default level if no -d option is " << local::defaultLogLevel << "\n\
         -p port: port number, default " << DEFAULT_RPC_PORT << "\n\
+        -s: standalone instance, do not register, print port number to stdout\n\
         -u name: change user id of the process to given user name and their default group\n\
         after opening RPC portmap socket\n\
         -g name: add name to the list of supplementary group ids of the process.\n\
@@ -2650,7 +2570,7 @@ int NcServerApp::parseRunstring(int argc, char **argv)
 {
     int c;
     int daemonOrforeground = -1;
-    while ((c = getopt(argc, argv, "dl:g:p:u:vz")) != -1) {
+    while ((c = getopt(argc, argv, "dl:g:sp:u:vz")) != -1) {
         switch (c) {
         case 'd':
             daemonOrforeground = 0;
@@ -2682,6 +2602,9 @@ int NcServerApp::parseRunstring(int argc, char **argv)
             break;
         case 'p':
             _rpcport = atoi(optarg);
+            break;
+        case 's':
+            _standalone = true;
             break;
         case 'u':
             {
@@ -2844,6 +2767,11 @@ int NcServerApp::run(void)
         // ServerSocket destructor does not close the socket
         nidas::util::ServerSocket sock = nidas::util::ServerSocket(_rpcport);
         sockfd = sock.getFd();
+        if (_rpcport == 0)
+        {
+            _rpcport = sock.getLocalPort();
+        }
+        DLOG(("listening on port ") << _rpcport);
     }
     catch(const nidas::util::IOException& e) {
         PLOG(("%s",e.what()));
@@ -2855,10 +2783,29 @@ int NcServerApp::run(void)
         PLOG(("cannot create tcp service."));
         return 1;
     }
-    if (!svc_register(_transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
-                netcdfserverprog_2, IPPROTO_TCP)) {
-        PLOG(("Unable to register (NETCDFSERVERPROG=%x, NETCDFSERVERVERS, tcp): %m", NETCDFSERVERPROG));
-        return 1;
+    if (! _standalone)
+    {
+        if (!svc_register(_transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
+                    netcdfserverprog_2, IPPROTO_TCP))
+        {
+            PLOG(("Unable to register (NETCDFSERVERPROG=%x, "
+                  "NETCDFSERVERVERS, tcp): %m", NETCDFSERVERPROG));
+            return 1;
+        }
+    }
+    if (_standalone)
+    {
+        // For the standalone case, do not register with the portmapper.
+        // Passing the last parameter 'protocol' as zero to svc_register()
+        // prevents the portmapper registration.
+        if (!svc_register(_transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
+                    netcdfserverprog_2, 0))
+        {
+            PLOG(("Unable to register (NETCDFSERVERPROG=%x, "
+                  "NETCDFSERVERVERS, 0): %m", NETCDFSERVERPROG));
+            return 1;
+        }
+        std::cout << "NC_SERVER_PORT=" << _rpcport << std::endl;
     }
     // create files with group write
     umask(S_IWOTH);

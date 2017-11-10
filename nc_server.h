@@ -160,6 +160,8 @@ private:
 
     int _rpcport;
 
+    bool _standalone;
+
     SVCXPRT* _transp;
 
     /** No copying */
