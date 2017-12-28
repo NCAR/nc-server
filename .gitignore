@@ -4,6 +4,13 @@
 *.so.[0-9]*  
 .scon*
 config.log
+# created by build
+nc_check
+nc_close
+nc_server
+nc_shutdown
+nc_sync
+version.h
 # created by rpcgen
 nc_server_rpc.h
 nc_server_rpc_clnt.c

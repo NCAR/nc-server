@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 script=$(basename $0)
 
@@ -89,10 +89,10 @@ scons version.h
 cd ..
 
 tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --exclude .git \
-    nc_server/SC* nc_server/nc_server.h nc_server/*.cc \
-    nc_server/nc_check.c nc_server/*.x nc_server/version.h \
-    nc_server/scripts \
-    nc_server/etc nc_server/usr nc_server/systemd || exit $?
+    nc-server/SC* nc-server/nc_server.h nc-server/*.cc \
+    nc-server/nc_check.c nc-server/*.x nc-server/version.h \
+    nc-server/scripts \
+    nc-server/etc nc-server/usr nc-server/systemd || exit $?
 cd -
 
 rpmbuild -v -ba \

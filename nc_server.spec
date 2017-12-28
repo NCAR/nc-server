@@ -37,7 +37,7 @@ Obsoletes: nc_server-auxprogs
 Some client programs of nc_server
 
 %prep
-%setup -n nc_server
+%setup -n nc-server
 
 %build
 pwd
