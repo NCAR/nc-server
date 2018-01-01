@@ -18,11 +18,7 @@ NAME=nc-server
 SCRIPTNAME=/etc/init.d/$NAME
 DAEMON=/opt/nc_server/bin/nc_server
 
-if [ ! -r /etc/default/nc_server ]; then
-    echo "/etc/default/nc_server file is missing."
-    exit 2
-fi
-. /etc/default/nc_server
+[ -r /etc/default/nc_server ] && . /etc/default/nc_server
 
 # Load the VERBOSE setting and other rcS variables
 . /lib/init/vars.sh
@@ -32,7 +28,11 @@ fi
 # and status_of_proc is working.
 . /lib/lsb/init-functions
 
-DAEMON_ARGS="-z -u ${NC_USER} -g ${NC_GROUP} -p ${NC_PORT} -l ${NC_LOGLEVEL}"
+DAEMON_ARGS="-z"
+[ -n "${NC_USER}" ] && DAEMON_ARGS="${DAEMON_ARGS} -u ${NC_USER}"
+[ -n "${NC_GROUP}" ] && DAEMON_ARGS="${DAEMON_ARGS} -g ${NC_GROUP}"
+[ -n "${NC_PORT}" ] && DAEMON_ARGS="${DAEMON_ARGS} -p ${NC_PORT}"
+[ -n "${NC_LOGLEVEL}" ] && DAEMON_ARGS="${DAEMON_ARGS} -l ${NC_LOGLEVEL}"
 
 # set -x
 #
