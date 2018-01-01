@@ -37,13 +37,15 @@ esac
 #DEBHELPER#
 
 if [ "$1" = configure ]; then
-    # Debian doesn't like ld.so.conf.d files, and instead
-    # wants packagers to use RPATH. Until that is done for
-    # nidas, we seem to have to force the installation of this
-    # file.
-    cf=/etc/ld.so.conf.d/nc_server-arm-linux-gnueabi.conf
+    # Debian doesn't like ld.so.conf.d files, and instead wants packagers
+    # to use RPATH. Until that is done for nidas, we seem to have to force
+    # the installation of this file.  This parallels the way the nidas-min
+    # package adds the NIDAS shared library directory to the ldconfig path,
+    # except keep the nc_server.conf filename rather than including the
+    # path in the filename.
+    cf=/etc/ld.so.conf.d/nc_server.conf
     if ! [ -f $cf ]; then
-        echo "/opt/nc_server/lib/arm-linux-gnueabi" > $cf
+        echo "/opt/nc_server/lib/arm-linux-gnueabihf" > $cf
         ldconfig
     fi
 fi
