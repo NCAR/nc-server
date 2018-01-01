@@ -1,1 +1,2 @@
 opt/nc_server/bin/nc_server
+etc/default/nc_server.daq etc/default/nc_server

@@ -1,0 +1,11 @@
+# The nc_server defaults on a Debian ISFS DAQ system.
+#
+# User and group account which will be used to run nc_server.
+# nc_server creates NetCDF files from RPC requests.
+# The files will be owned by this user and group.
+NC_USER=daq
+NC_GROUP=eol
+# tcp port
+NC_PORT=30005
+# loglevel,  7=debug,6=info,5=notice,4=warning,3=err,...
+NC_LOGLEVEL=5
