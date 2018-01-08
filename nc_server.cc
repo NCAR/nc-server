@@ -1753,8 +1753,8 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
                 vlp.log(LogMessage().format("%s: dimension %s, size=%d",
                                             getName().c_str(),
                                             _dims[i]->name(), _dims[i]->size()));
+            vlp.log("creating outvariables");
         }
-        vlp.log("creating outvariables");
     }
 
     /* number of input variables in group.
