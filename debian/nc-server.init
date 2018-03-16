@@ -12,7 +12,9 @@
 # Do NOT "set -e"
 
 # PATH should only include /usr/* if it runs after the mountnfs.sh script
-PATH=/sbin:/usr/sbin:/bin:/usr/bin
+# nc_check needs to be on the PATH, otherwise nc_server thinks a file
+# is bad and renames it.
+export PATH=/sbin:/usr/sbin:/bin:/usr/bin:/opt/nc_server/bin
 DESC="ISFS nc_server process"
 NAME=nc-server
 SCRIPTNAME=/etc/init.d/$NAME
