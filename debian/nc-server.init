@@ -101,6 +101,9 @@ case "$1" in
   stop)
 	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
 	do_stop
+	# Brute force it until this script can be replaced with a systemd
+	# unit file (ISFS-195).
+	pkill nc_server
 	case "$?" in
 		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
 		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
