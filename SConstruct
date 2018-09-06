@@ -10,7 +10,7 @@ if conf.CheckLib('cap'):
     conf.env.AppendUnique(LIBS = 'cap')
 env = conf.Finish()
 
-opts = Variables()
+opts = eol_scons.GlobalVariables('config.py')
 opts.AddVariables(PathVariable('PREFIX','installation path',
     '/opt/nc_server', PathVariable.PathAccept))
 
@@ -118,6 +118,7 @@ p5 = env.Program('nc_check','nc_check.c',
 libtgt = env.SharedLibrary3Install('$PREFIX',lib)
 env.Install('$PREFIX/bin',[p1,p2,p3,p4,p5])
 env.Install('$PREFIX/include','nc_server_rpc.h')
+env.Install('$PREFIX/bin',['scripts/nc_ping', 'scripts/nc_server.check'])
 env.Alias('install', [ '$PREFIX' ])
 env.Alias('install',libtgt)
 
@@ -127,3 +128,4 @@ env.Command('nc_server.pc', '#nc_server.pc.in',
 
 Alias('install', env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', 'nc_server.pc'))
 
+env.SetHelp()

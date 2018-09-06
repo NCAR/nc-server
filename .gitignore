@@ -1,20 +1,21 @@
+# created by build
+# created by rpcgen
 *.o
 *.os
 *.so
 *.so.[0-9]*  
+.last_hash
 .scon*
+/config.py
 config.log
-# created by build
 nc_check
 nc_close
 nc_server
-nc_shutdown
-nc_sync
-version.h
-# created by rpcgen
+nc_server.pc
 nc_server_rpc.h
 nc_server_rpc_clnt.c
 nc_server_rpc_svc.c
 nc_server_rpc_xdr.c
-.last_hash
-nc_server.pc
+nc_shutdown
+nc_sync
+version.h
