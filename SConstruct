@@ -59,6 +59,20 @@ env['CXXFLAGS'] = [ '-Weffc++' ]
 # -L: generated code sends rpc server errors to syslog
 env['RPCGENSERVICEFLAGS'] = ['-L']
 
+# As of Fedora 28, glibc does not include the deprecated Sun RPC
+# interface because it does not support IPv6:
+#
+# https://fedoraproject.org/wiki/Changes/SunRPCRemoval
+#
+# So use the tirpc package config if available, otherwise
+# fall back to the old rpc.
+
+try:
+    env.ParseConfig('pkg-config --cflags --libs libtirpc')
+    print("Using libtirpc...")
+except OSError:
+    pass
+
 env.RPCGenClient('nc_server_rpc.x')
 env.RPCGenHeader('nc_server_rpc.x')
 env.RPCGenService('nc_server_rpc.x')
@@ -71,8 +85,7 @@ libsrcs = Split("""
 """)
 
 libobjs = env.SharedObject(libsrcs,
-    CCFLAGS=env['CCFLAGS'] + ['-Wno-unused', '-Wno-strict-aliasing'],
-    CPPPATH='')
+    CCFLAGS=env['CCFLAGS'] + ['-Wno-unused', '-Wno-strict-aliasing'])
 
 # Don't want nidas libraries searched here
 lib = env.SharedLibrary3('nc_server_rpc',libobjs, LIBS='', LIBPATH='')
