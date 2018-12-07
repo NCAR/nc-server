@@ -85,6 +85,7 @@ def rpc(env):
     try:
         env.ParseConfig('pkg-config --cflags --libs libtirpc')
         print("Using libtirpc.")
+        env['PCREQUIRES'] = "libtirpc"
     except OSError:
         print("Using legacy rpc.")
         pass
@@ -148,7 +149,9 @@ env.Alias('install', libtgt)
 # Create nc_server.pc, replacing @token@
 env.Command('nc_server.pc', '#nc_server.pc.in',
             "sed -e 's,@PREFIX@,$PREFIX,' -e 's,@ARCHLIBDIR@,$ARCHLIBDIR,'"
-            " -e 's,@REPO_TAG@,$REPO_TAG,' < $SOURCE > $TARGET")
+            " -e 's,@REPO_TAG@,$REPO_TAG,' "
+            " -e 's,@REQUIRES@,$PCREQUIRES,' "
+            "< $SOURCE > $TARGET")
 
 Alias('install',
       env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', 'nc_server.pc'))
