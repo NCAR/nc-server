@@ -60,9 +60,10 @@ elif 'armhf' in BUILDS:
     # Must wait to load sharedlibrary until REPO_TAG is set in all situations
     env = env.Clone(tools=['armhfcross', 'sharedlibrary'])
 
-# Default settings for all builds
-env['CCFLAGS'] = [ '-g', '-Wall', '-O2' ]
-env['CXXFLAGS'] = [ '-Weffc++' ]
+# Default settings for all builds.  Need to turn off deprecated warnings
+# until exception specifications are removed from nidas code.
+env['CCFLAGS'] = ['-g', '-Wall', '-O2']
+env['CXXFLAGS'] = ['-Weffc++', '-Wno-deprecated']
 
 env.GitInfo("version.h", "#")
 
