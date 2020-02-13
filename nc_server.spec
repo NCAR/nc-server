@@ -34,7 +34,6 @@ Header file and symbolic links to library
 %package clients
 Summary: Some client programs of nc_server
 Group: Applications/Engineering
-Obsoletes: nc_server-auxprogs
 %description clients
 Some client programs of nc_server
 
