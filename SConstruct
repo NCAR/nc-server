@@ -19,7 +19,7 @@
 
 import eol_scons
 
-env = Environment(tools=['default', 'gitinfo', 'symlink'])
+env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
