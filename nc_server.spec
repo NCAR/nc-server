@@ -10,6 +10,9 @@ Packager: Gordon Maclean <maclean@ucar.edu>
 # rpm --relocate /opt/nc_server=/usr
 Prefix: /opt/nc_server
 BuildRequires: netcdf-devel libcap-devel nidas-devel eol_scons rpcgen
+%if 0%{?fedora} > 28
+BuildRequires: libtirpc-devel
+%endif
 %if ! 0%{?el6}
 %{?systemd_requires}
 %endif
