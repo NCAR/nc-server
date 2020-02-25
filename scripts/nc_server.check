@@ -3,29 +3,51 @@
 # sh script to check for nc_server
 # shouldn't be necessary if nc_server is started with systemd
 
-itry=0
-ntry=3
-while [ $itry -lt $ntry ]; do 
-    pgrep -x nc_server > /dev/null && break
-    sleep 1
-    let itry=$itry+1
-done
+# For some reason nc_server sometimes loses its rpc registration, even
+# though the nc_server process is still running.  This script checks first
+# whether the nc_server is registered, and then if not regitered but
+# running, the current process is killed before being restarted.  The pid
+# check matches against the daemon instance using 'nc_server -z' so it does
+# not match any "exclusive" nc_server subprocesses which do not register
+# with rpc.
 
-host=`uname -n`
-if [ $itry -eq $ntry ]; then
-    echo "***** restarting nc_server on $host ******"
-    PATH=$PATH:/opt/nc_server/bin
-    nc_server -z
-    sleep 5
+PATH=${PATH}:/opt/nc_server/bin
+
+if [ "$1" != test_no_ping ]; then
+    if nc_ping localhost >/dev/null 2>&1 ; then
+	echo "nc_server registerd."
+	exit 0
+    fi
+fi
+echo "nc_server not registered."
+
+cmd="nc_server -z"
+pid=`pgrep -x -f "$cmd"`
+
+if [ -n "$pid" ]; then
+    ps ufp "$pid"
+    echo "killing existing process: $pid"
+    for i in 1 2 3 end ; do
+	kill $pid
+	sleep 1
+	kill -0 "$pid" > /dev/null 2>&1 || break
+	if [ $i == end ]; then
+	    echo "Kill failed."
+	    exit 1
+	fi
+    done
+    echo "killed."
 fi
 
-# only complain if it isn't responding. Don't restart it.
-itry=0
-ntry=5
-while [ $itry -lt $ntry ]; do
-    nc_ping $host >& /dev/null && break
-    echo "***** nc_server is not responding on $host ******"
-    # let itry++
-    let itry=$itry+1
-done
+echo "restarting nc_server..."
+$cmd
 
+# only complain if it isn't responding. Don't restart it.
+for i in 1 2 3 4 5 end ; do
+    sleep 1
+    nc_ping localhost >/dev/null 2>&1 && break
+    if [ $i == end ]; then
+	echo "nc_server still not registered."
+	exit 1
+    fi
+done
