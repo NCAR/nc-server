@@ -27,14 +27,14 @@ pid=`pgrep -x -f "$cmd"`
 if [ -n "$pid" ]; then
     ps ufp "$pid"
     echo "killing existing process: $pid"
-    for i in 1 2 3 end ; do
-	kill $pid
-	sleep 1
-	kill -0 "$pid" > /dev/null 2>&1 || break
+    for i in 1 1 1 9 9 end ; do
 	if [ $i == end ]; then
 	    echo "Kill failed."
 	    exit 1
 	fi
+	kill -s $i $pid
+	sleep 1
+	kill -0 "$pid" > /dev/null 2>&1 || break
     done
     echo "killed."
 fi
