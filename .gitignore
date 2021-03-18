@@ -19,3 +19,4 @@ nc_server_rpc_xdr.c
 nc_shutdown
 nc_sync
 version.h
+libnc_server_rpc.so.*

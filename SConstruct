@@ -69,7 +69,7 @@ env.GitInfo("version.h", "#")
 
 # Clone the netcdf environment before adding the RPC/XDR settings.
 nc_env = env.Clone()
-nc_env.Require('netcdf')
+nc_env.Require('netcdfcxx')
 
 # -L: generated code sends rpc server errors to syslog
 env['RPCGENSERVICEFLAGS'] = ['-L']
@@ -123,7 +123,7 @@ clnt_env.Tool(nc_server_client)
 # has not been tried yet.
 srv_env = clnt_env.Clone()
 srv_env.ParseConfig('pkg-config --cflags --libs nidas')
-srv_env.Require(['netcdf'])
+srv_env.Require(['netcdfcxx'])
 
 srcs = ["nc_server.cc", "nc_server_rpc_procs.cc", svc]
 
