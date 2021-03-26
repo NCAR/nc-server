@@ -9,7 +9,18 @@ Packager: Gordon Maclean <maclean@ucar.edu>
 # Allow this package to be relocatable to other places than /opt/nc_server
 # rpm --relocate /opt/nc_server=/usr
 Prefix: /opt/nc_server
-BuildRequires: netcdf-devel libcap-devel nidas-devel eol_scons
+
+# These are also prerequisites for the build, but I don't know if they
+# belong in the BuildRequires:
+
+#   gcc-g++ rpm-build systemd-rpm-macros
+
+# The systemd-rpm-macros package installs
+# /usr/lib/rpm/macros.d/macros.systemd, and that defines _unitdir macro.
+# The rpm build fails if _unitdir macro is not defined.
+
+BuildRequires: netcdf-cxx-devel netcdf-devel
+BuildRequires: libcap-devel nidas-devel eol_scons
 %if 0%{?fedora} > 28
 BuildRequires: libtirpc-devel rpcgen
 %endif
@@ -50,8 +61,6 @@ scons PREFIX=/opt/nc_server REPO_TAG=v%{version}
 %install
 rm -rf $RPM_BUILD_ROOT
 scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server REPO_TAG=v%{version} install
-
-cp scripts/* ${RPM_BUILD_ROOT}/opt/nc_server/bin
 
 install -d $RPM_BUILD_ROOT%{_sysconfdir}
 cp -r etc/{ld.so.conf.d,profile.d,default} $RPM_BUILD_ROOT%{_sysconfdir}
