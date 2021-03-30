@@ -872,7 +872,7 @@ int FileGroup::check_file(const string & fileName) const
                 WLOG(("error reading nc_check error output: %m"));
                 break;
             }
-            if (errmsg.length() < 1024) errmsg += string(buf,0,l);
+            if (errmsg.length() < 1024) errmsg += string(buf, l);
         }
         proc.wait(true, &status);
         if (WIFEXITED(status)) {
@@ -918,7 +918,7 @@ int FileGroup::ncgen_file(const string & CDLFileName,
                 WLOG(("error reading nc_check error output: %m"));
                 break;
             }
-            if (errmsg.length() < 1024) errmsg += string(buf,0,l);
+            if (errmsg.length() < 1024) errmsg += string(buf, l);
         }
         proc.wait(true, &status);
         if (WIFEXITED(status)) {
