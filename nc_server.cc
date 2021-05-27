@@ -24,6 +24,7 @@
 #include <rpc/pmap_clnt.h>
 #include <pwd.h>
 #include <grp.h>
+#include <sys/ioctl.h>
 #include <sys/prctl.h>
 
 #include <netcdf.h>
@@ -67,7 +68,6 @@ unsigned long heap()
     pid_t pid = getpid();
     char procname[64];
 
-#ifdef linux
     unsigned long vsize;
 
     sprintf(procname, "/proc/%d/stat", pid);
@@ -81,28 +81,6 @@ unsigned long heap()
         vsize = 0;
     fclose(fp);
     return vsize;
-#else
-
-    int fd;
-
-    sprintf(procname, "/proc/%d", pid);
-    if ((fd = open(procname, O_RDONLY)) < 0)
-        return 0;
-
-    // do "man -s 4 proc" on Solaris
-    struct prstatus pstatus;
-    if (ioctl(fd, PIOCSTATUS, &pstatus) < 0) {
-        close(fd);
-        return 0;
-    }
-    // struct prpsinfo pinfo;
-    // if (ioctl(fd,PIOCPSINFO,&pinfo) < 0) { close(fd); return 0; }
-
-    //  cout << pinfo.pr_pid << ' ' << pinfo.pr_size << ' ' << pinfo.pr_rssize << ' ' << pinfo.pr_bysize << ' ' << pinfo.pr_byrssize << ' ' << pstatus.pr_brksize << ' ' << pstatus.pr_stksize << endl;
-
-    close(fd);
-    return pstatus.pr_brksize;
-#endif
 }
 
 
@@ -2046,7 +2024,7 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
                 break;
         }
         VLOG(("%s: %s new name= %s",
-              _fileName.c_str(), var->name(), newname.c_str()));
+              _fileName.c_str(), varName, newname.c_str()));
         ov->set_name(newname.c_str());
     }
     return var;

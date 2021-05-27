@@ -63,7 +63,7 @@ elif 'armhf' in BUILDS:
 # Default settings for all builds.  Need to turn off deprecated warnings
 # until exception specifications are removed from nidas code.
 env['CCFLAGS'] = ['-g', '-Wall', '-O2']
-env['CXXFLAGS'] = ['-Weffc++', '-Wno-deprecated']
+env['CXXFLAGS'] = ['-std=c++11', '-Weffc++', '-Wno-deprecated']
 
 env.GitInfo("version.h", "#")
 
