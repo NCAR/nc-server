@@ -2024,7 +2024,7 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
                 break;
         }
         VLOG(("%s: %s new name= %s",
-              _fileName.c_str(), varName, newname.c_str()));
+              _fileName.c_str(), varName.c_str(), newname.c_str()));
         ov->set_name(newname.c_str());
     }
     return var;
