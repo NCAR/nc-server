@@ -45,7 +45,7 @@ opts.Add('PKG_CONFIG_PATH',
 opts.Update(env)
 
 # Propagate path to the process environment for running pkg-config
-if env.has_key('PKG_CONFIG_PATH'):
+if 'PKG_CONFIG_PATH' in env:
     env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
 
 BUILDS = Split(env['BUILDS'])
