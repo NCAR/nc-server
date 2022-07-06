@@ -29,7 +29,7 @@ BuildRequires: libtirpc-devel rpcgen
 %endif
 Vendor: UCAR
 Source: %{name}-%{version}.tar.gz
-Requires: nc_server-clients isfs-syslog
+Requires: nc_server-clients
 %description
 Server for NetCDF file writing.
 
