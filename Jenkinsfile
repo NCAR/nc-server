@@ -6,12 +6,31 @@ pipeline {
         }
   }
 
+  options {
+    buildDiscarder(
+      logRotator(
+        artifactDaysToKeepStr: '7',
+        daysToKeepStr: '14',
+        numToKeepStr: '2',
+        artifactNumToKeepStr: '2'
+      )
+    )
+  }
+
+  triggers {
+    upstream(
+      upstreamProjects: 'NIDAS/CentOS8',
+      threshold: hudson.model.Result.SUCCESS
+      )
+    pollSCM('H/30 * * * *')
+  }
+
   stages {
-    stage('Checkout Scm') {
-      steps {
-        git 'https://github.com/ncareol/nc-server.git'
-      }
-    }
+    // stage('Checkout Scm') {
+    //   steps {
+    //     git 'https://github.com/ncareol/nc-server.git'
+    //   }
+    // }
 
     stage('Build RPM packages') {
       steps {
@@ -40,20 +59,13 @@ pipeline {
   }
 
   post {
-    always {
+    changed
+    {
       emailext to: "granger@ucar.edu",
-      subject: "nc-server CentOS8 build",
-      body: "Console output attached.",
-      attachLog: true
+      from: "granger@ucar.edu",
+      subject: "Jenkins build ${env.JOB_NAME}: ${currentBuild.currentResult}",
+      body: "Job ${env.JOB_NAME}: ${currentBuild.currentResult}\n${env.BUILD_URL}"
     }
   }
 
-  options {
-    buildDiscarder(logRotator(artifactDaysToKeepStr: '7', daysToKeepStr: '14', numToKeepStr: '2', artifactNumToKeepStr: '2'))
-  }
-
-  triggers {
-    upstream(upstreamProjects: 'NIDAS/CentOS8', threshold: hudson.model.Result.SUCCESS)
-    pollSCM('H/30 * * * *')
-  }
 }
