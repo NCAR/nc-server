@@ -1,6 +1,6 @@
 Summary: Server for NetCDF file writing.
 Name: nc_server
-Version: %{gitversion}
+Version: 1.2.1
 Release: %{releasenum}%{?dist}
 License: GPL
 Group: Applications/Engineering
@@ -24,9 +24,7 @@ BuildRequires: libcap-devel nidas-devel eol_scons
 %if 0%{?fedora} > 28
 BuildRequires: libtirpc-devel rpcgen
 %endif
-%if ! 0%{?el6}
 %{?systemd_requires}
-%endif
 Vendor: UCAR
 Source: %{name}-%{version}.tar.gz
 Requires: nc_server-clients
@@ -56,11 +54,11 @@ Some client programs of nc_server
 
 %build
 pwd
-scons PREFIX=/opt/nc_server REPO_TAG=v%{version}
- 
+scons gitinfo=off PREFIX=/opt/nc_server REPO_TAG=v%{version}
+
 %install
 rm -rf $RPM_BUILD_ROOT
-scons PREFIX=${RPM_BUILD_ROOT}/opt/nc_server REPO_TAG=v%{version} install
+scons gitinfo=off PREFIX=${RPM_BUILD_ROOT}/opt/nc_server REPO_TAG=v%{version} install
 
 install -d $RPM_BUILD_ROOT%{_sysconfdir}
 cp -r etc/{ld.so.conf.d,profile.d,default} $RPM_BUILD_ROOT%{_sysconfdir}
@@ -81,21 +79,15 @@ install -d $RPM_BUILD_ROOT%{_unitdir}
 cp systemd/system/nc_server.service $RPM_BUILD_ROOT%{_unitdir}
 
 %post
-%if ! 0%{?el6}
 %systemd_post nc_server.service
-%endif
 exit 0
 
 %preun
-%if ! 0%{?el6}
 %systemd_preun nc_server.service
-%endif
 exit 0
 
 %postun
-%if ! 0%{?el6}
 %systemd_postun_with_restart nc_server.service
-%endif
 exit 0
 
 %post -n nc_server-devel
@@ -111,20 +103,16 @@ rm -rf $RPM_BUILD_ROOT
 /opt/nc_server/bin/nc_server.check
 /opt/nc_server/bin/nc_check
 %config(noreplace) %{_sysconfdir}/default/nc_server
-
 /opt/nc_server/systemd/user
-
-%if ! 0%{?el6}
 %{_unitdir}/nc_server.service
-%endif
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{gitversion}
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.1.2
 
 %files devel
 /opt/nc_server/include/nc_server_rpc.h
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.[0-9]
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.1
 /opt/nc_server/%{_lib}/libnc_server_rpc.so
 /opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
 %config %{_libdir}/pkgconfig/nc_server.pc
@@ -137,3 +125,5 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
+* Thu Aug 04 2022 Gary Granger <granger@ucar.edu> - 1.2.1-1
+- nc_server v1.2.1

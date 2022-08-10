@@ -3,108 +3,146 @@
 script=$(basename $0)
 
 pkg=nc_server
-
-hashcheck=false
-while [ $# -gt 0 ]; do
-    case $1 in
-        -c)
-            hashcheck=true
-            ;;
-        *)
-            echo "Usage: $script [-c]"
-            echo "  -c: check git hash to see if build is required"
-            exit 1
-    esac
-    shift
-done
+specfile="${pkg}.spec"
+# releasenum defaults to 1
+releasenum=1
 
 # directory containing script
 srcdir=$(readlink -f ${0%/*})
 
-hashfile=$srcdir/.last_hash
-
 set -o pipefail
-
-if $hashcheck; then
-    [ -f $hashfile ] && last_hash=$(cat $hashfile)
-    pushd $srcdir
-    this_hash=$(git log -1 --format=%H .)
-    popd
-    if [ "$this_hash" == "$last_hash" ]; then
-        echo "No updates since last build"
-        exit 0
-    fi
-fi
 
 topdir=${TOPDIR:-$(rpmbuild --eval %_topdir)_$(hostname)}
 sourcedir=$(rpm --define "_topdir $topdir" --eval %_sourcedir)
 [ -d $sourcedir ] || mkdir -p $sourcedir
 
-log=$(mktemp /tmp/${script}_XXXXXX)
-tmpspec=`mktemp /tmp/${script}_XXXXXX.spec`
-awkcom=`mktemp /tmp/${script}_XXXXXX.awk`
 
-trap "{ rm -f $log $tmpspec $awkcom; }" EXIT
-
-if ! gitdesc=$(git describe --match "v[0-9]*"); then
-    echo "git describe failed, looking for a tag of the form v[0-9]*"
-    # gitdesc="v1.0"
-    exit 1
-fi
-
-# example output of git describe: v2.0-14-gabcdef123
-gitdesc=${gitdesc/#v}       # remove leading v
-version=${gitdesc%%-*}       # 2.0
-
-release=${gitdesc#*-}       # 14-gabcdef123
-release=${release%-*}       # 14
-[ $gitdesc == "$release" ] && release=0 # no dash
-
-# run git describe on each hash to create a version
-cat << \EOD > $awkcom
-/^[0-9a-f]{7}/ {
-    cmd = "git describe --match '[vV][0-9]*' " $0 " 2>/dev/null"
-    res = (cmd | getline version)
-    close(cmd)
-    if (res == 0) {
-        version = ""
-    }
+get_specversion() # specfile
+{
+    specfile="$1"
+    specversion=`rpmspec --define "releasenum $releasenum" --srpm -q --queryformat "%{VERSION}\n" nc_server.spec`
 }
-/^\*/ { print $0,version }
-/^-/ { print $0 }
-/^$/ { print $0 }
-EOD
 
-# create change log from git log messages.
-# Put SHA hash by itself on first line. Above awk script then
-# converts it to the output of git describe, and appends it to "*" line.
-# Truncate subject line at 60 characters 
-# git convention is that the subject line is supposed to be 50 or shorter
-git log --max-count=100 --date-order --format="%H%n* %cd %aN%n- %s%n" --date=local . | \
-    sed -r 's/[0-9]+:[0-9]+:[0-9]+ //' | sed -r 's/(^- .{,60}).*/\1/' | \
-    awk --re-interval -f $awkcom | cat ${pkg}.spec - > $tmpspec
 
-scons version.h
+get_releasenum() # version
+{
+    version="$1"
+    # The release number enumerates different packages built from the same
+    # version version of the source.  On each new source version, the release
+    # num restarts at 1.  The repo is the definitive source for the latest
+    # release num for each version.
+    url='https://archive.eol.ucar.edu/software/rpms/fedora-signed/$releasever/$basearch'
+    release=`yum --repofrompath "eol-temp,$url" --repo=eol-temp list available nc_server | \
+        egrep nc_server | awk '{ print $2; }'`
+    repoversion=`echo "$release" | sed -e 's/-.*//'`
+    if [ "$repoversion" != "$version" ]; then
+        # this version is not the latest release, so start at 1
+        :
+    elif [ -n "$release" ]; then
+        releasenum=`echo "$release" | sed -e 's/.*-//' | sed -e 's/\..*$//'`
+    else
+        echo "Could not determine current release number, cannot continue."
+        exit 1
+    fi
+}
 
-cd ..
 
-tar czf $sourcedir/${pkg}-${version}.tar.gz --exclude .svn --exclude .git \
+create_build_clone() # tag
+{
+    # Create a clean clone of the current repo in its own build directory.
+    # But make sure it looks like we're running from the top of a nc-server
+    # checkout, both to make sure we don't arbitrarily remove the wrong
+    # directory, and because this needs to be a git clone to clone it again.
+    if test -d .git && git remote get-url origin | egrep -q nc-server ; then
+        (set -x; rm -rf build
+        mkdir build
+        git clone . build/nc-server)
+    else
+        echo "This needs to be run from the top of an nc-server clone."
+        exit 1
+    fi
+    tag="$1"
+    if [ -n "$tag" ]; then
+        (set -x; cd build/nc-server; git checkout "$tag")
+        if [ $? != 0 ]; then
+            exit 1
+        fi
+    fi
+    # Update version.h.
+    scons -C build/nc-server version.h
+}
+
+
+# get the version from the source instead of the spec file
+git_version()
+{
+    eval `scons ./gitdump | grep REPO_`
+
+    # REPO_TAG is the most recent tagged version, so that's what the package is
+    # built from.
+    if [ "$REPO_TAG" == "unknown" ]; then
+        echo "No latest version tag found."
+        exit 1
+    fi
+    tag="$REPO_TAG"
+    version=${tag/#v}
+}
+
+# get the version to package from the spec file
+get_specversion "$specfile"
+version="${specversion}"
+tag="v${version}"
+
+echo "Getting source for tag ${tag}..."
+
+create_build_clone "$tag"
+
+get_releasenum "$version"
+
+# get the arch the spec file will build
+arch=`rpmspec --define "releasenum $releasenum" -q --srpm --queryformat="%{ARCH}\n" $specfile`
+
+echo "Building package for version ${version}, release ${releasenum}, arch: ${arch}."
+srpm=`rpmspec --define "releasenum $releasenum" --srpm -q "${specfile}"`.src.rpm
+# not sure why rpmspec returns the srpm with the arch, even though rpmbuild
+# will generate the srpm without it.
+srpm="${srpm/.${arch}}"
+rpms=`rpmspec --define "releasenum $releasenum" -q "${specfile}" | while read rpmf; do echo ${rpmf}.rpm ; done`
+rpms="$srpms $rpms"
+echo "Expecting RPMS:"
+for rpmfile in ${rpms}; do
+    echo $rpmfile
+done
+
+# now we can build the source archive and the package...
+
+(cd build && tar czf $sourcedir/${pkg}-${version}.tar.gz \
+    --exclude .svn --exclude .git \
     nc-server/SC* nc-server/nc_server.h nc-server/*.cc \
     nc-server/nc_check.c nc-server/*.x nc-server/version.h \
     nc-server/scripts \
-    nc-server/etc nc-server/nc_server.pc.in nc-server/systemd || exit $?
-cd -
+    nc-server/etc nc-server/nc_server.pc.in nc-server/systemd) || exit $?
 
 rpmbuild -v -ba \
     --define "_topdir $topdir"  \
-    --define "gitversion $version" --define "releasenum $release" \
+    --define "releasenum $releasenum" \
     --define "debug_package %{nil}" \
-    $tmpspec | tee -a $log  || exit $?
+    nc_server.spec || exit $?
 
-$hashcheck && echo $this_hash > $hashfile
+# SRPM ends up in topdir/SRPMS/$srpmfile
+# RPMs end up in topdir/RPMS/<arch>/$rpmfile
 
-echo "RPMS:"
-egrep "^Wrote:" $log
-rpms=`egrep '^Wrote:' $log | egrep /S?RPMS/ | awk '{print $2}'`
-echo "rpms=$rpms"
-
+for rpmfile in $srpm $rpms ; do
+    xfile="$topdir/SRPMS/$rpmfile"
+    if [ -f "$xfile" ]; then
+        echo "SRPM: $xfile"
+    else
+        xfile="$topdir/RPMS/$arch/$rpmfile"
+        if [ -f "$xfile" ]; then
+            echo "RPM: $xfile"
+        else
+            echo "Missing RPM: $rpmfile"
+            exit 1
+        fi
+    fi
+done
