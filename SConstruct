@@ -18,6 +18,7 @@
 # client_env, nc_env.
 
 import eol_scons
+from SCons.Script import Environment, Configure, PathVariable
 
 env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
 
@@ -48,7 +49,7 @@ opts.Update(env)
 if 'PKG_CONFIG_PATH' in env:
     env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
 
-BUILDS = Split(env['BUILDS'])
+BUILDS = env.Split(env['BUILDS'])
 
 if 'host' in BUILDS:
     # Must wait to load sharedlibrary until REPO_TAG is set in all situations
@@ -154,7 +155,7 @@ env.Command('nc_server.pc', '#nc_server.pc.in',
             " -e 's,@REQUIRES@,$PCREQUIRES,' "
             "< $SOURCE > $TARGET")
 
-Alias('install',
-      env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', 'nc_server.pc'))
+env.Alias('install',
+          env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', 'nc_server.pc'))
 
 env.SetHelp()
