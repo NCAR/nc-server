@@ -48,6 +48,6 @@ EOD
 # hash in order to get a X.Y-Z version.  The final sed replaces the
 # remaining (vN.N) with (N.N), since the awk script only fixes
 # (vN.N-N-hash)
-git log --max-count=25 --date-order --format="%H%nnc-server%n  * (XXXXXXX) %s%n -- %aN <%ae>  %cD" --date=local | awk -f $awkcom | sed -e 's/([vV]\([0-9][0-9]*\.[0-9][0-9]*\))/(\1)/g'
+git log --max-count=25 --date-order --format="%H%nnc-server%n  * (XXXXXXX) %s%n -- %aN <%ae>  %cD" --date=local | gawk -f $awkcom | sed -e 's/([vV]\([0-9][0-9]*\.[0-9][0-9]*\))/(\1)/g'
 
 
