@@ -30,14 +30,12 @@ build_rpms()
 {
     # Only clean the rpmbuild space if it's Jenkins, since otherwise it can be
     # the user's local rpmbuild space with unrelated packages, and we should
-    # go around removing them.  Skip the hash check when a user wants to
-    # build, but keep it for Jenkins.
-    checkhash=""
+    # not go around removing them.
     if [ -n "$WORKSPACE" ]; then
         (set -x; rm -rf "$TOPDIR/RPMS"; rm -rf "$TOPDIR/SRPMS")
-        checkhash="-c"
     fi
-    (set -x; ./build_rpm.sh $checkhash)
+    # this conveniently creates a list of built rpm files in rpms.txt.
+    (set -x; ./build_rpm.sh)
 }
 
 
@@ -50,15 +48,14 @@ build_rpms()
 
 sign_rpms()
 {
-    (set -x; rpm --addsign --define="%_gpg_name ${GPGKEY}" ${TOPDIR}/RPMS/*/*.rpm ${TOPDIR}/SRPMS/*.rpm)
+    (set -x; rpm --addsign --define="%_gpg_name ${GPGKEY}" `cat rpms.txt`)
 }
 
 
 push_eol_repo()
 {
     source $YUM_REPOSITORY/scripts/repo_funcs.sh
-    move_rpms_to_eol_repo ${TOPDIR}/RPMS/*/*.rpm
-    move_rpms_to_eol_repo ${TOPDIR}/SRPMS/nc_server*.rpm
+    move_rpms_to_eol_repo `cat rpms.txt`
     update_eol_repo $YUM_REPOSITORY
 }
 

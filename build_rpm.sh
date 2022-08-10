@@ -6,6 +6,11 @@ pkg=nc_server
 specfile="${pkg}.spec"
 # releasenum defaults to 1
 releasenum=1
+tag=
+version=
+arch=
+srpm=
+rpms=
 
 # directory containing script
 srcdir=$(readlink -f ${0%/*})
@@ -17,10 +22,28 @@ sourcedir=$(rpm --define "_topdir $topdir" --eval %_sourcedir)
 [ -d $sourcedir ] || mkdir -p $sourcedir
 
 
-get_specversion() # specfile
+# set version and tag from the spec file
+get_version_and_tag_from_spec() # specfile
 {
     specfile="$1"
-    specversion=`rpmspec --define "releasenum $releasenum" --srpm -q --queryformat "%{VERSION}\n" nc_server.spec`
+    version=`rpmspec --define "releasenum $releasenum" --srpm -q --queryformat "%{VERSION}\n" nc_server.spec`
+    tag="v${version}"
+}
+
+
+# get the version and tag from the source instead of the spec file
+get_version_and_tag_from_git()
+{
+    eval `scons ./gitdump | grep REPO_`
+
+    # REPO_TAG is the most recent tagged version, so that's what the package is
+    # built from.
+    if [ "$REPO_TAG" == "unknown" ]; then
+        echo "No latest version tag found."
+        exit 1
+    fi
+    tag="$REPO_TAG"
+    version=${tag/#v}
 }
 
 
@@ -31,13 +54,17 @@ get_releasenum() # version
     # version version of the source.  On each new source version, the release
     # num restarts at 1.  The repo is the definitive source for the latest
     # release num for each version.
-    url='https://archive.eol.ucar.edu/software/rpms/fedora-signed/$releasever/$basearch'
-    release=`yum --repofrompath "eol-temp,$url" --repo=eol-temp list available nc_server | \
-        egrep nc_server | awk '{ print $2; }'`
+    local eolreponame
+    get_eolreponame
+    url="https://archive.eol.ucar.edu/software/rpms/${eolreponame}-signed"
+    url="$url/\$releasever/\$basearch"
+    entry=`yum --repofrompath "eol-temp,$url" --repo=eol-temp list available nc_server | \
+           egrep nc_server`
+    echo "$entry"
+    release=`echo "$entry" | awk '{ print $2; }'`
     repoversion=`echo "$release" | sed -e 's/-.*//'`
     if [ "$repoversion" != "$version" ]; then
-        # this version is not the latest release, so start at 1
-        :
+        echo "Version $version looks new, restarting at releasenum 1."
     elif [ -n "$release" ]; then
         releasenum=`echo "$release" | sed -e 's/.*-//' | sed -e 's/\..*$//'`
     else
@@ -63,7 +90,9 @@ create_build_clone() # tag
     fi
     tag="$1"
     if [ -n "$tag" ]; then
-        (set -x; cd build/nc-server; git checkout "$tag")
+        (set -x;
+         cd build/nc-server;
+         git -c advice.detachedHead=false checkout "$tag")
         if [ $? != 0 ]; then
             exit 1
         fi
@@ -72,26 +101,45 @@ create_build_clone() # tag
     scons -C build/nc-server version.h
 }
 
-
-# get the version from the source instead of the spec file
-git_version()
+# get the full paths to the rpm files given the spec file and the release
+# number.  sets variables rpms, srpm, and arch
+get_rpms() # specfile releasenum
 {
-    eval `scons ./gitdump | grep REPO_`
-
-    # REPO_TAG is the most recent tagged version, so that's what the package is
-    # built from.
-    if [ "$REPO_TAG" == "unknown" ]; then
-        echo "No latest version tag found."
+    local specfile="$1"
+    local releasenum="$2"
+    rpms=""
+    if [ -z "$specfile" -o -z "$releasenum" ]; then
+        echo "get_rpms {specfile} {releasenum}"
         exit 1
     fi
-    tag="$REPO_TAG"
-    version=${tag/#v}
+    # get the arch the spec file will build
+    arch=`rpmspec --define "releasenum $releasenum" -q --srpm --queryformat="%{ARCH}\n" $specfile`
+
+    srpm=`rpmspec --define "releasenum $releasenum" --srpm -q "${specfile}"`.src.rpm
+    # not sure why rpmspec returns the srpm with the arch, even though srpm
+    # actually built by rpmbuild does not have it.
+    srpm="${srpm/.${arch}}"
+    # SRPM ends up in topdir/SRPMS/$srpmfile
+    # RPMs end up in topdir/RPMS/<arch>/$rpmfile
+    srpm="$topdir/SRPMS/$srpm"
+    rpms=`rpmspec --define "releasenum $releasenum" -q "${specfile}" | while read rpmf; do echo "$topdir/RPMS/$arch/${rpmf}.rpm" ; done`
+}
+
+
+# set eolreponame to fedora or epel according to the current dist
+get_eolreponame()
+{
+    case `rpm -E %{dist}` in
+
+        *fc*) eolreponame=fedora ;;
+        *el*) eolreponame=epel ;;
+        *) eolreponame=epel ;;
+
+    esac
 }
 
 # get the version to package from the spec file
-get_specversion "$specfile"
-version="${specversion}"
-tag="v${version}"
+get_version_and_tag_from_spec "$specfile"
 
 echo "Getting source for tag ${tag}..."
 
@@ -99,22 +147,14 @@ create_build_clone "$tag"
 
 get_releasenum "$version"
 
-# get the arch the spec file will build
-arch=`rpmspec --define "releasenum $releasenum" -q --srpm --queryformat="%{ARCH}\n" $specfile`
-
-echo "Building package for version ${version}, release ${releasenum}, arch: ${arch}."
-srpm=`rpmspec --define "releasenum $releasenum" --srpm -q "${specfile}"`.src.rpm
-# not sure why rpmspec returns the srpm with the arch, even though rpmbuild
-# will generate the srpm without it.
-srpm="${srpm/.${arch}}"
-rpms=`rpmspec --define "releasenum $releasenum" -q "${specfile}" | while read rpmf; do echo ${rpmf}.rpm ; done`
-rpms="$srpms $rpms"
-echo "Expecting RPMS:"
-for rpmfile in ${rpms}; do
-    echo $rpmfile
+get_rpms "$specfile" "$releasenum"
+echo "Removing expected RPMS:"
+for rpmfile in ${srpm} ${rpms}; do
+    (set -x ; rm -f "$rpmfile")
 done
 
 # now we can build the source archive and the package...
+echo "Building package for version ${version}, release ${releasenum}, arch: ${arch}."
 
 (cd build && tar czf $sourcedir/${pkg}-${version}.tar.gz \
     --exclude .svn --exclude .git \
@@ -129,20 +169,13 @@ rpmbuild -v -ba \
     --define "debug_package %{nil}" \
     nc_server.spec || exit $?
 
-# SRPM ends up in topdir/SRPMS/$srpmfile
-# RPMs end up in topdir/RPMS/<arch>/$rpmfile
-
+cat /dev/null > rpms.txt
 for rpmfile in $srpm $rpms ; do
-    xfile="$topdir/SRPMS/$rpmfile"
-    if [ -f "$xfile" ]; then
-        echo "SRPM: $xfile"
+    if [ -f "$rpmfile" ]; then
+        echo "RPM: $rpmfile"
+        echo "$rpmfile" >> rpms.txt
     else
-        xfile="$topdir/RPMS/$arch/$rpmfile"
-        if [ -f "$xfile" ]; then
-            echo "RPM: $xfile"
-        else
-            echo "Missing RPM: $rpmfile"
-            exit 1
-        fi
+        echo "Missing RPM: $rpmfile"
+        exit 1
     fi
 done
