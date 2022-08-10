@@ -1,6 +1,6 @@
 Summary: Server for NetCDF file writing.
 Name: nc_server
-Version: 1.2.1
+Version: 1.3
 Release: %{releasenum}%{?dist}
 License: GPL
 Group: Applications/Engineering
@@ -108,7 +108,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.1.2
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.1.3
 
 %files devel
 /opt/nc_server/include/nc_server_rpc.h
@@ -125,5 +125,8 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
+* Wed Aug 10 2022 Gary Granger <granger@ucar.edu> - 1.3-1
+- package version 1.3
+
 * Thu Aug 04 2022 Gary Granger <granger@ucar.edu> - 1.2.1-1
 - nc_server v1.2.1
