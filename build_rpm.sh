@@ -58,15 +58,17 @@ get_releasenum() # version
     get_eolreponame
     url="https://archive.eol.ucar.edu/software/rpms/${eolreponame}-signed"
     url="$url/\$releasever/\$basearch"
-    entry=`yum --repofrompath "eol-temp,$url" --repo=eol-temp list available nc_server | \
-           egrep nc_server`
+    entry=`yum --repofrompath "eol-temp,$url" --repo=eol-temp list nc_server | \
+           egrep nc_server | tail -1`
     echo "$entry"
     release=`echo "$entry" | awk '{ print $2; }'`
     repoversion=`echo "$release" | sed -e 's/-.*//'`
     if [ "$repoversion" != "$version" ]; then
         echo "Version $version looks new, restarting at releasenum 1."
+	releasenum=1
     elif [ -n "$release" ]; then
         releasenum=`echo "$release" | sed -e 's/.*-//' | sed -e 's/\..*$//'`
+	releasenum=$((1+$releasenum))
     else
         echo "Could not determine current release number, cannot continue."
         exit 1
@@ -80,10 +82,11 @@ create_build_clone() # tag
     # But make sure it looks like we're running from the top of a nc-server
     # checkout, both to make sure we don't arbitrarily remove the wrong
     # directory, and because this needs to be a git clone to clone it again.
+    git="git -c advice.detachedHead=false"
     if test -d .git && git remote -v | egrep -q nc-server ; then
         (set -x; rm -rf build
         mkdir build
-        git clone . build/nc-server)
+        $git clone . build/nc-server)
     else
         echo "This needs to be run from the top of an nc-server clone."
         exit 1
@@ -92,7 +95,7 @@ create_build_clone() # tag
     if [ -n "$tag" ]; then
         (set -x;
          cd build/nc-server;
-         git -c advice.detachedHead=false checkout "$tag")
+         $git checkout "$tag")
         if [ $? != 0 ]; then
             exit 1
         fi
@@ -138,44 +141,80 @@ get_eolreponame()
     esac
 }
 
-# get the version to package from the spec file
-get_version_and_tag_from_spec "$specfile"
 
-echo "Getting source for tag ${tag}..."
+clean_rpms() # rpms
+{
+    echo "Removing expected RPMS:"
+    for rpmfile in ${rpms}; do
+	(set -x ; rm -f "$rpmfile")
+    done
+}
 
-create_build_clone "$tag"
 
-get_releasenum "$version"
+run_rpmbuild()
+{
+    # get the version to package from the spec file
+    get_version_and_tag_from_spec "$specfile"
 
-get_rpms "$specfile" "$releasenum"
-echo "Removing expected RPMS:"
-for rpmfile in ${srpm} ${rpms}; do
-    (set -x ; rm -f "$rpmfile")
-done
+    echo "Getting source for tag ${tag}..."
 
-# now we can build the source archive and the package...
-echo "Building package for version ${version}, release ${releasenum}, arch: ${arch}."
+    create_build_clone "$tag"
 
-(cd build && tar czf $sourcedir/${pkg}-${version}.tar.gz \
-    --exclude .svn --exclude .git \
-    nc-server/SC* nc-server/nc_server.h nc-server/*.cc \
-    nc-server/nc_check.c nc-server/*.x nc-server/version.h \
-    nc-server/scripts \
-    nc-server/etc nc-server/nc_server.pc.in nc-server/systemd) || exit $?
+    get_releasenum "$version"
 
-rpmbuild -v -ba \
-    --define "_topdir $topdir"  \
-    --define "releasenum $releasenum" \
-    --define "debug_package %{nil}" \
-    nc_server.spec || exit $?
+    get_rpms "$specfile" "$releasenum"
 
-cat /dev/null > rpms.txt
-for rpmfile in $srpm $rpms ; do
-    if [ -f "$rpmfile" ]; then
-        echo "RPM: $rpmfile"
-        echo "$rpmfile" >> rpms.txt
-    else
-        echo "Missing RPM: $rpmfile"
-        exit 1
-    fi
-done
+    clean_rpms "$rpms"
+
+    # now we can build the source archive and the package...
+    echo "Building package for version ${version}, release ${releasenum}, arch: ${arch}."
+
+    (cd build && tar czf $sourcedir/${pkg}-${version}.tar.gz \
+	--exclude .svn --exclude .git \
+	nc-server/SC* nc-server/nc_server.h nc-server/*.cc \
+	nc-server/nc_check.c nc-server/*.x nc-server/version.h \
+	nc-server/scripts \
+	nc-server/etc nc-server/nc_server.pc.in nc-server/systemd) || exit $?
+
+    rpmbuild -v -ba \
+	--define "_topdir $topdir"  \
+	--define "releasenum $releasenum" \
+	--define "debug_package %{nil}" \
+	nc_server.spec || exit $?
+
+    cat /dev/null > rpms.txt
+    for rpmfile in $srpm $rpms ; do
+	if [ -f "$rpmfile" ]; then
+	    echo "RPM: $rpmfile"
+	    echo "$rpmfile" >> rpms.txt
+	else
+	    echo "Missing RPM: $rpmfile"
+	    exit 1
+	fi
+    done
+}
+
+
+op="$1"
+if [ -z "$op" ]; then
+    op=build
+fi
+
+case "$op" in
+
+    releasenum)
+	shift
+	get_releasenum "$@"
+	echo Next releasenum: "$releasenum"
+	;;
+
+    build)
+	run_rpmbuild
+	;;
+
+    *)
+	echo "unknown operation: $op"
+	exit 1
+	;;
+
+esac
