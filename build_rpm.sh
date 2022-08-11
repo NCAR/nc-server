@@ -26,7 +26,7 @@ sourcedir=$(rpm --define "_topdir $topdir" --eval %_sourcedir)
 get_version_and_tag_from_spec() # specfile
 {
     specfile="$1"
-    version=`rpmspec --define "releasenum $releasenum" --srpm -q --queryformat "%{VERSION}\n" nc_server.spec`
+    version=`rpmspec --define "releasenum $releasenum" --srpm -q --queryformat "%{VERSION}\n" "$specfile"`
     tag="v${version}"
 }
 
@@ -58,8 +58,9 @@ get_releasenum() # version
     get_eolreponame
     url="https://archive.eol.ucar.edu/software/rpms/${eolreponame}-signed"
     url="$url/\$releasever/\$basearch"
-    entry=`yum --repofrompath "eol-temp,$url" --repo=eol-temp list nc_server | \
-           egrep nc_server | tail -1`
+    yum="yum --refresh"
+    entry=`$yum --repofrompath "eol-temp,$url" --repo=eol-temp list $pkg | \
+           egrep $pkg | tail -1`
     echo "$entry"
     release=`echo "$entry" | awk '{ print $2; }'`
     repoversion=`echo "$release" | sed -e 's/-.*//'`
