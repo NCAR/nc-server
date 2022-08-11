@@ -58,9 +58,13 @@ get_releasenum() # version
     get_eolreponame
     url="https://archive.eol.ucar.edu/software/rpms/${eolreponame}-signed"
     url="$url/\$releasever/\$basearch"
-    yum="yum --refresh"
-    entry=`$yum --repofrompath "eol-temp,$url" --repo=eol-temp list $pkg | \
-           egrep $pkg | tail -1`
+    yum="yum --refresh --repofrompath eol-temp,$url --repo=eol-temp"
+    # yum on centos7 does not support --refresh or --repofrompath, so for now
+    # resort to relying on the eol repo to be already defined, and explicitly
+    # update the cache for it...
+    yum="yum --disablerepo=* --enablerepo=eol-signed"
+    $yum makecache
+    entry=`$yum list $pkg egrep $pkg | tail -1`
     echo "$entry"
     release=`echo "$entry" | awk '{ print $2; }'`
     repoversion=`echo "$release" | sed -e 's/-.*//'`

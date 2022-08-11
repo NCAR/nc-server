@@ -62,11 +62,18 @@ push_eol_repo()
 
 update_local_packages()
 {
-    # This command must be matched by a NOPWCMDS setting in /etc/sudoers.
-    sudo -n yum -y --disablerepo="*" --enablerepo=eol-signed --refresh -- update \
-        nc_server-lib nc_server-devel nc_server-clients nc_server
+    # These commands must be matched by a NOPWCMDS setting in /etc/sudoers.
+    # Since centos7 does not support --refresh, we cannot use the more
+    # convenient combined command.
+    yum="yum -y --disablerepo=* --enablerepo=eol-signed"
+    pkgs="nc_server-lib nc_server-devel nc_server-clients nc_server"
+    if false ; then
+        sudo -n $yum --refresh -- update $pkgs
+    else
+        sudo -n $yum -- clean expire-cache
+        sudo -n $yum -- update $pkgs
+    fi
 }
-
 
 
 method="${1:-help}"
