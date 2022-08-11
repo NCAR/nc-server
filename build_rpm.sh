@@ -80,7 +80,7 @@ create_build_clone() # tag
     # But make sure it looks like we're running from the top of a nc-server
     # checkout, both to make sure we don't arbitrarily remove the wrong
     # directory, and because this needs to be a git clone to clone it again.
-    if test -d .git && git remote get-url origin | egrep -q nc-server ; then
+    if test -d .git && git remote -v | egrep -q nc-server ; then
         (set -x; rm -rf build
         mkdir build
         git clone . build/nc-server)
