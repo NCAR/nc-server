@@ -6,7 +6,12 @@ changes between package releases are listed in the packaging files,
 
 The format is based on [Keep a Changelog].
 
-## Unreleased
+## [2.0] - Unreleased
+
+### Changed
+
+- Removed dynamic exception specifiers from server functions.
+- All git files now included in the RPM source archive.
 
 ## [1.3] - 2022-08-10
 
@@ -29,6 +34,7 @@ The format is based on [Keep a Changelog].
 [semantic versioning]: https://semver.org/spec/v2.0.0.html
 
 <!-- Versions -->
+[2.0]: https://github.com/ncareol/nc-server/compare/v1.3...v2.0
 [1.3]: https://github.com/ncareol/nc-server/compare/v1.2...v1.3
 [1.2]: https://github.com/ncareol/nc-server/compare/v1.1...v1.2
 [1.1]: https://github.com/ncareol/nc-server/releases/tag/v1.1

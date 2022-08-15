@@ -202,7 +202,6 @@ std::string Connection::getIdStr(int id)
 }
 
 Connection::Connection(const connection * conn, int id)
-    throw(InvalidFileLength, InvalidInterval, InvalidOutputDir)
 :  _filegroup(0),_history(),_histlen(),
     _lastf(0),_lastRequest(time(0)),
     _id(id),_errorMsg(),_state(CONN_OK)
@@ -393,7 +392,6 @@ void AllFiles::shutdown(int sig)
 // If not found, allocate a new group
 //
 FileGroup *AllFiles::get_file_group(const struct connection *conn)
-    throw(InvalidFileLength, InvalidInterval, InvalidOutputDir)
 {
     FileGroup *p;
     vector < FileGroup * >::iterator ip;
@@ -514,8 +512,7 @@ void AllFiles::close_oldest_file(void) throw()
 
 }
 
-FileGroup::FileGroup(const struct connection *conn)
-    throw(InvalidOutputDir):
+FileGroup::FileGroup(const struct connection *conn):
     _connections(),_files(),
     _outputDir(),_fileNameFormat(),
     _CDLFileName(),_vargroups(),
@@ -689,7 +686,7 @@ void FileGroup::remove_connection(Connection * cp)
 }
 
 
-NS_NcFile *FileGroup::get_file(double dtime) throw(NetCDFAccessFailed)
+NS_NcFile *FileGroup::get_file(double dtime)
 {
     NS_NcFile *f = 0;
     list < NS_NcFile * >::iterator ni;
@@ -735,7 +732,7 @@ NS_NcFile *FileGroup::get_file(double dtime) throw(NetCDFAccessFailed)
     return f;
 }
 
-NS_NcFile *FileGroup::open_file(double dtime) throw(NetCDFAccessFailed)
+NS_NcFile *FileGroup::open_file(double dtime)
 {
     int fileExists = 0;
 
@@ -1021,7 +1018,7 @@ void FileGroup::close_oldest_file(void) throw()
     }
 }
 
-int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
+int FileGroup::add_var_group(const struct datadef *dd)
 {
 
     // check to see if this variable group is equivalent to
@@ -1046,7 +1043,6 @@ int FileGroup::add_var_group(const struct datadef *dd) throw(BadVariable)
 }
 
 void FileGroup::write_global_attr(const string& name, const string& value)
-        throw(NetCDFAccessFailed)
 {
     _globalAttrs[name] = value;
 
@@ -1058,7 +1054,6 @@ void FileGroup::write_global_attr(const string& name, const string& value)
 }
 
 void FileGroup::write_global_attr(const string& name, int value)
-        throw(NetCDFAccessFailed)
 {
     _globalIntAttrs[name] = value;
 
@@ -1070,7 +1065,6 @@ void FileGroup::write_global_attr(const string& name, int value)
 }
 
 void FileGroup::update_global_attrs()
-    throw(NetCDFAccessFailed)
 {
     // write global attributes to existing files
     list < NS_NcFile * >::const_iterator ni;
@@ -1085,8 +1079,7 @@ void FileGroup::update_global_attrs()
     }
 }
 
-VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval)
-    throw(BadVariable):
+VariableGroup::VariableGroup(const struct datadef *dd, int id, double finterval):
     _name(),_interval(dd->interval),_vars(),_outvars(),
     _ndims(0),_dimsizes(), _dimnames(),
     _nsamples(0),_nprefixes(0),
@@ -1360,7 +1353,7 @@ const double NS_NcFile::minInterval = 1.e-5;
 
 NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         double interval, double fileLength,
-        double dtime) throw(NetCDFAccessFailed):
+        double dtime):
     NcFile(fileName.c_str(), openmode),
     _fileName(fileName), _startTime(0.0),_endTime(0.0),
     _interval(interval), _lengthSecs(fileLength),
@@ -1627,7 +1620,6 @@ string NS_NcFile::resolveCountsName(const string& cntsNameInFile, VariableGroup*
 }
 
 bool NS_NcFile::checkCountsVariableName(const string& name,VariableGroup * vgroup)
-            throw(NetCDFAccessFailed)
 {
     // check if variable exists
     //     Y: correct dimension?  If not return false;
@@ -1683,7 +1675,6 @@ string NS_NcFile::createNewName(const string& name,int & i)
 }
 
 const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
-            throw(NetCDFAccessFailed)
 {
     int groupid = vgroup->getId();
 
@@ -1814,7 +1805,6 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
 }
 
 NS_NcVar *NS_NcFile::add_var(OutVariable* ov, bool& modified)
-            throw(NetCDFAccessFailed)
 {
     NcVar *var;
     NS_NcVar *fsv;
@@ -1853,7 +1843,6 @@ NS_NcVar *NS_NcFile::add_var(OutVariable* ov, bool& modified)
 }
 
 bool NS_NcFile::add_attrs(OutVariable* ov, NS_NcVar * var,const string& cntsName)
-                throw(NetCDFAccessFailed)
 {
     // add attributes if they don't exist in file, otherwise leave them alone
 
@@ -1918,7 +1907,7 @@ bool NS_NcFile::add_attrs(OutVariable* ov, NS_NcVar * var,const string& cntsName
 // renaming variables and we have to create a new variable name.
 // Return NULL if variable is not found in file.
 //
-NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
+NcVar *NS_NcFile::find_var(OutVariable* ov)
 {
     int i;
     NcVar *var;
@@ -2030,7 +2019,7 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
     return var;
 }
 
-long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
+long NS_NcFile::put_time(double timeoffset)
 {
     float floatOffset;
     long nrec;
@@ -2117,7 +2106,7 @@ long NS_NcFile::put_time(double timeoffset) throw(NetCDFAccessFailed)
     return nrec;
 }
 
-void NS_NcFile::put_history(string val) throw(NetCDFAccessFailed)
+void NS_NcFile::put_history(string val)
 {
     if (val.length() == 0) return;
 
@@ -2159,7 +2148,6 @@ void NS_NcFile::put_history(string val) throw(NetCDFAccessFailed)
 }
 
 void NS_NcFile::write_global_attr(const string& name, const string& value)
-    throw(NetCDFAccessFailed)
 {
 
     bool needsUpdate = true;
@@ -2186,7 +2174,6 @@ void NS_NcFile::write_global_attr(const string& name, const string& value)
 }
 
 void NS_NcFile::write_global_attr(const string& name, int value)
-    throw(NetCDFAccessFailed)
 {
     bool needsUpdate = true;
     NcAtt *att = get_att(name.c_str());
@@ -2416,7 +2403,6 @@ NS_NcVar::~NS_NcVar()
 }
 
 bool NS_NcVar::set_att(const string& aname, const string& aval)
-    throw(NetCDFAccessFailed)
 {
     bool modified = false;
     const char* faval = 0;

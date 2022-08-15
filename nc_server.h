@@ -239,8 +239,12 @@ protected:
 class Connection
 {
 public:
-    Connection(const struct connection *,int id)
-        throw(InvalidFileLength, InvalidInterval, InvalidOutputDir);
+    /**
+     * @brief Construct a new Connection object
+     * @throws InvalidFileLength, InvalidInterval, InvalidOutputDir
+     */
+    Connection(const struct connection *, int id);
+
     ~Connection(void);
 
     int getId() const { return _id; }
@@ -317,8 +321,11 @@ class AllFiles
 {
 public:
     static AllFiles *Instance();
-    FileGroup *get_file_group(const struct connection *)
-        throw(InvalidFileLength, InvalidInterval, InvalidOutputDir);
+
+    /**
+     * @throws InvalidFileLength, InvalidInterval, InvalidOutputDir
+     */
+    FileGroup *get_file_group(const struct connection *);
     void close() throw();
     void sync() throw();
     void close_old_files(void) throw();
@@ -346,8 +353,11 @@ public:
      */
     static const double minInterval;
 
-    NS_NcFile(const std::string &, enum FileMode, double, double, double)
-        throw(NetCDFAccessFailed);
+    /**
+     * @throws NetCDFAccessFailed
+     */
+    NS_NcFile(const std::string &, enum FileMode, double, double, double);
+
     ~NS_NcFile(void);
 
     const std::string & getName() const;
@@ -389,19 +399,31 @@ public:
         return (_endTime > time);
     }
 
+    /**
+     * @throws NetCDFAccessFailed
+     */
     template<class REC_T, class DATA_T>
-        void put_rec(const REC_T * writerec, VariableGroup *,double dtime)
-            throw(NetCDFAccessFailed);
+        void put_rec(const REC_T * writerec, VariableGroup *,double dtime);
 
-    long put_time(double) throw(NetCDFAccessFailed);;
+    /**
+     * @throws NetCDFAccessFailed
+     */
+    long put_time(double);
 
-    void put_history(std::string history) throw(NetCDFAccessFailed);
+    /**
+     * @throws NetCDFAccessFailed
+     */
+    void put_history(std::string history);
 
-    void write_global_attr(const std::string& name, const std::string& val)
-            throw(NetCDFAccessFailed);
+    /**
+     * @throws NetCDFAccessFailed
+     */
+    void write_global_attr(const std::string& name, const std::string& val);
 
-    void write_global_attr(const std::string& name, int val)
-            throw(NetCDFAccessFailed);
+    /**
+     * @throws NetCDFAccessFailed
+     */
+    void write_global_attr(const std::string& name, int val);
 
     time_t LastAccess() const
     {
@@ -413,6 +435,7 @@ public:
 
     /**
      * Check validity of a counts variable name for this file.
+     * @throws NetCDFAccessFailed
      * @returns:
      *   false 
      *      A variable exists with that name with wrong (non-timeseries) dimensions
@@ -420,8 +443,7 @@ public:
      *      variables which are not in the VariableGroup.
      *  true otherwise
      */
-    bool checkCountsVariableName(const std::string& name, VariableGroup*)
-        throw(NetCDFAccessFailed);
+    bool checkCountsVariableName(const std::string& name, VariableGroup*);
 
     /**
      * Determine a counts attribute for a VariableGroup, given the
@@ -485,22 +507,35 @@ private:
 
     std::string _historyHeader;
 
-    const std::vector<NS_NcVar*>& get_vars(VariableGroup *) throw(NetCDFAccessFailed);
+    /**
+     * @brief Get variables.
+     * 
+     * @throws NetCDFAccessFailed
+     * 
+     * @return const std::vector<NS_NcVar*>& 
+     */
+    const std::vector<NS_NcVar*>& get_vars(VariableGroup *);
 
     /**
      * Add a variable to the NS_NcFile. Set modified to true if
      * the NcFile was modified.
+     *
+     * @throws NetCDFAccessFailed
      */
-    NS_NcVar *add_var(OutVariable * v,bool & modified) throw(NetCDFAccessFailed);;
+    NS_NcVar *add_var(OutVariable * v,bool & modified);
 
-    NcVar *find_var(OutVariable *) throw(NetCDFAccessFailed);
+    /**
+     * @throws NetCDFAccessFailed
+     */
+    NcVar *find_var(OutVariable *);
 
     /**
      * Add attributes to the NS_NcFile. Return true if
      * the NcFile was modified.
+     * 
+     * @throws NetCDFAccessFailed
      */
-    bool add_attrs(OutVariable * v, NS_NcVar * var,const std::string& countsAttr)
-        throw(NetCDFAccessFailed);
+    bool add_attrs(OutVariable * v, NS_NcVar * var,const std::string& countsAttr);
 
     bool check_var_dims(NcVar *);
     const NcDim *get_dim(NcToken name, long size);
@@ -518,15 +553,37 @@ class FileGroup
 {
 public:
 
-    FileGroup(const struct connection *) throw(InvalidOutputDir);
+    /**
+     * @brief Construct a new FileGroup object
+     * 
+     * @throws InvalidOutputDir
+     */
+    FileGroup(const struct connection *);
     ~FileGroup(void);
 
+    /**
+     * @throws nidas::util::Exception
+     * @return NS_NcFile* 
+     */
     template<class REC_T, class DATA_T>
-        NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f) throw(nidas::util::Exception);
+        NS_NcFile* put_rec(const REC_T * writerec, NS_NcFile * f);
 
     int match(const std::string & dir, const std::string & file);
-    NS_NcFile *get_file(double time) throw(NetCDFAccessFailed);
-    NS_NcFile *open_file(double time) throw(NetCDFAccessFailed);
+    /**
+     * @brief Get the file object
+     * @throws NetCDFAccessFailed
+     * @param time 
+     * @return NS_NcFile* 
+     */
+    NS_NcFile *get_file(double time);
+
+    /**
+     * @throws NetCDFAccessFailed
+     * @param time 
+     * @return NS_NcFile* 
+     */
+    NS_NcFile *open_file(double time);
+
     void close() throw();
     void sync() throw();
     void close_old_files(void) throw();
@@ -536,8 +593,9 @@ public:
 
     /**
      * @return: non-negative group id
+     * @throws BadVariable
      */
-    int add_var_group(const struct datadef *) throw(BadVariable);
+    int add_var_group(const struct datadef *);
 
     double interval() const
     {
@@ -567,13 +625,20 @@ public:
     int check_file(const std::string &) const;
     int ncgen_file(const std::string &, const std::string &) const;
 
-    void write_global_attr(const std::string & name, const std::string& value)
-        throw(NetCDFAccessFailed);
+    /**
+     * @throws NetCDFAccessFailed
+     **/
+    void write_global_attr(const std::string & name, const std::string& value);
 
-    void write_global_attr(const std::string & name, int value)
-        throw(NetCDFAccessFailed);
+    /**
+     * @throws NetCDFAccessFailed
+     */
+    void write_global_attr(const std::string & name, int value);
 
-    void update_global_attrs() throw(NetCDFAccessFailed);
+    /**
+     * @throws NetCDFAccessFailed
+     */
+    void update_global_attrs();
 
     std::string toString() const {
         return _outputDir + '/' + _fileNameFormat;
@@ -608,8 +673,11 @@ private:
 class VariableGroup
 {
 public:
-    VariableGroup(const struct datadef *, int n, double finterval)
-        throw(BadVariable);
+    /**
+     * @throws BadVariable
+     */
+    VariableGroup(const struct datadef *, int n, double finterval);
+
     ~VariableGroup(void);
 
     /**
@@ -679,7 +747,10 @@ public:
         return _intFill;
     }
 
-    void check_counts_variable() throw(BadVariable);
+    /**
+     * @throws BadVariable
+     */
+    void check_counts_variable();
 
 private:
     /** name for use in log messages */
@@ -762,12 +833,13 @@ public:
         return _var->add_att(attname, v);
     }
 
-
     /**
      * Set an attribute on the NS_NcVar. Return true if
      * the NcFile was modified.
+     * 
+     * @throws NetCDFAccessFailed
      */
-    bool set_att(const std::string& name, const std::string& val) throw(NetCDFAccessFailed);
+    bool set_att(const std::string& name, const std::string& val);
 
     bool &isCnts()
     {
@@ -893,7 +965,7 @@ private:
 
 template<class REC_T,class DATA_T>
 NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
-        NS_NcFile * f) throw(nidas::util::Exception)
+        NS_NcFile * f)
 {
     int groupid = writerec->datarecId;
     double dtime = writerec->time;
@@ -934,7 +1006,7 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
 
 template<class REC_T, class DATA_T>
 void NS_NcFile::put_rec(const REC_T * writerec,
-        VariableGroup * vgroup, double dtime) throw(NetCDFAccessFailed)
+        VariableGroup * vgroup, double dtime)
 {
     long nrec;
     long nsample = 0;
