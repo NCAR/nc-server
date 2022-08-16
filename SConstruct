@@ -17,6 +17,7 @@
 # according to the various requirements above: srv_env, lib_env,
 # client_env, nc_env.
 
+import re
 import eol_scons
 
 # Disable the install alias so the installs can be divided between 'install'
@@ -116,7 +117,8 @@ env.Depends(xdr, header)
 lib_env = env.Clone()
 lib_env.Append(CCFLAGS = ['-Wno-unused', '-Wno-strict-aliasing'])
 libobjs = lib_env.SharedObject([xdr, clnt])
-shlibversion = env.get('REPO_TAG')[1:]
+tag = env.get('REPO_TAG')
+shlibversion = re.sub(r'^[vV]([0-9.]+)(-.*)?$', r'\1', tag)
 lib = lib_env.SharedLibrary('nc_server_rpc', libobjs,
                             SHLIBVERSION=shlibversion)
 

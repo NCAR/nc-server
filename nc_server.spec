@@ -94,11 +94,11 @@ rm -rf $RPM_BUILD_ROOT
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.1.3
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.2.0
 
 %files devel
 /opt/nc_server/include/nc_server_rpc.h
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.1
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.2
 /opt/nc_server/%{_lib}/libnc_server_rpc.so
 /opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
 %config %{_libdir}/pkgconfig/nc_server.pc
@@ -111,6 +111,9 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
+* Tue Aug 16 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha1
+- build v2.0-alpha1
+
 * Wed Aug 10 2022 Gary Granger <granger@ucar.edu> - 1.3-1
 - package version 1.3
 
