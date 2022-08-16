@@ -41,6 +41,10 @@ opts.AddVariables(PathVariable('PREFIX','installation path',
                                '/opt/nc_server', PathVariable.PathAccept))
 opts.AddVariables(PathVariable('SYSCONFIGDIR','/etc installation path',
                                '$PREFIX/etc', PathVariable.PathAccept))
+opts.AddVariables(PathVariable('PKGCONFIGDIR',
+                               'system dir to install nc_server.pc',
+                               '/usr/$ARCHLIBDIR/pkgconfig',
+                               PathVariable.PathAccept))
 opts.AddVariables(PathVariable('UNITDIR','systemd unit install path',
                                '$PREFIX/systemd/system',
                                PathVariable.PathAccept))
@@ -161,12 +165,14 @@ env.Install('$PREFIX/include', 'nc_server_rpc.h')
 env.Install('$PREFIX/bin', ['scripts/nc_ping', 'scripts/nc_server.check'])
 
 # Create nc_server.pc, replacing @token@
-env.Command('nc_server.pc', '#nc_server.pc.in',
-            "sed -e 's,@PREFIX@,$PREFIX,' -e 's,@ARCHLIBDIR@,$ARCHLIBDIR,'"
-            " -e 's,@REPO_TAG@,$REPO_TAG,' "
-            " -e 's,@REQUIRES@,$PCREQUIRES,' "
-            "< $SOURCE > $TARGET")
-pc = env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', 'nc_server.pc')
+pc = env.Command('nc_server.pc', '#nc_server.pc.in',
+                 "sed -e 's,@PREFIX@,$PREFIX,' -e 's,@ARCHLIBDIR@,$ARCHLIBDIR,'"
+                 " -e 's,@REPO_TAG@,$REPO_TAG,' "
+                 " -e 's,@REQUIRES@,$PCREQUIRES,' "
+                 "< $SOURCE > $TARGET")
+# pkgconfig file gets installed to two places
+env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', pc)
+env.Alias('install.root', env.Install('$PKGCONFIGDIR', pc))
 
 # Install userspace systemd unit examples.
 env.Install('$PREFIX/systemd', 'systemd/user')

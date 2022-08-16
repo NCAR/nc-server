@@ -62,6 +62,7 @@ scons gitinfo=off PREFIX=/opt/nc_server REPO_TAG=v%{version}
 rm -rf $RPM_BUILD_ROOT
 scons gitinfo=off --install-sandbox ${RPM_BUILD_ROOT} PREFIX=/opt/nc_server \
     REPO_TAG=v%{version} SYSCONFIGDIR=%{_sysconfdir} UNITDIR=%{_unitdir} \
+    PKGCONFIGDIR=%{_libdir}/pkgconfig \
     install install.root
 
 %post
