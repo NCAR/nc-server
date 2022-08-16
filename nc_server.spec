@@ -1,6 +1,6 @@
 Summary: Server for NetCDF file writing.
 Name: nc_server
-Version: 1.3
+Version: 2.0~alpha1
 Release: %{releasenum}%{?dist}
 License: GPL
 Group: Applications/Engineering
@@ -54,29 +54,15 @@ Some client programs of nc_server
 
 %build
 pwd
+# technically /opt/nc_server is the default PREFIX so it does not need to be
+# set, but make it explicit for clarity
 scons gitinfo=off PREFIX=/opt/nc_server REPO_TAG=v%{version}
 
 %install
 rm -rf $RPM_BUILD_ROOT
-scons gitinfo=off PREFIX=${RPM_BUILD_ROOT}/opt/nc_server REPO_TAG=v%{version} install
-
-install -d $RPM_BUILD_ROOT%{_sysconfdir}
-cp -r etc/{ld.so.conf.d,profile.d,default} $RPM_BUILD_ROOT%{_sysconfdir}
-sed -i -e 's,/lib,/%{_lib},' $RPM_BUILD_ROOT%{_sysconfdir}/ld.so.conf.d/nc_server.conf
-
-install -d $RPM_BUILD_ROOT%{_libdir}/pkgconfig
-#  scons puts entire $RPM_BUILD_ROOT in nc_server.pc, remove it.
-sed -i -e "s,$RPM_BUILD_ROOT,," \
-    $RPM_BUILD_ROOT/opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
-
-cp $RPM_BUILD_ROOT/opt/nc_server/%{_lib}/pkgconfig/nc_server.pc \
-        $RPM_BUILD_ROOT%{_libdir}/pkgconfig
-
-install -d $RPM_BUILD_ROOT/opt/nc_server/systemd
-cp -r systemd/user $RPM_BUILD_ROOT/opt/nc_server/systemd
-
-install -d $RPM_BUILD_ROOT%{_unitdir}
-cp systemd/system/nc_server.service $RPM_BUILD_ROOT%{_unitdir}
+scons gitinfo=off --install-sandbox ${RPM_BUILD_ROOT} PREFIX=/opt/nc_server \
+    REPO_TAG=v%{version} SYSCONFIGDIR=%{_sysconfdir} UNITDIR=%{_unitdir} \
+    install install.root
 
 %post
 %systemd_post nc_server.service

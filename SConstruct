@@ -18,7 +18,13 @@
 # client_env, nc_env.
 
 import eol_scons
-from SCons.Script import Environment, Configure, PathVariable
+
+# Disable the install alias so the installs can be divided between 'install'
+# and 'install.root', where the install.root alias is for files which can be
+# installed into system directories outside of the PREFIX directory.
+eol_scons.EnableInstallAlias(False)
+
+from SCons.Script import Environment, Configure, PathVariable, EnumVariable
 
 env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
 
@@ -32,13 +38,19 @@ env = conf.Finish()
 opts = eol_scons.GlobalVariables('config.py')
 opts.AddVariables(PathVariable('PREFIX','installation path',
                                '/opt/nc_server', PathVariable.PathAccept))
+opts.AddVariables(PathVariable('SYSCONFIGDIR','/etc installation path',
+                               '$PREFIX/etc', PathVariable.PathAccept))
+opts.AddVariables(PathVariable('UNITDIR','systemd unit install path',
+                               '$PREFIX/systemd/system',
+                               PathVariable.PathAccept))
 
 opts.Add('REPO_TAG',
          'git tag of the source, in the form "vX.Y", when '
          'building outside of a git repository')
-opts.Add('BUILDS',
-         'A host architecture to build for: host, armbe, armel or armhf.',
-         'host')
+opts.Add(EnumVariable('BUILDS',
+         help='Build architecture: host, armbe, armel or armhf.',
+         default='host',
+         allowed_values=['host', 'armbe', 'armel', 'armhf']))
 opts.Add('ARCHLIBDIR', 
          'Where to install nc_server libraries relative to $PREFIX')
 opts.Add('PKG_CONFIG_PATH', 
@@ -49,17 +61,15 @@ opts.Update(env)
 if 'PKG_CONFIG_PATH' in env:
     env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
 
-BUILDS = env.Split(env['BUILDS'])
+# use sharedlibrary tool to get ARCHLIBDIR, but not using the builders in
+# favor of the built-in scons shared library builders.
+env.Tool('sharedlibrary')
 
-if 'host' in BUILDS:
-    # Must wait to load sharedlibrary until REPO_TAG is set in all situations
-    env = env.Clone(tools=['sharedlibrary'])
-elif 'armel' in BUILDS:
-    # Must wait to load sharedlibrary until REPO_TAG is set in all situations
-    env = env.Clone(tools=['armelcross', 'sharedlibrary'])
-elif 'armhf' in BUILDS:
-    # Must wait to load sharedlibrary until REPO_TAG is set in all situations
-    env = env.Clone(tools=['armhfcross', 'sharedlibrary'])
+BUILDS = env['BUILDS']
+if BUILDS == 'armel':
+    env.Tool('armelcross')
+if BUILDS == 'armhf':
+    env.Tool('armhfcross')
 
 # Default settings for all builds.
 env['CCFLAGS'] = ['-g', '-Wall', '-O2']
@@ -106,7 +116,9 @@ env.Depends(xdr, header)
 lib_env = env.Clone()
 lib_env.Append(CCFLAGS = ['-Wno-unused', '-Wno-strict-aliasing'])
 libobjs = lib_env.SharedObject([xdr, clnt])
-lib = lib_env.SharedLibrary3('nc_server_rpc', libobjs)
+shlibversion = env.get('REPO_TAG')[1:]
+lib = lib_env.SharedLibrary('nc_server_rpc', libobjs,
+                            SHLIBVERSION=shlibversion)
 
 # Define a tool to build against the nc_server client library.
 def nc_server_client(env):
@@ -139,13 +151,12 @@ nc_shutdown = clnt_env.Program('nc_shutdown','nc_shutdown.cc')
 
 nc_check = nc_env.Program('nc_check','nc_check.c')
 
-libtgt = env.SharedLibrary3Install('$PREFIX',lib)
+libdir = '$PREFIX/$ARCHLIBDIR'
+libtgt = env.InstallVersionedLib(libdir, lib)
 env.Install('$PREFIX/bin',
             [nc_server, nc_close, nc_sync, nc_shutdown, nc_check])
 env.Install('$PREFIX/include', 'nc_server_rpc.h')
 env.Install('$PREFIX/bin', ['scripts/nc_ping', 'scripts/nc_server.check'])
-env.Alias('install', ['$PREFIX'])
-env.Alias('install', libtgt)
 
 # Create nc_server.pc, replacing @token@
 env.Command('nc_server.pc', '#nc_server.pc.in',
@@ -153,8 +164,35 @@ env.Command('nc_server.pc', '#nc_server.pc.in',
             " -e 's,@REPO_TAG@,$REPO_TAG,' "
             " -e 's,@REQUIRES@,$PCREQUIRES,' "
             "< $SOURCE > $TARGET")
+pc = env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', 'nc_server.pc')
 
-env.Alias('install',
-          env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', 'nc_server.pc'))
+# Install userspace systemd unit examples.
+env.Install('$PREFIX/systemd', 'systemd/user')
+
+# Everything under prefix gets a normal install alias
+env.Alias('install', ['$PREFIX'])
+
+# Set the library directory in the ld.so config file
+env.Command('etc/ld.so.conf.d/nc_server.conf',
+            'etc/ld.so.conf.d/nc_server.conf.in',
+            "sed -e '/lib/c %s' < $SOURCE > $TARGET" % (libdir))
+
+# Install sysconfig files.
+sysconfigfiles = env.Split("""
+ld.so.conf.d/nc_server.conf
+profile.d/nc_server.sh
+profile.d/nc_server.csh
+default/nc_server
+""")
+for f in sysconfigfiles:
+    # if the actual dst node is passed as the install directory, then the node
+    # factory inserted for --install-sandbox will not change the dest, so make
+    # sure to pass the destination as a string
+    dest = env.File(f'$SYSCONFIGDIR/{f}').dir.abspath
+    etcfile = env.Install(dest, f'etc/{f}')
+    env.Alias('install.root', etcfile)
+
+sdunit = env.Install("$UNITDIR", "systemd/system/nc_server.service")
+env.Alias('install.root', sdunit)
 
 env.SetHelp()

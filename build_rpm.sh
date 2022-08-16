@@ -28,6 +28,7 @@ get_version_and_tag_from_spec() # specfile
     specfile="$1"
     version=`rpmspec --define "releasenum $releasenum" --srpm -q --queryformat "%{VERSION}\n" "$specfile"`
     tag="v${version}"
+    tag=`echo "$tag" | sed -e 's/~/-/'`
 }
 
 
@@ -210,6 +211,12 @@ case "$op" in
         shift
         get_releasenum "$@"
         echo Next releasenum: "$releasenum"
+        ;;
+
+    version)
+        shift
+        get_version_and_tag_from_spec "$specfile"
+        echo $tag
         ;;
 
     clone)
