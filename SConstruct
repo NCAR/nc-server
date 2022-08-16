@@ -100,10 +100,10 @@ def rpc(env):
     # the legacy rpc built into glibc.
     try:
         env.ParseConfig('pkg-config --cflags --libs libtirpc')
-        print("Using libtirpc.")
+        env.PrintProgress("Using libtirpc.")
         env['PCREQUIRES'] = "libtirpc"
     except OSError:
-        print("Using legacy rpc.")
+        env.PrintProgress("Using legacy rpc.")
         pass
 
 # The rest of the environments to setup, server, lirbrary, and clients,
@@ -145,7 +145,7 @@ srv_env.Require(['netcdfcxx'])
 
 srcs = ["nc_server.cc", "nc_server_rpc_procs.cc", svc]
 
-print("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
+env.PrintProgress("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
 
 nc_server = srv_env.Program('nc_server', srcs)
 
@@ -193,11 +193,10 @@ profile.d/nc_server.csh
 default/nc_server
 """)
 for f in sysconfigfiles:
-    # if the actual dst node is passed as the install directory, then the node
-    # factory inserted for --install-sandbox will not change the dest, so make
-    # sure to pass the destination as a string
-    dest = env.File(f'$SYSCONFIGDIR/{f}').dir.abspath
-    etcfile = env.Install(dest, f'etc/{f}')
+    # the target must be passed as a string and not a node, otherwise the
+    # --install-sandbox node factory is not applied to generate the node under
+    # the sandbox directory.
+    etcfile = env.InstallAs(f'$SYSCONFIGDIR/{f}', f'etc/{f}')
     env.Alias('install.root', etcfile)
 
 sdunit = env.Install("$UNITDIR", "systemd/system/nc_server.service")
