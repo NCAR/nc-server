@@ -1,6 +1,6 @@
 %define version_major 2
 %define version_minor 0
-%define version_alpha alpha1
+%define version_alpha alpha2
 %dnl %undefine version_alpha
 
 Summary: Server for NetCDF file writing.
@@ -117,6 +117,9 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
+* Sat Aug 20 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha2
+- build v2.0-alpha2
+
 * Tue Aug 16 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha1
 - build v2.0-alpha1
 
