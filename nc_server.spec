@@ -1,7 +1,7 @@
 %define version_major 2
 %define version_minor 0
 %define version_alpha alpha2
-%dnl %undefine version_alpha
+# %%undefine version_alpha
 
 Summary: Server for NetCDF file writing.
 Name: nc_server
