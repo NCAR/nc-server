@@ -2,8 +2,9 @@
 
 script=$(basename $0)
 
-pkg=nc_server
-specfile="${pkg}.spec"
+# specfile must be specified, then pkg name is extracted from it.
+specfile=
+pkgname=
 # releasenum defaults to 1
 releasenum=1
 tag=
@@ -12,14 +13,23 @@ arch=
 srpm=
 rpms=
 
-# directory containing script
-srcdir=$(readlink -f ${0%/*})
+# temporary directory to clone source and create archive.  we want it to be
+# local rather than in /tmp so git can optimize the clone with hard
+# links.
+builddir=build/build_rpm.$$
 
 set -o pipefail
 
 topdir=${TOPDIR:-$(rpmbuild --eval %_topdir)_$(hostname)}
 sourcedir=$(rpm --define "_topdir $topdir" --eval %_sourcedir)
 [ -d $sourcedir ] || mkdir -p $sourcedir
+
+
+get_pkgname_from_spec() # specfile
+{
+    specfile="$1"
+    pkgname=`rpmspec --define "releasenum $releasenum" --srpm -q --queryformat "%{NAME}\n" "$specfile"`
+}
 
 
 # set version and tag from the spec file
@@ -65,7 +75,7 @@ get_releasenum() # version
     # update the cache for it...
     yum="yum --disablerepo=* --enablerepo=eol-signed"
     $yum makecache
-    entry=`$yum list $pkg egrep $pkg | tail -1`
+    entry=`$yum list $pkgname egrep $pkgname | tail -1`
     echo "$entry"
     release=`echo "$entry" | awk '{ print $2; }'`
     repoversion=`echo "$release" | sed -e 's/-.*//'`
@@ -85,34 +95,31 @@ get_releasenum() # version
 create_build_clone() # tag
 {
     # Create a clean clone of the current repo in its own build directory.
-    # But make sure it looks like we're running from the top of a nc-server
-    # checkout, both to make sure we don't arbitrarily remove the wrong
-    # directory, and because this needs to be a git clone to clone it again.
     tag="$1"
     echo "Cloning source for tag: ${tag}..."
     # we want to copy the origin url in the cloned repository so it shows
     # up same as in the source repository.
     url=`git config --local --get remote.origin.url`
     git="git -c advice.detachedHead=false"
-    if test -d .git && git remote -v | egrep -q nc-server ; then
-        (set -x; rm -rf build
-        mkdir build
-        $git clone . build/nc-server
-        cd build/nc-server && git remote set-url origin "$url")
+    if test -d .git ; then
+        (set -x; rm -rf "$builddir"
+        mkdir -p "$builddir"
+        $git clone . "$builddir/$pkgname"
+        cd "$builddir/$pkgname" && git remote set-url origin "$url")
     else
-        echo "This needs to be run from the top of an nc-server clone."
+        echo "This needs to be run from the top of the repository."
         exit 1
     fi
     if [ -n "$tag" ]; then
         (set -x;
-         cd build/nc-server;
+         cd "$builddir/$pkgname";
          $git checkout "$tag")
         if [ $? != 0 ]; then
             exit 1
         fi
     fi
-    # Update version.h.
-    scons -C build/nc-server version.h
+    # Update version headers using the gitinfo alias.
+    scons -C "$builddir/$pkgname" versionfiles
 }
 
 # get the full paths to the rpm files given the spec file and the release
@@ -164,6 +171,8 @@ clean_rpms() # rpms
 
 run_rpmbuild()
 {
+    get_pkgname_from_spec "$specfile"
+
     # get the version to package from the spec file
     get_version_and_tag_from_spec "$specfile"
 
@@ -176,16 +185,18 @@ run_rpmbuild()
     clean_rpms "$rpms"
 
     # now we can build the source archive and the package...
-    echo "Building package for version ${version}, release ${releasenum}, arch: ${arch}."
+    cat <<EOF
+Building ${pkgname} version ${version}, release ${releasenum}, arch: ${arch}.
+EOF
 
-    (cd build && tar czf $sourcedir/${pkg}-${version}.tar.gz \
-        --exclude .svn --exclude .git nc-server) || exit $?
+    (cd "$builddir" && tar czf $sourcedir/${pkgname}-${version}.tar.gz \
+        --exclude .svn --exclude .git $pkgname) || exit $?
 
     rpmbuild -v -ba \
         --define "_topdir $topdir"  \
         --define "releasenum $releasenum" \
         --define "debug_package %{nil}" \
-        nc_server.spec || exit $?
+        $specfile || exit $?
 
     cat /dev/null > rpms.txt
     for rpmfile in $srpm $rpms ; do
@@ -200,27 +211,55 @@ run_rpmbuild()
 }
 
 
+usage()
+{
+    echo "Usage: ${script} {specfile} {op} [args]"
+    echo "ops: pkgname, releasenum, version, clone, build"
+}
+
+specfile="$1"
+if [ -z "$specfile" ]; then
+    usage
+    exit 1
+fi
+shift
+
+if [ ! -f "$specfile" ]; then
+    echo "spec file not found: $specfile"
+    exit 1
+fi
+
 op="$1"
 if [ -z "$op" ]; then
     op=build
+else
+    shift
 fi
 
 case "$op" in
 
+    pkgname)
+        get_pkgname_from_spec "$specfile"
+        echo Package name: $pkgname
+        ;;
+
     releasenum)
-        shift
+        if [ -z "$1" ]; then
+            echo "Usage: $script {specfile} releasenum {version}"
+            exit 1
+        fi
+        get_pkgname_from_spec "$specfile"
         get_releasenum "$@"
         echo Next releasenum: "$releasenum"
         ;;
 
     version)
-        shift
         get_version_and_tag_from_spec "$specfile"
         echo $tag
         ;;
 
     clone)
-        shift
+        get_pkgname_from_spec "$specfile"
         create_build_clone "$@"
         ;;
 
@@ -230,6 +269,7 @@ case "$op" in
 
     *)
         echo "unknown operation: $op"
+        usage
         exit 1
         ;;
 

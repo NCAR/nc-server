@@ -1,6 +1,11 @@
+%define version_major 2
+%define version_minor 0
+%define version_alpha alpha1
+%dnl %undefine version_alpha
+
 Summary: Server for NetCDF file writing.
 Name: nc_server
-Version: 2.0~alpha1
+Version: %{version_major}.%{version_minor}%{?version_alpha:~%{version_alpha}}
 Release: %{releasenum}%{?dist}
 License: GPL
 Group: Applications/Engineering
@@ -50,7 +55,7 @@ Group: Applications/Engineering
 Some client programs of nc_server
 
 %prep
-%setup -n nc-server
+%setup -n nc_server
 
 %build
 pwd
@@ -95,11 +100,11 @@ rm -rf $RPM_BUILD_ROOT
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.2.0
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{version_major}.%{version_minor}
 
 %files devel
 /opt/nc_server/include/nc_server_rpc.h
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.2
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{version_major}
 /opt/nc_server/%{_lib}/libnc_server_rpc.so
 /opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
 %config %{_libdir}/pkgconfig/nc_server.pc
