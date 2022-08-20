@@ -11,7 +11,8 @@ The format is based on [Keep a Changelog].
 ### Changed
 
 - Removed dynamic exception specifiers from server functions.
-- All git files now included in the RPM source archive.
+- All repo files now included in the RPM source archive.
+- Converted README to markdown.
 
 ## [1.3] - 2022-08-10
 
