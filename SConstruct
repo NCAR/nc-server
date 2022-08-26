@@ -20,12 +20,15 @@
 import re
 import eol_scons
 
+eol_scons.RunScripts()
+
 # Disable the install alias so the installs can be divided between 'install'
 # and 'install.root', where the install.root alias is for files which can be
 # installed into system directories outside of the PREFIX directory.
 eol_scons.EnableInstallAlias(False)
 
 from SCons.Script import Environment, Configure, PathVariable, EnumVariable
+from SCons.Script import Delete
 
 env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
 
@@ -205,5 +208,13 @@ for f in sysconfigfiles:
 
 sdunit = env.Install("$UNITDIR", "systemd/system/nc_server.service")
 env.Alias('install.root', sdunit)
+
+# This works, but it prints a message for every file and directory removed, so
+# resort to just executing the Delete action on the build directory:
+#
+# env.Clean('build', 'build')
+
+if env.GetOption('clean'):
+    env.Execute(Delete(["build", "rpms.txt"]))
 
 env.SetHelp()
