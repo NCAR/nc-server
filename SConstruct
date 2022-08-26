@@ -49,6 +49,10 @@ opts.AddVariables(PathVariable('UNITDIR','systemd unit install path',
                                '$PREFIX/systemd/system',
                                PathVariable.PathAccept))
 
+opts.Add('LDCONFFILE',
+         'Name of the ld.conf file.  It must be overridden on Debian '
+         'and set to nc_server-$(DEB_HOST_GNU_TYPE).conf.',
+         'nc_server.conf')
 opts.Add('REPO_TAG',
          'git tag of the source, in the form "vX.Y", when '
          'building outside of a git repository')
@@ -181,13 +185,13 @@ env.Install('$PREFIX/systemd', 'systemd/user')
 env.Alias('install', ['$PREFIX'])
 
 # Set the library directory in the ld.so config file
-env.Command('etc/ld.so.conf.d/nc_server.conf',
+env.Command('etc/ld.so.conf.d/$LDCONFFILE',
             'etc/ld.so.conf.d/nc_server.conf.in',
             "sed -e '/lib/c %s' < $SOURCE > $TARGET" % (libdir))
 
 # Install sysconfig files.
 sysconfigfiles = env.Split("""
-ld.so.conf.d/nc_server.conf
+ld.so.conf.d/$LDCONFFILE
 profile.d/nc_server.sh
 profile.d/nc_server.csh
 default/nc_server
