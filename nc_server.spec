@@ -1,11 +1,9 @@
 %define version_major 2
 %define version_minor 0
-%define version_alpha alpha2
-# %%undefine version_alpha
 
 Summary: Server for NetCDF file writing.
 Name: nc_server
-Version: %{version_major}.%{version_minor}%{?version_alpha:~%{version_alpha}}
+Version: 2.0~alpha2
 Release: %{releasenum}%{?dist}
 License: GPL
 Group: Applications/Engineering
