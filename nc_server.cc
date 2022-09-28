@@ -2739,8 +2739,6 @@ int NcServerApp::run(void)
 
     int sockfd;
 
-    (void) pmap_unset(NETCDFSERVERPROG, NETCDFSERVERVERS);
-
     try {
         // ServerSocket destructor does not close the socket
         nidas::util::ServerSocket sock = nidas::util::ServerSocket(_rpcport);
@@ -2752,7 +2750,7 @@ int NcServerApp::run(void)
         DLOG(("listening on port ") << _rpcport);
     }
     catch(const nidas::util::IOException& e) {
-        PLOG(("%s",e.what()));
+        PLOG(("creating server socket: %s", e.what()));
         return 1;
     }
 
@@ -2761,28 +2759,30 @@ int NcServerApp::run(void)
         PLOG(("cannot create tcp service."));
         return 1;
     }
-    if (! _standalone)
+
+    // Any existing port mapping must be removed first if this server instance
+    // is supposed to replace it, otherwise svc_register() fails with
+    // "Transport endpoint not connected."  If another instance is still
+    // running on the same port, then the port open above fails first.  This
+    // way an existing process stays bound in the portmapper until it is
+    // killed, at which point another instance can open the port and replace
+    // the portmapper binding.
+    if (!_standalone)
+        (void) pmap_unset(NETCDFSERVERPROG, NETCDFSERVERVERS);
+
+    // For the standalone case, do not register with the portmapper.
+    // Passing the last parameter 'protocol' as zero to svc_register()
+    // prevents the portmapper registration.
+    unsigned long proto = _standalone ? 0 : IPPROTO_TCP;
+    if (!svc_register(_transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
+                netcdfserverprog_2, proto))
     {
-        if (!svc_register(_transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
-                    netcdfserverprog_2, IPPROTO_TCP))
-        {
-            PLOG(("Unable to register (NETCDFSERVERPROG=%x, "
-                  "NETCDFSERVERVERS, tcp): %m", NETCDFSERVERPROG));
-            return 1;
-        }
+        PLOG(("Unable to register (NETCDFSERVERPROG=%x, "
+              "NETCDFSERVERVERS, %d): %m", NETCDFSERVERPROG, proto));
+        return 1;
     }
     if (_standalone)
     {
-        // For the standalone case, do not register with the portmapper.
-        // Passing the last parameter 'protocol' as zero to svc_register()
-        // prevents the portmapper registration.
-        if (!svc_register(_transp, NETCDFSERVERPROG, NETCDFSERVERVERS,
-                    netcdfserverprog_2, 0))
-        {
-            PLOG(("Unable to register (NETCDFSERVERPROG=%x, "
-                  "NETCDFSERVERVERS, 0): %m", NETCDFSERVERPROG));
-            return 1;
-        }
         std::cout << "NC_SERVER_PORT=" << _rpcport << std::endl;
     }
     // create files with group write

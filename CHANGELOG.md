@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog].
 
 ## Unreleased
 
+- fix a bug where a standalone nc_server instance would call `pmap_unset()`
+  and unregister an existing server instance already bound to the portmapper.
+
 ## [1.3] - 2022-08-10
 
 - fix wrong string constructor referencing uninitialized memory, caught by
