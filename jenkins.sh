@@ -48,7 +48,7 @@ build_rpms()
 
 sign_rpms()
 {
-    (set -x; rpm --addsign --define="%_gpg_name ${GPGKEY}" `cat rpms.txt`)
+    (set -x; exec rpm --addsign --define="%_gpg_name ${GPGKEY}" `cat rpms.txt`)
 }
 
 
