@@ -145,8 +145,11 @@ env.Install('$PREFIX/bin',
             [nc_server, nc_close, nc_sync, nc_shutdown, nc_check])
 env.Install('$PREFIX/include', 'nc_server_rpc.h')
 env.Install('$PREFIX/bin', ['scripts/nc_ping', 'scripts/nc_server.check'])
-env.Alias('install', ['$PREFIX'])
+env.Alias('install', ['$PREFIX/bin', '$PREFIX/include'])
 env.Alias('install', libtgt)
+
+env.Install('$PREFIX/logs', 'scripts/logrotate.conf')
+env.Alias('install-logs', '$PREFIX/logs')
 
 # Create nc_server.pc, replacing @token@
 env.Command('nc_server.pc', '#nc_server.pc.in',
