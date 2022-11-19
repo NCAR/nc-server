@@ -21,6 +21,13 @@
 PATH=${NC_SERVER_HOME}/bin:${PATH}
 LD_LIBRARY_PATH=${NC_SERVER_HOME}/lib
 
+# Do what we can to allow core files, although it's not always certain
+# if this has any effect.  Run from the home directory where user is
+# most likely to be able to write core files.
+#
+ulimit -c unlimited
+cd $HOME
+
 # If 1, run in the foreground with debugging, so nc_server log output
 # is written to the same output as this script.  If 0, run in
 # background, but still with debug logging.
