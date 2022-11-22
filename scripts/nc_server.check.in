@@ -16,10 +16,10 @@
 # like in the package, so that a core file can be dumped to debug
 # crashes.
 
-[ -n "$NC_SERVER_HOME" ] || export NC_SERVER_HOME=/opt/nc_server
+[ -n "$NC_SERVER_HOME" ] || export NC_SERVER_HOME=@NC_SERVER_HOME@
 
 PATH=${NC_SERVER_HOME}/bin:${PATH}
-LD_LIBRARY_PATH=${NC_SERVER_HOME}/lib
+LD_LIBRARY_PATH=${NC_SERVER_HOME}/@NC_SERVER_LIBDIR@
 
 # Do what we can to allow core files, although it's not always certain
 # if this has any effect.  Run from the home directory where user is

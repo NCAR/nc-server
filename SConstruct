@@ -140,15 +140,22 @@ nc_shutdown = clnt_env.Program('nc_shutdown','nc_shutdown.cc')
 
 nc_check = nc_env.Program('nc_check','nc_check.c')
 
-libtgt = env.SharedLibrary3Install('$PREFIX',lib)
+libtgt = env.SharedLibrary3Install('$PREFIX', lib)
+libdir = libtgt[0].dir.name
 env.Install('$PREFIX/bin',
             [nc_server, nc_close, nc_sync, nc_shutdown, nc_check])
 env.Install('$PREFIX/include', 'nc_server_rpc.h')
-env.Install('$PREFIX/bin', ['scripts/nc_ping', 'scripts/nc_server.check'])
+
+
 env.Alias('install', ['$PREFIX/bin', '$PREFIX/include'])
 env.Alias('install', libtgt)
 
-env.Install('$PREFIX/logs', 'scripts/logrotate.conf')
+env['SUBST_DICT'] = {'@NC_SERVER_HOME@': "$PREFIX",
+                     '@NC_SERVER_LIBDIR@': libdir}
+ncscheck = env.Substfile('scripts/nc_server.check.in')
+env.Install('$PREFIX/bin', ['scripts/nc_ping', ncscheck])
+logconf = env.Substfile('scripts/logrotate.conf.in')
+env.Install('$PREFIX/logs', logconf)
 env.Alias('install-logs', '$PREFIX/logs')
 
 # Create nc_server.pc, replacing @token@
