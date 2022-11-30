@@ -112,7 +112,10 @@ lib = lib_env.SharedLibrary3('nc_server_rpc', libobjs)
 # Define a tool to build against the nc_server client library.
 def nc_server_client(env):
     env.AppendUnique(LIBPATH='.')
-    env.Append(LIBS='nc_server_rpc')
+    # only need nidas_util, so get only the lib path for nidas and append
+    # nidas_util ourselves
+    env.ParseConfig('pkg-config --cflags --libs-only-L nidas')
+    env.Append(LIBS=['nc_server_rpc', 'nidas_util'])
 
 # clients need the client library
 clnt_env = env.Clone()
@@ -123,7 +126,6 @@ clnt_env.Tool(nc_server_client)
 # pkg-config.  This might be able to use the nidas tool instead, but that
 # has not been tried yet.
 srv_env = clnt_env.Clone()
-srv_env.ParseConfig('pkg-config --cflags --libs nidas')
 srv_env.Require(['netcdfcxx'])
 
 srcs = ["nc_server.cc", "nc_server_rpc_procs.cc", svc]
@@ -132,11 +134,15 @@ print("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
 
 nc_server = srv_env.Program('nc_server', srcs)
 
-nc_close = clnt_env.Program('nc_close','nc_close.cc')
+# Build the clients against the nc_server_client object instead of putting the
+# object in the client library.  This way libnc_server_rpc does not depend on
+# nidas_util.
+nsco = clnt_env.StaticObject("nc_server_client.cc")
+nc_close = clnt_env.Program('nc_close', ['nc_close.cc'] + nsco)
 
-nc_sync = clnt_env.Program('nc_sync','nc_sync.cc')
+nc_sync = clnt_env.Program('nc_sync', ['nc_sync.cc'] + nsco)
 
-nc_shutdown = clnt_env.Program('nc_shutdown','nc_shutdown.cc')
+nc_shutdown = clnt_env.Program('nc_shutdown', ['nc_shutdown.cc'] + nsco)
 
 nc_check = nc_env.Program('nc_check','nc_check.c')
 
