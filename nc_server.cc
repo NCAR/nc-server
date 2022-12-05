@@ -1928,7 +1928,8 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
     bool nameExists = false;
 
     if ((var = get_var(varName.c_str()))) {
-        // DLOG(("%s found %s",getName().c_str(),varName.c_str()));
+        VLOG(("") << getName() << ":getvar(" << varName
+                  << ") found " << var->name());
         nameExists = true;
         // Check its short_name attribute
         if (shortName.length() > 0) {
@@ -1956,12 +1957,14 @@ NcVar *NS_NcFile::find_var(OutVariable* ov) throw(NetCDFAccessFailed)
         NcAtt *att;
         if ((att = var->get_att("short_name"))) {
             char* attString = 0;
+            VLOG(("") << getName() << ": checking " << var->name()
+                      << " for short_name==" << shortName);
             if (att->type() == ncChar && att->num_vals() > 0 &&
                     (attString = att->as_string(0)) &&
                     !::strcmp(attString, shortName.c_str())) {
-                // DLOG(("%s: %s match for shortName %s %s",
-                //             getName().c_str(),varName.c_str(),
-                //             shortName.c_str(),attString));
+                VLOG(("") << getName() << ": " << varName
+                          << " matched short_name " << shortName
+                          << ", att=" << attString);
                 delete att;
                 delete [] attString;
                 break;          // match
