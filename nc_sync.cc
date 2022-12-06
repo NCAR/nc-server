@@ -10,7 +10,7 @@
 //   Request that nc_server do a sync on all open files, so
 //   that they can be read successfully.
 
-#include "nc_server_rpc.h"
+#include "nc_server_client.h"
 
 #include <iostream>
 #include <stdlib.h>
@@ -32,8 +32,7 @@ currently writing to.  nc_sync is part of the nc_server-auxprogs package\n\
         exit(1);
     }
     host = argv[1];
-
-    clnt = clnt_create(host, NETCDFSERVERPROG, NETCDFSERVERVERS, "tcp");
+    clnt = nc_server_client_create(host);
     if (clnt == (CLIENT *) NULL) {
         clnt_pcreateerror(host);
         exit(1);
@@ -43,5 +42,5 @@ currently writing to.  nc_sync is part of the nc_server-auxprogs package\n\
     if (res == (int *) NULL) {
         clnt_perror(clnt, "call failed");
     }
-    clnt_destroy(clnt);
+    nc_server_client_destroy(clnt);
 }

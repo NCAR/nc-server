@@ -11,7 +11,22 @@
 # not match any "exclusive" nc_server subprocesses which do not register
 # with rpc.
 
-PATH=${PATH}:/opt/nc_server/bin
+# this script is also useful to run a custom install of nc_server,
+# with custom logging settings and especially without capabilities set
+# like in the package, so that a core file can be dumped to debug
+# crashes.
+
+[ -n "$NC_SERVER_HOME" ] || export NC_SERVER_HOME=@NC_SERVER_HOME@
+
+PATH=${NC_SERVER_HOME}/bin:${PATH}
+LD_LIBRARY_PATH=${NC_SERVER_HOME}/@NC_SERVER_LIBDIR@
+
+# Do what we can to allow core files, although it's not always certain
+# if this has any effect.  Run from the home directory where user is
+# most likely to be able to write core files.
+#
+ulimit -c unlimited
+cd $HOME
 
 # If 1, run in the foreground with debugging, so nc_server log output
 # is written to the same output as this script.  If 0, run in
@@ -26,8 +41,9 @@ echolog() {
 # Echo the example crontab entries
 echocron() {
 cat <<'EOF'
-* * * * *   $HOME/nc-server/scripts/nc_server.check >> $HOME/nc_server.log 2>&1
-30 0 * * 0 /sbin/logrotate --state $HOME/nc_server.log.status $HOME/nc-server/scripts/logrotate.conf
+NC_SERVER_HOME=${HOME}/nc-server
+* * * * *   $NC_SERVER_HOME/bin/nc_server.check >> $NC_SERVER_HOME/logs/nc_server.log 2>&1
+30 0 * * 0 /sbin/logrotate --state $NC_SERVER_HOME/logs/nc_server.log.status $NC_SERVER_HOME/logs/logrotate.conf
 EOF
 }
 
@@ -35,6 +51,8 @@ if [ "$1" == "cron" ]; then
     echocron
     exit 0
 fi
+
+echolog "NC_SERVER_HOME=${NC_SERVER_HOME}"
 
 if [ "$1" != test_no_ping ]; then
     if nc_ping localhost >/dev/null 2>&1 ; then

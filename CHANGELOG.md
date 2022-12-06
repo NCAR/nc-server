@@ -4,7 +4,8 @@ This file summarizes notable changes to this project between versions.  The
 changes between package releases are listed in the packaging files,
 [nc-server.spec](nc_server.spec) and [debian/changelog](debian/changelog).
 
-The format is based on [Keep a Changelog].
+The format is based on [Keep a Changelog], the versions should follow
+[semantic versioning].
 
 ## [2.0] - Unreleased
 
@@ -13,6 +14,11 @@ The format is based on [Keep a Changelog].
 - Removed dynamic exception specifiers from server functions.
 - All repo files now included in the RPM source archive.
 - Converted README to markdown.
+
+## [1.4] - 2022-09-28
+
+- fix a bug where a standalone nc_server instance would call `pmap_unset()`
+  and unregister an existing server instance already bound to the portmapper.
 
 ## [1.3] - 2022-08-10
 
@@ -35,7 +41,8 @@ The format is based on [Keep a Changelog].
 [semantic versioning]: https://semver.org/spec/v2.0.0.html
 
 <!-- Versions -->
-[2.0]: https://github.com/ncareol/nc-server/compare/v1.3...v2.0
+[2.0]: https://github.com/ncareol/nc-server/compare/v1.4...v2.0
+[1.4]: https://github.com/ncareol/nc-server/compare/v1.3...v1.4
 [1.3]: https://github.com/ncareol/nc-server/compare/v1.2...v1.3
 [1.2]: https://github.com/ncareol/nc-server/compare/v1.1...v1.2
 [1.1]: https://github.com/ncareol/nc-server/releases/tag/v1.1

@@ -8,7 +8,7 @@
 //
 // Description:
 
-#include "nc_server_rpc.h"
+#include "nc_server_client.h"
 
 #include <iostream>
 #include <stdlib.h>
@@ -30,12 +30,12 @@ currently writing to and exit.  nc_shutdown is part of the nc_server-auxprogs pa
     }
     host = argv[1];
 
-    clnt = clnt_create(host, NETCDFSERVERPROG, NETCDFSERVERVERS, "tcp");
+    clnt = nc_server_client_create(host);
     if (clnt == (CLIENT *) NULL) {
         clnt_pcreateerror(host);
         exit(1);
     }
 
     shutdown_2((void *)0, clnt);
-    clnt_destroy(clnt);
+    nc_server_client_destroy(clnt);
 }

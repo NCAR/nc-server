@@ -121,6 +121,9 @@ rm -rf $RPM_BUILD_ROOT
 * Tue Aug 16 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha1
 - build v2.0-alpha1
 
+* Wed Sep 28 2022 Gary Granger <granger@ucar.edu> - 1.4-1
+- package version 1.4
+
 * Wed Aug 10 2022 Gary Granger <granger@ucar.edu> - 1.3-1
 - package version 1.3
 
