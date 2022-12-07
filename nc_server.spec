@@ -3,7 +3,7 @@
 
 Summary: Server for NetCDF file writing.
 Name: nc_server
-Version: 2.0~alpha2
+Version: 2.0~alpha3
 Release: %{releasenum}%{?dist}
 License: GPL
 Group: Applications/Engineering
@@ -95,6 +95,7 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/default/nc_server
 /opt/nc_server/systemd/user
 %{_unitdir}/nc_server.service
+/opt/nc_server/logs/logrotate.conf
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
@@ -115,11 +116,8 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
-* Sat Aug 20 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha2
-- build v2.0-alpha2
-
-* Tue Aug 16 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha1
-- build v2.0-alpha1
+* Tue Dec 06 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha3
+- build v2.0-alpha3
 
 * Wed Sep 28 2022 Gary Granger <granger@ucar.edu> - 1.4-1
 - package version 1.4

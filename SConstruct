@@ -181,8 +181,7 @@ env['SUBST_DICT'] = {'@NC_SERVER_HOME@': "$PREFIX",
 ncscheck = env.Substfile('scripts/nc_server.check.in')
 env.Install('$PREFIX/bin', ['scripts/nc_ping', ncscheck])
 logconf = env.Substfile('scripts/logrotate.conf.in')
-env.Install('$PREFIX/logs', logconf)
-env.Alias('install-logs', '$PREFIX/logs')
+env.Alias('install-logs', env.Install('$PREFIX/logs', logconf))
 
 # Create nc_server.pc, replacing @token@
 pc = env.Command('nc_server.pc', '#nc_server.pc.in',
