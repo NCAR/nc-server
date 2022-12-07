@@ -11,6 +11,17 @@ The format is based on [Keep a Changelog], the versions should follow
 
 ### Changed
 
+- RPM packaging now uses the `build_rpm` script built into `eol_scons`.  This
+  supports packaging from a specific clean release tag as well as from commit
+  snapshots, and the commit number from `git describe` is no longer used as a
+  package release number (`releasenum`), since the package release number is
+  meant to distinguish different builds of the same source release.
+- Make sure server and clients only link to the nidas util library, not all
+  the nidas libraries.
+- Clients recognize the `NC_SERVER_PORT` environment variable.
+- Provide a more testing-friendly install: `nc_server.check` and a
+  `logrotate.conf` are generated with the install directory built-in, to run
+  `nc_server` with more verbose logging and unlimited core files.
 - Removed dynamic exception specifiers from server functions.
 - All repo files now included in the RPM source archive.
 - Converted README to markdown.

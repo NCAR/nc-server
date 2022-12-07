@@ -181,18 +181,19 @@ installs += env.Install('${INSTALL_PREFIX}$PREFIX/bin',
 installs += env.Install('${INSTALL_PREFIX}$PREFIX/include', 'nc_server_rpc.h')
 
 env['SUBST_DICT'] = {'@NC_SERVER_HOME@': "$PREFIX",
-                     '@NC_SERVER_LIBDIR@': libdir}
+                     '@NC_SERVER_LIBDIR@': libdir,
+                     '@PREFIX@': '$PREFIX',
+                     '@ARCHLIBDIR@': '$ARCHLIBDIR',
+                     '@REPO_TAG@': '$REPO_TAG',
+                     '@REQUIRES@': '$PCREQUIRES' }
 ncscheck = env.Substfile('scripts/nc_server.check.in')
 installs += env.Install('${INSTALL_PREFIX}$PREFIX/bin', ['scripts/nc_ping', ncscheck])
 logconf = env.Substfile('scripts/logrotate.conf.in')
 env.Alias('install.logs', env.Install('${INSTALL_PREFIX}$PREFIX/logs', logconf))
 
 # Create nc_server.pc, replacing @token@
-pc = env.Command('nc_server.pc', '#nc_server.pc.in',
-                 "sed -e 's,@PREFIX@,$PREFIX,' -e 's,@ARCHLIBDIR@,$ARCHLIBDIR,'"
-                 " -e 's,@REPO_TAG@,$REPO_TAG,' "
-                 " -e 's,@REQUIRES@,$PCREQUIRES,' "
-                 "< $SOURCE > $TARGET")
+pc = env.Substfile('nc_server.pc.in')
+
 # pkgconfig file gets installed to two places
 installs += env.Install('${INSTALL_PREFIX}$PREFIX/$ARCHLIBDIR/pkgconfig', pc)
 env.Alias('install.root', env.Install('${INSTALL_PREFIX}${PKGCONFIGDIR}', pc))
@@ -204,9 +205,8 @@ installs += env.Install('${INSTALL_PREFIX}$PREFIX/etc/systemd', 'systemd/user')
 env.Alias('install', installs)
 
 # Set the library directory in the ld.so config file
-env.Command('etc/ld.so.conf.d/$LDCONFFILE',
-            'etc/ld.so.conf.d/nc_server.conf.in',
-            "sed -e '/lib/c %s' < $SOURCE > $TARGET" % (libdir))
+env.Substfile('etc/ld.so.conf.d/$LDCONFFILE',
+              'etc/ld.so.conf.d/nc_server.conf.in')
 
 # Install sysconfig files.
 sysconfigfiles = env.Split("""

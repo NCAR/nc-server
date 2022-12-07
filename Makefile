@@ -29,7 +29,7 @@ build:
 	$(SCONS) --config=force -j 4
 
 install:
-	$(SCONS) --install-sandbox=$(DESTDIR) install install.root
+	$(SCONS) INSTALL_PREFIX=$(DESTDIR) install install.root
 
 clean:
 	$(SCONS) -c
