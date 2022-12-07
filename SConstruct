@@ -41,14 +41,17 @@ env = conf.Finish()
 opts = eol_scons.GlobalVariables('config.py')
 opts.AddVariables(PathVariable('PREFIX','installation path',
                                '/opt/nc_server', PathVariable.PathAccept))
+opts.AddVariables(PathVariable('INSTALL_PREFIX',
+                               'path to be prepended to all install paths',
+                               '', PathVariable.PathAccept))
 opts.AddVariables(PathVariable('SYSCONFIGDIR','/etc installation path',
-                               '$PREFIX/etc', PathVariable.PathAccept))
+                               '/etc', PathVariable.PathAccept))
 opts.AddVariables(PathVariable('PKGCONFIGDIR',
                                'system dir to install nc_server.pc',
                                '/usr/$ARCHLIBDIR/pkgconfig',
                                PathVariable.PathAccept))
 opts.AddVariables(PathVariable('UNITDIR','systemd unit install path',
-                               '$PREFIX/systemd/system',
+                               '$SYSCONFIGDIR/systemd/system',
                                PathVariable.PathAccept))
 
 opts.Add('LDCONFFILE',
@@ -171,18 +174,18 @@ nc_check = nc_env.Program('nc_check','nc_check.c')
 
 installs = []
 libdir = '$PREFIX/$ARCHLIBDIR'
-libtgt = env.InstallVersionedLib(libdir, lib)
+libtgt = env.InstallVersionedLib('${INSTALL_PREFIX}'f'{libdir}', lib)
 installs += libtgt
-installs += env.Install('$PREFIX/bin',
+installs += env.Install('${INSTALL_PREFIX}$PREFIX/bin',
                         [nc_server, nc_close, nc_sync, nc_shutdown, nc_check])
-installs += env.Install('$PREFIX/include', 'nc_server_rpc.h')
+installs += env.Install('${INSTALL_PREFIX}$PREFIX/include', 'nc_server_rpc.h')
 
 env['SUBST_DICT'] = {'@NC_SERVER_HOME@': "$PREFIX",
                      '@NC_SERVER_LIBDIR@': libdir}
 ncscheck = env.Substfile('scripts/nc_server.check.in')
-installs += env.Install('$PREFIX/bin', ['scripts/nc_ping', ncscheck])
+installs += env.Install('${INSTALL_PREFIX}$PREFIX/bin', ['scripts/nc_ping', ncscheck])
 logconf = env.Substfile('scripts/logrotate.conf.in')
-env.Alias('install.logs', env.Install('$PREFIX/logs', logconf))
+env.Alias('install.logs', env.Install('${INSTALL_PREFIX}$PREFIX/logs', logconf))
 
 # Create nc_server.pc, replacing @token@
 pc = env.Command('nc_server.pc', '#nc_server.pc.in',
@@ -191,11 +194,11 @@ pc = env.Command('nc_server.pc', '#nc_server.pc.in',
                  " -e 's,@REQUIRES@,$PCREQUIRES,' "
                  "< $SOURCE > $TARGET")
 # pkgconfig file gets installed to two places
-installs += env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', pc)
-env.Alias('install.root', env.Install('$PKGCONFIGDIR', pc))
+installs += env.Install('${INSTALL_PREFIX}$PREFIX/$ARCHLIBDIR/pkgconfig', pc)
+env.Alias('install.root', env.Install('${INSTALL_PREFIX}${PKGCONFIGDIR}', pc))
 
 # Install userspace systemd unit examples.
-installs += env.Install('$PREFIX/systemd', 'systemd/user')
+installs += env.Install('${INSTALL_PREFIX}$PREFIX/etc/systemd', 'systemd/user')
 
 # Normal installs get a normal install alias
 env.Alias('install', installs)
@@ -216,10 +219,10 @@ for f in sysconfigfiles:
     # the target must be passed as a string and not a node, otherwise the
     # --install-sandbox node factory is not applied to generate the node under
     # the sandbox directory.
-    etcfile = env.InstallAs(f'$SYSCONFIGDIR/{f}', f'etc/{f}')
+    etcfile = env.InstallAs('${INSTALL_PREFIX}${SYSCONFIGDIR}/'f'{f}', f'etc/{f}')
     env.Alias('install.root', etcfile)
 
-sdunit = env.Install("$UNITDIR", "systemd/system/nc_server.service")
+sdunit = env.Install("${INSTALL_PREFIX}${UNITDIR}", "systemd/system/nc_server.service")
 env.Alias('install.root', sdunit)
 
 # This works, but it prints a message for every file and directory removed, so

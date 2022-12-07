@@ -69,7 +69,7 @@ scons gitinfo=off PREFIX=/opt/nc_server REPO_TAG=v%{version}
 
 %install
 rm -rf $RPM_BUILD_ROOT
-scons gitinfo=off --install-sandbox ${RPM_BUILD_ROOT} PREFIX=/opt/nc_server \
+scons gitinfo=off INSTALL_PREFIX=${RPM_BUILD_ROOT}/ PREFIX=/opt/nc_server \
     REPO_TAG=v%{version} SYSCONFIGDIR=%{_sysconfdir} UNITDIR=%{_unitdir} \
     PKGCONFIGDIR=%{_libdir}/pkgconfig \
     install install.root
@@ -99,7 +99,7 @@ rm -rf $RPM_BUILD_ROOT
 /opt/nc_server/bin/nc_server.check
 /opt/nc_server/bin/nc_check
 %config(noreplace) %{_sysconfdir}/default/nc_server
-/opt/nc_server/systemd/user
+/opt/nc_server/etc/systemd/user
 %{_unitdir}/nc_server.service
 
 %files lib
