@@ -1,6 +1,3 @@
-%define version_major 2
-%define version_minor 0
-
 Summary: Server for NetCDF file writing.
 Name: nc_server
 Version: 2.0~alpha3
@@ -12,6 +9,15 @@ Packager: Gordon Maclean <maclean@ucar.edu>
 # Allow this package to be relocatable to other places than /opt/nc_server
 # rpm --relocate /opt/nc_server=/usr
 Prefix: /opt/nc_server
+
+# Because we know the shared library version numbers are derived from the
+# source version, just replicate that here.  Technically the shared library
+# version could/should be independent, in which case we would need a way to
+# "ask" the source for the current shared library versions, to know the names
+# of the shared library files and links that will be installed.  Or else the
+# versions could be hardcoded here to match the source release.
+%define version_major %(echo v%{version} | sed -E 's/^[vV]([0-9]+)\.([0-9]+)([-~].*)?$/\\1/')
+%define version_minor %(echo v%{version} | sed -E 's/^[vV]([0-9]+)\.([0-9]+)([-~].*)?$/\\2/')
 
 # These are also prerequisites for the build, but I don't know if they
 # belong in the BuildRequires:
