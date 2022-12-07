@@ -95,7 +95,6 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/default/nc_server
 /opt/nc_server/systemd/user
 %{_unitdir}/nc_server.service
-/opt/nc_server/logs/logrotate.conf
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf

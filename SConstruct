@@ -35,8 +35,7 @@ env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
     conf.env.Append(CPPDEFINES = ['HAS_CAPABILITY_H'])
-if conf.CheckLib('cap'):
-    conf.env.AppendUnique(LIBS = 'cap')
+conf.CheckLib('cap')
 env = conf.Finish()
 
 opts = eol_scons.GlobalVariables('config.py')
@@ -170,18 +169,20 @@ nc_shutdown = clnt_env.Program('nc_shutdown', ['nc_shutdown.cc'] + nsco)
 
 nc_check = nc_env.Program('nc_check','nc_check.c')
 
+installs = []
 libdir = '$PREFIX/$ARCHLIBDIR'
 libtgt = env.InstallVersionedLib(libdir, lib)
-env.Install('$PREFIX/bin',
-            [nc_server, nc_close, nc_sync, nc_shutdown, nc_check])
-env.Install('$PREFIX/include', 'nc_server_rpc.h')
+installs += libtgt
+installs += env.Install('$PREFIX/bin',
+                        [nc_server, nc_close, nc_sync, nc_shutdown, nc_check])
+installs += env.Install('$PREFIX/include', 'nc_server_rpc.h')
 
 env['SUBST_DICT'] = {'@NC_SERVER_HOME@': "$PREFIX",
                      '@NC_SERVER_LIBDIR@': libdir}
 ncscheck = env.Substfile('scripts/nc_server.check.in')
-env.Install('$PREFIX/bin', ['scripts/nc_ping', ncscheck])
+installs += env.Install('$PREFIX/bin', ['scripts/nc_ping', ncscheck])
 logconf = env.Substfile('scripts/logrotate.conf.in')
-env.Alias('install-logs', env.Install('$PREFIX/logs', logconf))
+env.Alias('install.logs', env.Install('$PREFIX/logs', logconf))
 
 # Create nc_server.pc, replacing @token@
 pc = env.Command('nc_server.pc', '#nc_server.pc.in',
@@ -190,14 +191,14 @@ pc = env.Command('nc_server.pc', '#nc_server.pc.in',
                  " -e 's,@REQUIRES@,$PCREQUIRES,' "
                  "< $SOURCE > $TARGET")
 # pkgconfig file gets installed to two places
-env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', pc)
+installs += env.Install('$PREFIX/$ARCHLIBDIR/pkgconfig', pc)
 env.Alias('install.root', env.Install('$PKGCONFIGDIR', pc))
 
 # Install userspace systemd unit examples.
-env.Install('$PREFIX/systemd', 'systemd/user')
+installs += env.Install('$PREFIX/systemd', 'systemd/user')
 
-# Everything under prefix gets a normal install alias
-env.Alias('install', ['$PREFIX'])
+# Normal installs get a normal install alias
+env.Alias('install', installs)
 
 # Set the library directory in the ld.so config file
 env.Command('etc/ld.so.conf.d/$LDCONFFILE',
