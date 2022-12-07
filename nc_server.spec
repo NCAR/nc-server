@@ -16,8 +16,8 @@ Prefix: /opt/nc_server
 # "ask" the source for the current shared library versions, to know the names
 # of the shared library files and links that will be installed.  Or else the
 # versions could be hardcoded here to match the source release.
-%define version_major %(echo v%{version} | sed -E 's/^[vV]([0-9]+)\.([0-9]+)([-~].*)?$/\\1/')
-%define version_minor %(echo v%{version} | sed -E 's/^[vV]([0-9]+)\.([0-9]+)([-~].*)?$/\\2/')
+%define version_major %(echo v%{version} | sed -E 's/^[vV]([0-9]+)\.([0-9]+)([.-~].*)?$/\\1/')
+%define version_minor %(echo v%{version} | sed -E 's/^[vV]([0-9]+)\.([0-9]+)([.-~].*)?$/\\2/')
 
 # These are also prerequisites for the build, but I don't know if they
 # belong in the BuildRequires:
