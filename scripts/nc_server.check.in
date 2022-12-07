@@ -5,7 +5,7 @@
 
 # For some reason nc_server sometimes loses its rpc registration, even
 # though the nc_server process is still running.  This script checks first
-# whether the nc_server is registered, and then if not regitered but
+# whether the nc_server is registered, and then if not registered but
 # running, the current process is killed before being restarted.  The pid
 # check matches against the daemon instance using 'nc_server -z' so it does
 # not match any "exclusive" nc_server subprocesses which do not register
@@ -56,8 +56,8 @@ echolog "NC_SERVER_HOME=${NC_SERVER_HOME}"
 
 if [ "$1" != test_no_ping ]; then
     if nc_ping localhost >/dev/null 2>&1 ; then
-	echolog "nc_server registered."
-	exit 0
+        echolog "nc_server registered."
+        exit 0
     fi
 fi
 echolog "nc_server not registered."
@@ -73,13 +73,13 @@ if [ -n "$pid" ]; then
     ps ufp "$pid"
     echolog "killing existing process: $pid"
     for i in 1 1 1 9 9 end ; do
-	if [ $i == end ]; then
-	    echo "Kill failed."
-	    exit 1
-	fi
-	kill -s $i $pid
-	sleep 1
-	kill -0 "$pid" > /dev/null 2>&1 || break
+        if [ $i == end ]; then
+            echo "Kill failed."
+            exit 1
+        fi
+        kill -s $i $pid
+        sleep 1
+        kill -0 "$pid" > /dev/null 2>&1 || break
     done
     echo "killed."
     echolog "sleeping 10 seconds to allow port to close..."
@@ -102,7 +102,7 @@ for i in 1 2 3 4 5 end ; do
     sleep 1
     nc_ping localhost >/dev/null 2>&1 && break
     if [ $i == end ]; then
-	echo "nc_server still not registered."
-	exit 1
+        echo "nc_server still not registered."
+        exit 1
     fi
 done
