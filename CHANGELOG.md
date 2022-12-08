@@ -7,7 +7,7 @@ changes between package releases are listed in the packaging files,
 The format is based on [Keep a Changelog], the versions should follow
 [semantic versioning].
 
-## [2.0] - Unreleased
+## [2.0] - 2022-12-07
 
 ### Changed
 

@@ -1,6 +1,6 @@
 Summary: Server for NetCDF file writing.
 Name: nc_server
-Version: 2.0~alpha3
+Version: 2.0
 Release: %{releasenum}%{?dist}
 License: GPL
 Group: Applications/Engineering
@@ -121,6 +121,9 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
+* Thu Dec 08 2022 Gary Granger <granger@ucar.edu> - 2.0
+- build v2.0
+
 * Tue Dec 06 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha3
 - build v2.0-alpha3
 
