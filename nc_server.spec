@@ -1,6 +1,6 @@
 Summary: Server for NetCDF file writing.
 Name: nc_server
-Version: 1.4
+Version: 2.0~alpha3
 Release: %{releasenum}%{?dist}
 License: GPL
 Group: Applications/Engineering
@@ -9,6 +9,15 @@ Packager: Gordon Maclean <maclean@ucar.edu>
 # Allow this package to be relocatable to other places than /opt/nc_server
 # rpm --relocate /opt/nc_server=/usr
 Prefix: /opt/nc_server
+
+# Because we know the shared library version numbers are derived from the
+# source version, just replicate that here.  Technically the shared library
+# version could/should be independent, in which case we would need a way to
+# "ask" the source for the current shared library versions, to know the names
+# of the shared library files and links that will be installed.  Or else the
+# versions could be hardcoded here to match the source release.
+%define version_major %(echo v%{version} | sed -E 's/^[vV]([0-9]+)\.([0-9]+)([.-~].*)?$/\\1/')
+%define version_minor %(echo v%{version} | sed -E 's/^[vV]([0-9]+)\.([0-9]+)([.-~].*)?$/\\2/')
 
 # These are also prerequisites for the build, but I don't know if they
 # belong in the BuildRequires:
@@ -50,33 +59,20 @@ Group: Applications/Engineering
 Some client programs of nc_server
 
 %prep
-%setup -n nc-server
+%setup -n nc_server
 
 %build
 pwd
+# technically /opt/nc_server is the default PREFIX so it does not need to be
+# set, but make it explicit for clarity
 scons gitinfo=off PREFIX=/opt/nc_server REPO_TAG=v%{version}
 
 %install
 rm -rf $RPM_BUILD_ROOT
-scons gitinfo=off PREFIX=${RPM_BUILD_ROOT}/opt/nc_server REPO_TAG=v%{version} install
-
-install -d $RPM_BUILD_ROOT%{_sysconfdir}
-cp -r etc/{ld.so.conf.d,profile.d,default} $RPM_BUILD_ROOT%{_sysconfdir}
-sed -i -e 's,/lib,/%{_lib},' $RPM_BUILD_ROOT%{_sysconfdir}/ld.so.conf.d/nc_server.conf
-
-install -d $RPM_BUILD_ROOT%{_libdir}/pkgconfig
-#  scons puts entire $RPM_BUILD_ROOT in nc_server.pc, remove it.
-sed -i -e "s,$RPM_BUILD_ROOT,," \
-    $RPM_BUILD_ROOT/opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
-
-cp $RPM_BUILD_ROOT/opt/nc_server/%{_lib}/pkgconfig/nc_server.pc \
-        $RPM_BUILD_ROOT%{_libdir}/pkgconfig
-
-install -d $RPM_BUILD_ROOT/opt/nc_server/systemd
-cp -r systemd/user $RPM_BUILD_ROOT/opt/nc_server/systemd
-
-install -d $RPM_BUILD_ROOT%{_unitdir}
-cp systemd/system/nc_server.service $RPM_BUILD_ROOT%{_unitdir}
+scons gitinfo=off INSTALL_PREFIX=${RPM_BUILD_ROOT}/ PREFIX=/opt/nc_server \
+    REPO_TAG=v%{version} SYSCONFIGDIR=%{_sysconfdir} UNITDIR=%{_unitdir} \
+    PKGCONFIGDIR=%{_libdir}/pkgconfig \
+    install install.root
 
 %post
 %systemd_post nc_server.service
@@ -103,16 +99,16 @@ rm -rf $RPM_BUILD_ROOT
 /opt/nc_server/bin/nc_server.check
 /opt/nc_server/bin/nc_check
 %config(noreplace) %{_sysconfdir}/default/nc_server
-/opt/nc_server/systemd/user
+/opt/nc_server/etc/systemd/user
 %{_unitdir}/nc_server.service
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{version}
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{version_major}.%{version_minor}
 
 %files devel
 /opt/nc_server/include/nc_server_rpc.h
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.1
+/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{version_major}
 /opt/nc_server/%{_lib}/libnc_server_rpc.so
 /opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
 %config %{_libdir}/pkgconfig/nc_server.pc
@@ -125,6 +121,9 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
+* Tue Dec 06 2022 Gary Granger <granger@ucar.edu> - 2.0~alpha3
+- build v2.0-alpha3
+
 * Wed Sep 28 2022 Gary Granger <granger@ucar.edu> - 1.4-1
 - package version 1.4
 
