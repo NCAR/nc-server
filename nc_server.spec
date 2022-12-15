@@ -1,11 +1,10 @@
-Summary: Server for NetCDF file writing.
 Name: nc_server
 Version: 2.0
 Release: %{releasenum}%{?dist}
+Summary: Server for NetCDF file writing.
 License: GPL
 Group: Applications/Engineering
-Url: http://www.eol.ucar.edu/
-Packager: Gordon Maclean <maclean@ucar.edu>
+URL: https://github.com/ncareol/nc-server
 # Allow this package to be relocatable to other places than /opt/nc_server
 # rpm --relocate /opt/nc_server=/usr
 Prefix: /opt/nc_server
@@ -36,7 +35,7 @@ BuildRequires: libtirpc-devel rpcgen
 %{?systemd_requires}
 Vendor: UCAR
 Source: %{name}-%{version}.tar.gz
-Requires: nc_server-clients
+
 %description
 Server for NetCDF file writing.
 
@@ -59,17 +58,15 @@ Group: Applications/Engineering
 Some client programs of nc_server
 
 %prep
-%setup -n nc_server
+%setup
 
 %build
 pwd
-# technically /opt/nc_server is the default PREFIX so it does not need to be
-# set, but make it explicit for clarity
-scons gitinfo=off PREFIX=/opt/nc_server REPO_TAG=v%{version}
+scons gitinfo=off PREFIX=%{prefix} REPO_TAG=v%{version}
 
 %install
 rm -rf $RPM_BUILD_ROOT
-scons gitinfo=off INSTALL_PREFIX=${RPM_BUILD_ROOT}/ PREFIX=/opt/nc_server \
+scons gitinfo=off INSTALL_PREFIX=%{buildroot}/ PREFIX=%{prefix} \
     REPO_TAG=v%{version} SYSCONFIGDIR=%{_sysconfdir} UNITDIR=%{_unitdir} \
     PKGCONFIGDIR=%{_libdir}/pkgconfig \
     install install.root
@@ -90,33 +87,30 @@ exit 0
 ldconfig
 exit 0
 
-%clean
-rm -rf $RPM_BUILD_ROOT
-
 %files
-%caps(cap_net_bind_service,cap_setgid+p) /opt/nc_server/bin/nc_server
-/opt/nc_server/bin/nc_shutdown
-/opt/nc_server/bin/nc_server.check
-/opt/nc_server/bin/nc_check
+%caps(cap_net_bind_service,cap_setgid+p) %{prefix}/bin/nc_server
+%{prefix}/bin/nc_shutdown
+%{prefix}/bin/nc_server.check
+%{prefix}/bin/nc_check
 %config(noreplace) %{_sysconfdir}/default/nc_server
 /opt/nc_server/etc/systemd/user
 %{_unitdir}/nc_server.service
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{version_major}.%{version_minor}
+%{prefix}/%{_lib}/libnc_server_rpc.so.%{version_major}.%{version_minor}
 
 %files devel
-/opt/nc_server/include/nc_server_rpc.h
-/opt/nc_server/%{_lib}/libnc_server_rpc.so.%{version_major}
-/opt/nc_server/%{_lib}/libnc_server_rpc.so
-/opt/nc_server/%{_lib}/pkgconfig/nc_server.pc
+%{prefix}/include/nc_server_rpc.h
+%{prefix}/%{_lib}/libnc_server_rpc.so.%{version_major}
+%{prefix}/%{_lib}/libnc_server_rpc.so
+%{prefix}/%{_lib}/pkgconfig/nc_server.pc
 %config %{_libdir}/pkgconfig/nc_server.pc
 
 %files clients
-/opt/nc_server/bin/nc_ping
-/opt/nc_server/bin/nc_close
-/opt/nc_server/bin/nc_sync
+%{prefix}/bin/nc_ping
+%{prefix}/bin/nc_close
+%{prefix}/bin/nc_sync
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.sh
 %config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
