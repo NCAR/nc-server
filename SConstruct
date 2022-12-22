@@ -187,6 +187,7 @@ env['SUBST_DICT'] = {'@NC_SERVER_HOME@': "$PREFIX",
                      '@REPO_TAG@': '$REPO_TAG',
                      '@REQUIRES@': '$PCREQUIRES' }
 ncscheck = env.Substfile('scripts/nc_server.check.in')
+env.AddPostAction(ncscheck, Chmod(ncscheck[0], 0o775))
 installs += env.Install('${INSTALL_PREFIX}$PREFIX/bin', ['scripts/nc_ping', ncscheck])
 logconf = env.Substfile('scripts/logrotate.conf.in')
 env.Alias('install.logs', env.Install('${INSTALL_PREFIX}$PREFIX/logs', logconf))
