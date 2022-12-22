@@ -19,7 +19,10 @@
 [ -n "$NC_SERVER_HOME" ] || export NC_SERVER_HOME=@NC_SERVER_HOME@
 
 PATH=${NC_SERVER_HOME}/bin:${PATH}
-LD_LIBRARY_PATH=${NC_SERVER_HOME}/@NC_SERVER_LIBDIR@
+# archlibdir is appended to NC_SERVER_HOME rather than inserting the
+# entire NC_SERVER_LIBDIR setting, so NC_SERVER_HOME can be overridden
+# in the environment.
+LD_LIBRARY_PATH=${NC_SERVER_HOME}/@ARCHLIBDIR@
 
 # Do what we can to allow core files, although it's not always certain
 # if this has any effect.  Run from the home directory where user is
