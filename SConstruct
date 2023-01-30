@@ -28,7 +28,7 @@ eol_scons.RunScripts()
 eol_scons.EnableInstallAlias(False)
 
 from SCons.Script import Environment, Configure, PathVariable, EnumVariable
-from SCons.Script import Delete
+from SCons.Script import Delete, SConscript
 
 env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
 
@@ -115,6 +115,7 @@ def rpc(env):
         env.PrintProgress("Using legacy rpc.")
         pass
 
+Export('rpc')
 # The rest of the environments to setup, server, lirbrary, and clients,
 # will need RPC/XDR.
 env.Tool(rpc)
@@ -224,6 +225,8 @@ for f in sysconfigfiles:
 
 sdunit = env.Install("${INSTALL_PREFIX}${UNITDIR}", "systemd/system/nc_server.service")
 env.Alias('install.root', sdunit)
+
+SConscript('dynld/SConscript')
 
 # This works, but it prints a message for every file and directory removed, so
 # resort to just executing the Delete action on the build directory:

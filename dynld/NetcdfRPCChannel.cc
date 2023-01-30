@@ -26,8 +26,6 @@
 
 #include "NetcdfRPCChannel.h"
 
-#ifdef HAVE_LIBNC_SERVER_RPC
-
 #include <nidas/core/DSMConfig.h>
 #include <nidas/core/Site.h>
 #include <nidas/core/Project.h>
@@ -975,4 +973,3 @@ void NcVarGroupFloat::write(NetcdfRPCChannel* conn,const Sample* samp,
 
     conn->write(&_rec);
 }
-#endif  // HAVE_LIBNC_SERVER_RPC

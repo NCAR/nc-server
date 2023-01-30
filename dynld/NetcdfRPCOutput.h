@@ -26,8 +26,6 @@
 
 #include <nidas/Config.h> 
 
-#ifdef HAVE_LIBNC_SERVER_RPC
-
 #ifndef NIDAS_DYNLD_ISFF_NETCDFRPCOUTPUT_H
 #define NIDAS_DYNLD_ISFF_NETCDFRPCOUTPUT_H
 
@@ -143,5 +141,3 @@ private:
 }}}	// namespace nidas namespace dynld namespace isff
 
 #endif
-
-#endif  // HAVE_LIBNC_SERVER_RPC

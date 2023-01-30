@@ -27,8 +27,6 @@
 
 #include "NetcdfRPCOutput.h"
 
-#ifdef HAVE_LIBNC_SERVER_RPC
-
 #include "NetcdfRPCChannel.h"
 #include <nidas/util/Logger.h>
 
@@ -156,5 +154,3 @@ setTimeClippingWindow(const nidas::util::UTime& startTime,
     _startTime = startTime.toUsecs();
     _endTime = endTime.toUsecs();
 }
-
-#endif  // HAVE_LIBNC_SERVER_RPC

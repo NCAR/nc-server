@@ -1,0 +1,16 @@
+
+from SCons.Script import Environment
+
+env = Environment(tools=["default", "rpc", "nidas"])
+
+# Build the nidas dynamic shared objects.
+liboutput = env.LoadableModule("nidas_dynld_NetcdfRPCOutput",
+                               "NetcdfRPCOutput.cc")
+
+libchannel = env.LoadableModule("nidas_dynld_NetcdfRPCChannel",
+                                "NetcdfRPCChannel.cc")
+
+instlibs = []
+instlibs.extend(env.Install('$LIBDIR', liboutput))
+instlibs.extend(env.Install('$LIBDIR', libchannel))
+
