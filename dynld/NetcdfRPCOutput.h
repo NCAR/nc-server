@@ -24,8 +24,6 @@
  ********************************************************************
 */
 
-#include <nidas/Config.h> 
-
 #ifndef NIDAS_DYNLD_ISFF_NETCDFRPCOUTPUT_H
 #define NIDAS_DYNLD_ISFF_NETCDFRPCOUTPUT_H
 
@@ -87,17 +85,6 @@ public:
 
     void fromDOMElement(const xercesc::DOMElement* node);
 
-    /**
-     * The NetcdfRPCOutput can have a time window which clips the samples
-     * outside the window.  Only samples at or after @p startTime and
-     * before @p endTime will be passed along.  One or both of start and
-     * end time can be zero, in which case only the non-zero times are used
-     * to clip samples.
-     **/
-    void
-    setTimeClippingWindow(const nidas::util::UTime& startTime,
-                          const nidas::util::UTime& endTime);
-
 protected:
 
     /**
@@ -120,13 +107,6 @@ private:
     NetcdfRPCChannel* _ncChannel;
 
     /**
-     * Clipping time window.  Samples outside the given time window will
-     * not pass.
-     **/
-    dsm_time_t _startTime;
-    dsm_time_t _endTime;
-
-    /**
      * No copy.
      */
     NetcdfRPCOutput(const NetcdfRPCOutput&);
@@ -140,4 +120,4 @@ private:
 
 }}}	// namespace nidas namespace dynld namespace isff
 
-#endif
+#endif // NIDAS_DYNLD_ISFF_NETCDFRPCOUTPUT_H

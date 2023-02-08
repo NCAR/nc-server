@@ -1,16 +1,36 @@
 
 from SCons.Script import Environment
 
-env = Environment(tools=["default", "rpc", "nidas"])
+env = Environment(tools=["default", "nc_server_client"])
 
-# Build the nidas dynamic shared objects.
-liboutput = env.LoadableModule("nidas_dynld_NetcdfRPCOutput",
-                               "NetcdfRPCOutput.cc")
+# This matches the hardcoded soVersionSuffix in nidas::core::DOMObjectFactory,
+# so the netcdf rpc modules will have a .so.1 suffix which nidas will find.
+env['SHLIBVERSION'] = '1'
 
-libchannel = env.LoadableModule("nidas_dynld_NetcdfRPCChannel",
-                                "NetcdfRPCChannel.cc")
+# These headers are not installed, because nothing builds against them.
+headers = env.Split("""
+    NetcdfRPCChannel.h
+    NetcdfRPCOutput.h
+""")
 
-instlibs = []
-instlibs.extend(env.Install('$LIBDIR', liboutput))
-instlibs.extend(env.Install('$LIBDIR', libchannel))
+# The NetcdfRPC classes have dependencies between each other, so they cannot
+# be loaded individually as shared objects. It should work to put them into
+# their own namespace with their own library, like nidas_dynld_ncrpc, so the
+# nidas dynamic loader will find the shared library under the namespace name,
+# but then all the configs would have to change which load with the
+# isff.NetcdfRPCOutput class name.  So instead, create two libraries, each
+# with both modules in them.  First to get loaded provides both dependencies.
 
+sources = ["NetcdfRPCOutput.cc", "NetcdfRPCChannel.cc"]
+
+liboutput = env.SharedLibrary("nidas_dynld_NetcdfRPCOutput", sources)
+libchannel = env.SharedLibrary("nidas_dynld_NetcdfRPCChannel", sources)
+
+# These are dynamically loaded shared libraries which are not linked into anything,
+# so there is not much point to versioning them.
+libdir = '${INSTALL_PREFIX}${PREFIX}/${ARCHLIBDIR}'
+instlibs = env.InstallVersionedLib(libdir, liboutput)
+instlibs += env.InstallVersionedLib(libdir, libchannel)
+env.Alias('install', instlibs)
+
+env.Clean('install', instlibs)

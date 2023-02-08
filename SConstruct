@@ -138,11 +138,17 @@ lib = lib_env.SharedLibrary('nc_server_rpc', libobjs,
 
 # Define a tool to build against the nc_server client library.
 def nc_server_client(env):
-    env.AppendUnique(LIBPATH='.')
+    # dynld client environment needs INSTALL_PREFIX and ARCHLIBDIR
+    opts.Update(env)
+    env.Tool('sharedlibrary')
+    env.AppendUnique(LIBPATH='#')
     # only need nidas_util, so get only the lib path for nidas and append
     # nidas_util ourselves
     env.ParseConfig('pkg-config --cflags --libs-only-L nidas')
     env.Append(LIBS=['nc_server_rpc', 'nidas_util'])
+    env.Tool(rpc)
+
+Export('nc_server_client')
 
 # clients need the client library
 clnt_env = env.Clone()
