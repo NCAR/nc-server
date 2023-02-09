@@ -3,6 +3,9 @@ from SCons.Script import Environment
 
 env = Environment(tools=["default", "nc_server_client"])
 
+# Need additional nidas libraries that other nc_server clients do not.
+env.Append(LIBS=['nidas_dynld', 'nidas'])
+
 # This matches the hardcoded soVersionSuffix in nidas::core::DOMObjectFactory,
 # so the netcdf rpc modules will have a .so.1 suffix which nidas will find.
 env['SHLIBVERSION'] = '1'
@@ -23,8 +26,8 @@ headers = env.Split("""
 
 sources = ["NetcdfRPCOutput.cc", "NetcdfRPCChannel.cc"]
 
-liboutput = env.SharedLibrary("nidas_dynld_NetcdfRPCOutput", sources)
-libchannel = env.SharedLibrary("nidas_dynld_NetcdfRPCChannel", sources)
+liboutput = env.SharedLibrary("nidas_dynld_isff_NetcdfRPCOutput", sources)
+libchannel = env.SharedLibrary("nidas_dynld_isff_NetcdfRPCChannel", sources)
 
 # These are dynamically loaded shared libraries which are not linked into anything,
 # so there is not much point to versioning them.

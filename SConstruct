@@ -140,6 +140,8 @@ lib = lib_env.SharedLibrary('nc_server_rpc', libobjs,
 def nc_server_client(env):
     # dynld client environment needs INSTALL_PREFIX and ARCHLIBDIR
     opts.Update(env)
+    if 'PKG_CONFIG_PATH' in env:
+        env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
     env.Tool('sharedlibrary')
     env.AppendUnique(LIBPATH='#')
     # only need nidas_util, so get only the lib path for nidas and append
