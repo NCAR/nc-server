@@ -147,6 +147,7 @@ def nc_server_client(env):
     # only need nidas_util, so get only the lib path for nidas and append
     # nidas_util ourselves
     env.ParseConfig('pkg-config --cflags --libs-only-L nidas')
+    env['LIBNC_SERVER_RPC'] = lib
     env.Append(LIBS=['nc_server_rpc', 'nidas_util'])
     env.Tool(rpc)
 

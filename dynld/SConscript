@@ -29,6 +29,10 @@ sources = ["NetcdfRPCOutput.cc", "NetcdfRPCChannel.cc"]
 liboutput = env.SharedLibrary("nidas_dynld_isff_NetcdfRPCOutput", sources)
 libchannel = env.SharedLibrary("nidas_dynld_isff_NetcdfRPCChannel", sources)
 
+# For some reason adding the libnc_server_rpc.so target to LIBS is not enough
+# ensure that library gets built before these, so add an explicit dependency.
+env.Depends(liboutput + libchannel, env['LIBNC_SERVER_RPC'])
+
 # These are dynamically loaded shared libraries which are not linked into anything,
 # so there is not much point to versioning them.
 libdir = '${INSTALL_PREFIX}${PREFIX}/${ARCHLIBDIR}'
