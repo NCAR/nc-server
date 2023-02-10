@@ -145,7 +145,7 @@ public:
 
     const std::string& getCDLFileName() const { return _cdlFileName; }
 
-    void setCDLFileName(const std::string& val) { _cdlFileName = val; }
+    void setCDLFileName(const std::string& val);
 
     void setFillValue(float val) { _fillValue = val; }
 

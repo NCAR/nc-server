@@ -1002,3 +1002,9 @@ size_t NetcdfRPCChannel::write(const struct iovec*, int)
 {
     throw n_u::IOException(getName(), "default write","not supported");
 }
+
+void NetcdfRPCChannel::setCDLFileName(const std::string& val)
+{
+    _cdlFileName = val;
+    DLOG(("") << getName() << ": cdl name set: " << _cdlFileName);
+}

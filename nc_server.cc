@@ -533,8 +533,8 @@ FileGroup::FileGroup(const struct connection *conn):
 
     _CDLFileName = conn->cdlfile;
 
-    VLOG(("created FileGroup, dir=%s,file=%s",
-          _outputDir.c_str(), _fileNameFormat.c_str()));
+    VLOG(("created FileGroup, dir=") << _outputDir
+         << ", file=" << _fileNameFormat << ", cdl=" << _CDLFileName);
 }
 
 FileGroup::~FileGroup(void)
