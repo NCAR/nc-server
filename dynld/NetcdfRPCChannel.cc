@@ -25,6 +25,7 @@
 */
 
 #include "NetcdfRPCChannel.h"
+#include "nc_server_client.h"
 
 #include <nidas/core/DSMConfig.h>
 #include <nidas/core/Site.h>
@@ -112,21 +113,21 @@ void NetcdfRPCChannel::setServer(const string& val)
 {
     _server = val;
     setName(string("ncserver: ") + getServer() + ':' + 
-    	getDirectory() + "/" + getFileNameFormat());
+            getDirectory() + "/" + getFileNameFormat());
 }
 
 void NetcdfRPCChannel::setFileNameFormat(const string& val)
 {
     _fileNameFormat = val;
     setName(string("ncserver: ") + getServer() + ':' + 
-    	getDirectory() + "/" + getFileNameFormat());
+            getDirectory() + "/" + getFileNameFormat());
 }
 
 void NetcdfRPCChannel::setDirectory(const string& val)
 {
     _directory = val;
     setName(string("ncserver: ") + getServer() + ':' + 
-    	getDirectory() + "/" + getFileNameFormat());
+            getDirectory() + "/" + getFileNameFormat());
 }
 
 void NetcdfRPCChannel::setRPCTimeout(int secs)
@@ -184,33 +185,11 @@ IOChannel* NetcdfRPCChannel::connect()
         setCDLFileName(Project::getInstance()->expandString(getCDLFileName()));
     }
 
-    // If NC_SERVER_PORT is set in the environment, then that is the
-    // nc_server instance we're supposed to connect to.
-
-    const char* envport = getenv("NC_SERVER_PORT");
-    if (envport)
-    {
-        int sockp = RPC_ANYSOCK;
-        int nc_server_port = atoi(envport);
-        n_u::Inet4Address haddr = n_u::Inet4Address::getByName(getServer());
-        n_u::Inet4SocketAddress saddr(haddr, nc_server_port);
-
-        DLOG(("connecting directly to rpc server at ")
-             << saddr.toAddressString());
-        _clnt = clnttcp_create((struct sockaddr_in*)saddr.getSockAddrPtr(),
-                               NETCDFSERVERPROG, NETCDFSERVERVERS,
-                               &sockp, 0, 0);
-        DLOG(("clnttcp_create() returned."));
-    }
-    else
-    {
-        _clnt = clnt_create(getServer().c_str(),
-                            NETCDFSERVERPROG, NETCDFSERVERVERS, "tcp");
-    }
+    _clnt = nc_server_client_create(getServer());
     if (_clnt == (CLIENT *) NULL)
     {
         throw n_u::IOException(getName(),"clnt_create",
-	    clnt_spcreateerror(_server.c_str()));
+            clnt_spcreateerror(_server.c_str()));
     }
 
     connection conn;
@@ -232,17 +211,17 @@ IOChannel* NetcdfRPCChannel::connect()
     {
         n_u::IOException e(getName(), "open",
                            clnt_sperror(_clnt,_server.c_str()));
-        clnt_destroy(_clnt);
+        nc_server_client_destroy(_clnt);
         _clnt = 0;
         throw e;
     }
 
     _connectionId = result;
     if (_connectionId < 0) {
-	clnt_destroy(_clnt);
-	_clnt = 0;
-	throw n_u::IOException(getName(),"open",
-	  string("perhaps ") + _directory + " does not exist on server");
+        nc_server_client_destroy(_clnt);
+        _clnt = 0;
+        throw n_u::IOException(getName(),"open",
+            string("perhaps ") + _directory + " does not exist on server");
     }
 
     {
@@ -258,8 +237,8 @@ IOChannel* NetcdfRPCChannel::connect()
 
     unsigned int nstations = 0;
     if (project->getMaxSiteNumber() > 0)
-	    nstations = project->getMaxSiteNumber() -
-		project->getMinSiteNumber() + 1;
+            nstations = project->getMaxSiteNumber() -
+                project->getMinSiteNumber() + 1;
     set<int> stns;
     
     list<const SampleTag*> tags = getSampleTags();
@@ -267,32 +246,32 @@ IOChannel* NetcdfRPCChannel::connect()
     for ( ; si != tags.end(); ++si) {
         const SampleTag* stag = *si;
 
-	// station: -1 unknown, 0 for non-station, otherwise > 0
-	int tagStation = stag->getStation();
-	for (VariableIterator vi = stag->getVariableIterator();
-		vi.hasNext(); ) {
-	    const Variable* var = vi.next();
+        // station: -1 unknown, 0 for non-station, otherwise > 0
+        int tagStation = stag->getStation();
+        for (VariableIterator vi = stag->getVariableIterator();
+                vi.hasNext(); ) {
+            const Variable* var = vi.next();
 
             VLOG(("NetcdfRPCChannel::connect(), stag=")
                  << stag->getDSMId() << ',' << stag->getSpSId()
                  << ", var=" << var->getName()
                  << " varstation=" << var->getStation()
                  << " tagstation=" << tagStation);
-	    int vstn = var->getStation();
+            int vstn = var->getStation();
 
-	    if (vstn < 0) n_u::Logger::getInstance()->log(LOG_WARNING,
-		"var %s is from station %d",
-		var->getName().c_str(),vstn);
+            if (vstn < 0) n_u::Logger::getInstance()->log(LOG_WARNING,
+                "var %s is from station %d",
+                var->getName().c_str(),vstn);
 
             if (tagStation < 0) tagStation = vstn;
-	    if (vstn > 0) stns.insert(vstn);
-	    if (tagStation >= 0 && vstn != tagStation)
+            if (vstn > 0) stns.insert(vstn);
+            if (tagStation >= 0 && vstn != tagStation)
             {
                 WLOG(("var %s is from station %d, others in this sample "
                       "are from %d", var->getName().c_str(), vstn, tagStation));
             }
-	}
-	_stationIndexById[stag->getId()] = tagStation - 1;
+        }
+        _stationIndexById[stag->getId()] = tagStation - 1;
     }
 
     vector<ParameterT<int> > dims;
@@ -300,34 +279,34 @@ IOChannel* NetcdfRPCChannel::connect()
 
     // if we have data from stations with value > 0
     if (stns.size() > 0) {
-	if (stns.size() != nstations)
-	    n_u::Logger::getInstance()->log(LOG_WARNING,
-		"nstations=%d, stns.size()=%d",
-		nstations,stns.size());
+        if (stns.size() != nstations)
+            n_u::Logger::getInstance()->log(LOG_WARNING,
+                "nstations=%d, stns.size()=%d",
+                nstations,stns.size());
 
-	ParameterT<int> stnDim;
-	stnDim.setName("station");
-	stnDim.setValue(nstations);
-	dims.push_back(stnDim);
+        ParameterT<int> stnDim;
+        stnDim.setName("station");
+        stnDim.setValue(nstations);
+        dims.push_back(stnDim);
     }
         
     si = tags.begin();
     for ( ; si != tags.end(); ++si) {
         const SampleTag* stag = *si;
 
-	NcVarGroupFloat* grp = getNcVarGroupFloat(dims,stag);
-	if (!grp) {
+        NcVarGroupFloat* grp = getNcVarGroupFloat(dims,stag);
+        if (!grp) {
             if (_stationIndexById[stag->getId()] < 0)
                 grp = new NcVarGroupFloat(noStnDims,stag,_fillValue);
             else
                 grp = new NcVarGroupFloat(dims,stag,_fillValue);
-	    grp->connect(this,_fillValue);
-	    _groups.push_back(grp);
-	}
+            grp->connect(this,_fillValue);
+            _groups.push_back(grp);
+        }
         VLOG(("adding to groupById, tag=")
              << stag->getDSMId() << ',' << stag->getSpSId()
              << ", dims.size()=" << dims.size());
-	_groupById[stag->getId()] = grp;
+        _groupById[stag->getId()] = grp;
     }
 
     writeGlobalAttr("NIDAS_version", Version::getSoftwareVersion());
@@ -405,40 +384,40 @@ IOChannel* NetcdfRPCChannel::connect()
 }
 
 NcVarGroupFloat* NetcdfRPCChannel::getNcVarGroupFloat(
-	const vector<ParameterT<int> >&dims,
-	const SampleTag* stag)
+        const vector<ParameterT<int> >&dims,
+        const SampleTag* stag)
 {
     list<NcVarGroupFloat*>::const_iterator gi;
     for (gi = _groups.begin(); gi != _groups.end(); ++gi) {
         NcVarGroupFloat* grp = *gi;
 
-	if (grp->getDimensions().size() != dims.size()) continue;
-	vector<ParameterT<int> >::const_iterator di1;
-	vector<ParameterT<int> >::const_iterator di2;
-	for (di1 = grp->getDimensions().begin(),di2=dims.begin();
-		di1 != grp->getDimensions().end(); ++di1,++di2) {
-	    const ParameterT<int>& p1 = *di1;
-	    const ParameterT<int>& p2 = *di2;
-	    if (p1.getName() != p2.getName()) break;
-	    if (p1.getLength() != 1) break;
-	    if (p1.getLength() != p2.getLength()) break;
-	    if (p1.getValue(0) != p2.getValue(0)) break;
-	}
-	if (di1 != grp->getDimensions().end()) continue;
+        if (grp->getDimensions().size() != dims.size()) continue;
+        vector<ParameterT<int> >::const_iterator di1;
+        vector<ParameterT<int> >::const_iterator di2;
+        for (di1 = grp->getDimensions().begin(),di2=dims.begin();
+                di1 != grp->getDimensions().end(); ++di1,++di2) {
+            const ParameterT<int>& p1 = *di1;
+            const ParameterT<int>& p2 = *di2;
+            if (p1.getName() != p2.getName()) break;
+            if (p1.getLength() != 1) break;
+            if (p1.getLength() != p2.getLength()) break;
+            if (p1.getValue(0) != p2.getValue(0)) break;
+        }
+        if (di1 != grp->getDimensions().end()) continue;
 
-	if (grp->getVariables().size() !=
-		stag->getVariables().size()) continue;
-	vector<const Variable*>::const_iterator vi1;
-	vector<const Variable*>::const_iterator vi2;
-	for (vi1 = grp->getVariables().begin(),
-		vi2=stag->getVariables().begin();
-		vi1 != grp->getVariables().end(); ++vi1,++vi2) {
-	    const Variable* v1 = *vi1;
-	    const Variable* v2 = *vi2;
-	    if (!(*v1 == *v2)) break;
-	}
+        if (grp->getVariables().size() !=
+                stag->getVariables().size()) continue;
+        vector<const Variable*>::const_iterator vi1;
+        vector<const Variable*>::const_iterator vi2;
+        for (vi1 = grp->getVariables().begin(),
+                vi2=stag->getVariables().begin();
+                vi1 != grp->getVariables().end(); ++vi1,++vi2) {
+            const Variable* v1 = *vi1;
+            const Variable* v2 = *vi2;
+            if (!(*v1 == *v2)) break;
+        }
         if (grp->getInterval() != stag->getPeriod()) continue;
-	if (vi1 == grp->getVariables().end()) return grp;
+        if (vi1 == grp->getVariables().end()) return grp;
     }
     return 0;
 }
@@ -448,7 +427,7 @@ void NetcdfRPCChannel::write(const Sample* samp)
     dsm_sample_id_t sampid = samp->getId();
 
     map<dsm_sample_id_t,NcVarGroupFloat*>::const_iterator gi =
-    	_groupById.find(sampid);
+            _groupById.find(sampid);
 
     VLOG(("NetcdfRPCChannel::write: ")
          << n_u::UTime(samp->getTimeTag()).format(true,"%Y %m %d %H:%M:%S.%3f")
@@ -472,7 +451,7 @@ void NetcdfRPCChannel::write(datarec_float *rec)
      */
     if (_rpcBatchPeriod == 0 || time(0) - _lastNonBatchWrite > _rpcBatchPeriod) {
         nonBatchWrite(rec);
-	return;
+        return;
     }
 
     /*
@@ -483,11 +462,11 @@ void NetcdfRPCChannel::write(datarec_float *rec)
          << " id=" << rec->datarecId << " v[0]=" << rec->data.data_val[0]);
     enum clnt_stat clnt_stat;
     clnt_stat = clnt_call(_clnt, WRITE_DATAREC_BATCH_FLOAT,
-	(xdrproc_t) xdr_datarec_float, (caddr_t) rec,
-	(xdrproc_t) NULL, (caddr_t) NULL,
-	_rpcBatchTimeout);
+        (xdrproc_t) xdr_datarec_float, (caddr_t) rec,
+        (xdrproc_t) NULL, (caddr_t) NULL,
+        _rpcBatchTimeout);
     if (clnt_stat != RPC_SUCCESS)
-	throw n_u::IOException(getName(),"write",clnt_sperror(_clnt,""));
+        throw n_u::IOException(getName(),"write",clnt_sperror(_clnt,""));
 }
 
 void NetcdfRPCChannel::nonBatchWrite(datarec_float *rec)
@@ -496,26 +475,26 @@ void NetcdfRPCChannel::nonBatchWrite(datarec_float *rec)
     enum clnt_stat clnt_stat;
 
     for ( ; ; ) {
-	clnt_stat = clnt_call(_clnt, WRITE_DATAREC_FLOAT,
-	    (xdrproc_t) xdr_datarec_float, (caddr_t) rec,
-	    (xdrproc_t) xdr_int, (caddr_t) &result,
-	    _rpcWriteTimeout);
-	if (clnt_stat != RPC_SUCCESS) {
-	    bool serious = (clnt_stat != RPC_TIMEDOUT && clnt_stat != RPC_CANTRECV) ||
+        clnt_stat = clnt_call(_clnt, WRITE_DATAREC_FLOAT,
+            (xdrproc_t) xdr_datarec_float, (caddr_t) rec,
+            (xdrproc_t) xdr_int, (caddr_t) &result,
+            _rpcWriteTimeout);
+        if (clnt_stat != RPC_SUCCESS) {
+            bool serious = (clnt_stat != RPC_TIMEDOUT && clnt_stat != RPC_CANTRECV) ||
                 _ntry++ >= NTRY;
-	    if (serious) 
-		throw n_u::IOException(getName(),"write", clnt_sperror(_clnt,""));
-	    if (_ntry > NTRY / 2) {
-		n_u::Logger::getInstance()->log(LOG_WARNING,
-			"%s: %s, timeout=%d secs, ntry=%d",
-		    getName().c_str(),clnt_sperror(_clnt,"nc_server not responding"),
-		    _rpcWriteTimeout.tv_sec ,_ntry);
-	    }
-	}
-	else {
-	    if (!result && _ntry > 0)
-	    	n_u::Logger::getInstance()->log(LOG_WARNING,"%s: OK",
-		    getName().c_str());
+            if (serious) 
+                throw n_u::IOException(getName(),"write", clnt_sperror(_clnt,""));
+            if (_ntry > NTRY / 2) {
+                n_u::Logger::getInstance()->log(LOG_WARNING,
+                        "%s: %s, timeout=%d secs, ntry=%d",
+                    getName().c_str(),clnt_sperror(_clnt,"nc_server not responding"),
+                    _rpcWriteTimeout.tv_sec ,_ntry);
+            }
+        }
+        else {
+            if (!result && _ntry > 0)
+                    n_u::Logger::getInstance()->log(LOG_WARNING,"%s: OK",
+                    getName().c_str());
             _ntry = 0;
             /* If result is non-zero, then an error occured on nc_server.
              * checkError() will retrieve the error string and throw the exception.
@@ -631,21 +610,21 @@ void NetcdfRPCChannel::checkError()
         _rpcWriteTimeout);
 
     if (clnt_stat != RPC_SUCCESS) {
-	bool serious = (clnt_stat != RPC_TIMEDOUT && clnt_stat != RPC_CANTRECV) ||
+        bool serious = (clnt_stat != RPC_TIMEDOUT && clnt_stat != RPC_CANTRECV) ||
                 _ntry++ >= NTRY;
         if (serious)
             throw n_u::IOException(getName(),"checkError",clnt_sperror(_clnt,""));
-	n_u::Logger::getInstance()->log(LOG_WARNING,
-		"%s: %s, timeout=%d secs, ntry=%d",
-	    getName().c_str(),clnt_sperror(_clnt,"nc_server not responding"),
-	    _rpcWriteTimeout.tv_sec ,_ntry);
+        n_u::Logger::getInstance()->log(LOG_WARNING,
+                "%s: %s, timeout=%d secs, ntry=%d",
+            getName().c_str(),clnt_sperror(_clnt,"nc_server not responding"),
+            _rpcWriteTimeout.tv_sec ,_ntry);
     }
     else {
-	if (!errormsg[0] && _ntry > 0)
-	    n_u::Logger::getInstance()->log(LOG_WARNING,"%s: OK",
-		getName().c_str());
-	_ntry = 0;
-	_lastNonBatchWrite = time((time_t*)0);
+        if (!errormsg[0] && _ntry > 0)
+            n_u::Logger::getInstance()->log(LOG_WARNING,"%s: OK",
+                getName().c_str());
+        _ntry = 0;
+        _lastNonBatchWrite = time((time_t*)0);
 
         /*
            If error string is non-empty, then an error occured on nc_server.
@@ -668,19 +647,19 @@ void NetcdfRPCChannel::close()
     _groupById.clear();
 
     if (_clnt) {
-	int result = 0;
-	enum clnt_stat clnt_stat;
-	if ((clnt_stat = clnt_call(_clnt, CLOSE_CONNECTION,
-	    (xdrproc_t) xdr_int, (caddr_t) &_connectionId,
-	    (xdrproc_t) xdr_int, (caddr_t) &result,
-	    _rpcOtherTimeout)) != RPC_SUCCESS) {
-	  n_u::IOException e(getName(),"close",clnt_sperror(_clnt,""));
-	  clnt_destroy(_clnt);
-	  _clnt = 0;
-	  throw e;
-	}
-	clnt_destroy(_clnt);
-	_clnt = 0;
+        int result = 0;
+        enum clnt_stat clnt_stat;
+        if ((clnt_stat = clnt_call(_clnt, CLOSE_CONNECTION,
+            (xdrproc_t) xdr_int, (caddr_t) &_connectionId,
+            (xdrproc_t) xdr_int, (caddr_t) &result,
+            _rpcOtherTimeout)) != RPC_SUCCESS) {
+          n_u::IOException e(getName(),"close",clnt_sperror(_clnt,""));
+          nc_server_client_destroy(_clnt);
+          _clnt = 0;
+          throw e;
+        }
+        nc_server_client_destroy(_clnt);
+        _clnt = 0;
         ILOG(("closed: ") << getName());
     }
 }
@@ -689,7 +668,7 @@ void NetcdfRPCChannel::fromDOMElement(const xercesc::DOMElement* node)
 {
     XDOMElement xnode(node);
     if(node->hasAttributes()) {
-	// get all the attributes of the node
+        // get all the attributes of the node
         xercesc::DOMNamedNodeMap *pAttributes = node->getAttributes();
         int nSize = pAttributes->getLength();
         for(int i=0;i<nSize;++i) {
@@ -702,68 +681,68 @@ void NetcdfRPCChannel::fromDOMElement(const xercesc::DOMElement* node)
             if (getDSMConfig()) sval = getDSMConfig()->expandString(aval);
             else sval = Project::getInstance()->expandString(aval);
 
-	    if (aname == "server") setServer(n_u::Process::expandEnvVars(aval));
-	    else if (aname == "dir") setDirectory(aval);
-	    else if (aname == "file") setFileNameFormat(aval);
-	    else if (aname == "cdl") setCDLFileName(sval);
-	    else if (aname == "interval") {
-		istringstream ist(sval);
-		int val;
-		ist >> val;
-		if (ist.fail())
-		    throw n_u::InvalidParameterException(getName(),
-			sval, sval);
-		setTimeInterval(val);
+            if (aname == "server") setServer(n_u::Process::expandEnvVars(aval));
+            else if (aname == "dir") setDirectory(aval);
+            else if (aname == "file") setFileNameFormat(aval);
+            else if (aname == "cdl") setCDLFileName(sval);
+            else if (aname == "interval") {
+                istringstream ist(sval);
+                int val;
+                ist >> val;
+                if (ist.fail())
+                    throw n_u::InvalidParameterException(getName(),
+                        sval, sval);
+                setTimeInterval(val);
             }
-	    else if (aname == "length") {
-		istringstream ist(sval);
-		int val;
-		ist >> val;
-		if (ist.fail())
-		    throw n_u::InvalidParameterException(getName(),
-			sval, sval);
-		setFileLength(val);
-	    }
-	    else if (aname == "floatFill") {
-		istringstream ist(sval);
-		float val;
-		ist >> val;
-		if (ist.fail())
-		    throw n_u::InvalidParameterException(getName(),
-			aname, sval);
-		setFillValue(val);
-	    }
-	    else if (aname == "timeout") {
-		istringstream ist(sval);
-		int val;
-		ist >> val;
-		if (ist.fail())
-		    throw n_u::InvalidParameterException(getName(),
-			sval, sval);
-		setRPCTimeout(val);
-	    }
-	    else if (aname == "batchPeriod") {
-		istringstream ist(sval);
-		int val;
-		ist >> val;
-		if (ist.fail())
-		    throw n_u::InvalidParameterException(getName(),
-			sval, sval);
-		setRPCBatchPeriod(val);
-	    }
-	    else throw n_u::InvalidParameterException(getName(),
-			"unrecognized attribute", aname);
-	}
+            else if (aname == "length") {
+                istringstream ist(sval);
+                int val;
+                ist >> val;
+                if (ist.fail())
+                    throw n_u::InvalidParameterException(getName(),
+                        sval, sval);
+                setFileLength(val);
+            }
+            else if (aname == "floatFill") {
+                istringstream ist(sval);
+                float val;
+                ist >> val;
+                if (ist.fail())
+                    throw n_u::InvalidParameterException(getName(),
+                        aname, sval);
+                setFillValue(val);
+            }
+            else if (aname == "timeout") {
+                istringstream ist(sval);
+                int val;
+                ist >> val;
+                if (ist.fail())
+                    throw n_u::InvalidParameterException(getName(),
+                        sval, sval);
+                setRPCTimeout(val);
+            }
+            else if (aname == "batchPeriod") {
+                istringstream ist(sval);
+                int val;
+                ist >> val;
+                if (ist.fail())
+                    throw n_u::InvalidParameterException(getName(),
+                        sval, sval);
+                setRPCBatchPeriod(val);
+            }
+            else throw n_u::InvalidParameterException(getName(),
+                        "unrecognized attribute", aname);
+        }
     }
 }
 
 NcVarGroupFloat::NcVarGroupFloat(
-	const std::vector<ParameterT<int> >& dims,
+        const std::vector<ParameterT<int> >& dims,
         const SampleTag* stag,float fill):
-	_dimensions(dims),
-	_sampleTag(*stag),_rec(),
-	_weightsIndex(-1),
-	_fillValue(fill),
+        _dimensions(dims),
+        _sampleTag(*stag),_rec(),
+        _weightsIndex(-1),
+        _fillValue(fill),
         _interval(stag->getPeriod())
 {
     _rec.start.start_val = 0;
@@ -796,33 +775,33 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
     ddef.dimensions.dimensions_len = ndims;
 
     if (ndims > 0) {
-	ddef.dimensions.dimensions_val = new dimension[ndims];
-	for(int i = 0; i < ndims; i++) {
-	    ddef.dimensions.dimensions_val[i].name =
-	    	(char *)_dimensions[i].getName().c_str();
-	    ddef.dimensions.dimensions_val[i].size = _dimensions[i].getValue(0);
-	}
+        ddef.dimensions.dimensions_val = new dimension[ndims];
+        for(int i = 0; i < ndims; i++) {
+            ddef.dimensions.dimensions_val[i].name =
+                    (char *)_dimensions[i].getName().c_str();
+            ddef.dimensions.dimensions_val[i].size = _dimensions[i].getValue(0);
+        }
     }
     _weightsIndex = -1;
     string weightsName;
     VariableIterator vi = _sampleTag.getVariableIterator();
     for (int i = 0; vi.hasNext(); i++) {
-	const Variable* var = vi.next();
-	if (var->getType() == Variable::WEIGHT) {
-	    _weightsIndex = i;
-	    weightsName = var->getName();
-	    string::size_type n;
-	    while ((n = weightsName.find('.')) != string::npos)
-	    	weightsName[n] = '_';
-	}
+        const Variable* var = vi.next();
+        if (var->getType() == Variable::WEIGHT) {
+            _weightsIndex = i;
+            weightsName = var->getName();
+            string::size_type n;
+            while ((n = weightsName.find('.')) != string::npos)
+                    weightsName[n] = '_';
+        }
     }
 
     int nvars = _sampleTag.getVariables().size();
     if (_weightsIndex >= 0) {
-	if (_weightsIndex != nvars - 1)
-	    throw n_u::IOException(conn->getName(),"connect",
-		"weights variable should be last");
-	nvars--;
+        if (_weightsIndex != nvars - 1)
+            throw n_u::IOException(conn->getName(),"connect",
+                "weights variable should be last");
+        nvars--;
     }
 
     ddef.variables.variables_val = new variable[nvars];
@@ -830,43 +809,43 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
    
     vi = _sampleTag.getVariableIterator();
     for (int i = 0; vi.hasNext(); ) {
-	const Variable* var = vi.next();
+        const Variable* var = vi.next();
         struct variable& dvar = ddef.variables.variables_val[i];
 
-	if (var->getType() == Variable::WEIGHT) continue;
-	if (ndims > 0) 
-	    dvar.name = (char *) var->getNameWithoutSite().c_str();
-	else
-	    dvar.name = (char *) var->getName().c_str();
+        if (var->getType() == Variable::WEIGHT) continue;
+        if (ndims > 0) 
+            dvar.name = (char *) var->getNameWithoutSite().c_str();
+        else
+            dvar.name = (char *) var->getName().c_str();
 
         if (var->getConverter())
             dvar.units = (char *) var->getConverter()->getUnits().c_str();
         else
             dvar.units = (char *) var->getUnits().c_str();
 
-	int nattrs = 0;
-	if (_weightsIndex >= 0) nattrs++;
-	if (var->getLongName().length() > 0) nattrs++;
+        int nattrs = 0;
+        if (_weightsIndex >= 0) nattrs++;
+        if (var->getLongName().length() > 0) nattrs++;
 
         dvar.attrs.attrs_len = nattrs;
         dvar.attrs.attrs_val = 0;
 
-	if (nattrs > 0) {
+        if (nattrs > 0) {
             dvar.attrs.attrs_val = new str_attr[nattrs];
 
-	    int iattr = 0;
-	    if (_weightsIndex >= 0) {
-		str_attr *s = dvar.attrs.attrs_val + iattr++;
-		s->name = (char *)"counts";
-		s->value = (char *)weightsName.c_str();
-	    }
-	    if (var->getLongName().length() > 0) {
-		str_attr *s = dvar.attrs.attrs_val + iattr++;
-		s->name = (char *)"long_name";
-		s->value = (char *)var->getLongName().c_str();
-	    }
-	}
-	i++;
+            int iattr = 0;
+            if (_weightsIndex >= 0) {
+                str_attr *s = dvar.attrs.attrs_val + iattr++;
+                s->name = (char *)"counts";
+                s->value = (char *)weightsName.c_str();
+            }
+            if (var->getLongName().length() > 0) {
+                str_attr *s = dvar.attrs.attrs_val + iattr++;
+                s->name = (char *)"long_name";
+                s->value = (char *)var->getLongName().c_str();
+            }
+        }
+        i++;
     }
 
     CLIENT *clnt = conn->getRPCClient();
@@ -874,37 +853,37 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
     int ntry;
     int result = 0;
     for (ntry = 0; ntry < 5; ntry++) {
-	clnt_stat = clnt_call(clnt, DEFINE_DATAREC,
-	      (xdrproc_t) xdr_datadef, (caddr_t) &ddef,
-	      (xdrproc_t) xdr_int, (caddr_t) &result,
-	      conn->getRPCOtherTimeoutVal());
-	if (clnt_stat == RPC_SUCCESS) break;
-	n_u::Logger::getInstance()->log(LOG_WARNING,
-	      "nc_server DEFINE_DATAREC failed: %s, timeout=%d secs, ntry=%d",
-	      	clnt_sperrno(clnt_stat),conn->getRPCTimeout(),ntry+1);
-	if (clnt_stat != RPC_TIMEDOUT && clnt_stat != RPC_CANTRECV) break;
+        clnt_stat = clnt_call(clnt, DEFINE_DATAREC,
+              (xdrproc_t) xdr_datadef, (caddr_t) &ddef,
+              (xdrproc_t) xdr_int, (caddr_t) &result,
+              conn->getRPCOtherTimeoutVal());
+        if (clnt_stat == RPC_SUCCESS) break;
+        n_u::Logger::getInstance()->log(LOG_WARNING,
+              "nc_server DEFINE_DATAREC failed: %s, timeout=%d secs, ntry=%d",
+                      clnt_sperrno(clnt_stat),conn->getRPCTimeout(),ntry+1);
+        if (clnt_stat != RPC_TIMEDOUT && clnt_stat != RPC_CANTRECV) break;
     }
     if (ntry > 0 && clnt_stat == RPC_SUCCESS) 
-	n_u::Logger::getInstance()->log(LOG_WARNING,"nc_server OK");
+        n_u::Logger::getInstance()->log(LOG_WARNING,"nc_server OK");
 
     for (int i=0; i < nvars; i++) {
         struct variable& dvar = ddef.variables.variables_val[i];
-	delete [] dvar.attrs.attrs_val;
+        delete [] dvar.attrs.attrs_val;
     }
 
     delete [] ddef.variables.variables_val;
     delete [] ddef.dimensions.dimensions_val;
 
     if (clnt_stat != RPC_SUCCESS)
-	throw n_u::IOException(conn->getName(),"define data rec",
-	    clnt_sperrno(clnt_stat));
+        throw n_u::IOException(conn->getName(),"define data rec",
+            clnt_sperrno(clnt_stat));
 
     // If return is < 0, fetch the error string, and throw exception
     if (result < 0) {
         conn->checkError();
         // checkError should throw an exception if the above call returned a
         // negative result.  If not something's not working right.
-	throw n_u::IOException(conn->getName(),"define data rec","unknown error");
+        throw n_u::IOException(conn->getName(),"define data rec","unknown error");
     }
 
     // initialize data record
@@ -919,8 +898,8 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
     _rec.cnts.cnts_val = 0;
     _rec.cnts.cnts_len = 0;
     if (_weightsIndex >= 0) {
-	_rec.cnts.cnts_val = new int[1];
-	_rec.cnts.cnts_len = 1;
+        _rec.cnts.cnts_val = new int[1];
+        _rec.cnts.cnts_len = 1;
     }
 
     _rec.data.data_val = new float[nvars];
@@ -950,8 +929,8 @@ void NcVarGroupFloat::write(NetcdfRPCChannel* conn,const Sample* samp,
     }
 
     if (stationIndex >= 0) {
-	_rec.start.start_val[0] = stationIndex;
-	_rec.count.count_val[0] = 1;
+        _rec.start.start_val[0] = stationIndex;
+        _rec.count.count_val[0] = 1;
     }
     else {
         assert(_rec.start.start_len == 0);
@@ -962,18 +941,18 @@ void NcVarGroupFloat::write(NetcdfRPCChannel* conn,const Sample* samp,
 
     if (_weightsIndex >= 0) {
         if ((signed)fsamp->getDataLength() > _weightsIndex)
-	    _rec.cnts.cnts_val[0] =
-		(int)rint(fsamp->getConstDataPtr()[_weightsIndex]);
-	else _rec.cnts.cnts_val[0] = 0;
-	_rec.cnts.cnts_len = 1;
-	dlen--;
+            _rec.cnts.cnts_val[0] =
+                (int)rint(fsamp->getConstDataPtr()[_weightsIndex]);
+        else _rec.cnts.cnts_val[0] = 0;
+        _rec.cnts.cnts_len = 1;
+        dlen--;
     }
 
     const float* fdata = fsamp->getConstDataPtr();
     for (unsigned int i = 0; i < _rec.data.data_len; i++) {
         if (i >= dlen || isnan(fdata[i]))
-		_rec.data.data_val[i] = _fillValue;
-	else _rec.data.data_val[i] = fdata[i];
+                _rec.data.data_val[i] = _fillValue;
+        else _rec.data.data_val[i] = fdata[i];
     }
 
     conn->write(&_rec);

@@ -170,15 +170,11 @@ env.PrintProgress("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
 
 nc_server = srv_env.Program('nc_server', srcs)
 
-# Build the clients against the nc_server_client object instead of putting the
-# object in the client library.  This way libnc_server_rpc does not depend on
-# nidas_util.
-nsco = clnt_env.StaticObject("nc_server_client.cc")
-nc_close = clnt_env.Program('nc_close', ['nc_close.cc'] + nsco)
+nc_close = clnt_env.Program('nc_close', ['nc_close.cc'])
 
-nc_sync = clnt_env.Program('nc_sync', ['nc_sync.cc'] + nsco)
+nc_sync = clnt_env.Program('nc_sync', ['nc_sync.cc'])
 
-nc_shutdown = clnt_env.Program('nc_shutdown', ['nc_shutdown.cc'] + nsco)
+nc_shutdown = clnt_env.Program('nc_shutdown', ['nc_shutdown.cc'])
 
 nc_check = nc_env.Program('nc_check','nc_check.c')
 

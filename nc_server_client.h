@@ -30,4 +30,9 @@ nc_server_client_create(const std::string& servername);
 void
 nc_server_client_destroy(CLIENT* client);
 
+// This is a header-only library so it can be used easily by both nc_server
+// clients and the nidas shared modules, without adding a dependency on
+// nidas_util to libnc_server_rpc and without adding another library.
+#include "nc_server_client.cc"
+
 #endif // _nc_server_client_h_
