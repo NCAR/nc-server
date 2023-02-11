@@ -28,7 +28,7 @@ eol_scons.RunScripts()
 eol_scons.EnableInstallAlias(False)
 
 from SCons.Script import Environment, Configure, PathVariable, EnumVariable
-from SCons.Script import Delete
+from SCons.Script import Delete, SConscript
 
 env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
 
@@ -115,6 +115,7 @@ def rpc(env):
         env.PrintProgress("Using legacy rpc.")
         pass
 
+Export('rpc')
 # The rest of the environments to setup, server, lirbrary, and clients,
 # will need RPC/XDR.
 env.Tool(rpc)
@@ -137,11 +138,20 @@ lib = lib_env.SharedLibrary('nc_server_rpc', libobjs,
 
 # Define a tool to build against the nc_server client library.
 def nc_server_client(env):
-    env.AppendUnique(LIBPATH='.')
+    # dynld client environment needs INSTALL_PREFIX and ARCHLIBDIR
+    opts.Update(env)
+    if 'PKG_CONFIG_PATH' in env:
+        env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
+    env.Tool('sharedlibrary')
+    env.AppendUnique(LIBPATH='#')
     # only need nidas_util, so get only the lib path for nidas and append
     # nidas_util ourselves
     env.ParseConfig('pkg-config --cflags --libs-only-L nidas')
+    env['LIBNC_SERVER_RPC'] = lib
     env.Append(LIBS=['nc_server_rpc', 'nidas_util'])
+    env.Tool(rpc)
+
+Export('nc_server_client')
 
 # clients need the client library
 clnt_env = env.Clone()
@@ -160,15 +170,11 @@ env.PrintProgress("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
 
 nc_server = srv_env.Program('nc_server', srcs)
 
-# Build the clients against the nc_server_client object instead of putting the
-# object in the client library.  This way libnc_server_rpc does not depend on
-# nidas_util.
-nsco = clnt_env.StaticObject("nc_server_client.cc")
-nc_close = clnt_env.Program('nc_close', ['nc_close.cc'] + nsco)
+nc_close = clnt_env.Program('nc_close', ['nc_close.cc'])
 
-nc_sync = clnt_env.Program('nc_sync', ['nc_sync.cc'] + nsco)
+nc_sync = clnt_env.Program('nc_sync', ['nc_sync.cc'])
 
-nc_shutdown = clnt_env.Program('nc_shutdown', ['nc_shutdown.cc'] + nsco)
+nc_shutdown = clnt_env.Program('nc_shutdown', ['nc_shutdown.cc'])
 
 nc_check = nc_env.Program('nc_check','nc_check.c')
 
@@ -225,6 +231,8 @@ for f in sysconfigfiles:
 
 sdunit = env.Install("${INSTALL_PREFIX}${UNITDIR}", "systemd/system/nc_server.service")
 env.Alias('install.root', sdunit)
+
+SConscript('dynld/SConscript')
 
 # This works, but it prints a message for every file and directory removed, so
 # resort to just executing the Delete action on the build directory:

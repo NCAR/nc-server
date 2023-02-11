@@ -7,6 +7,15 @@ changes between package releases are listed in the packaging files,
 The format is based on [Keep a Changelog], the versions should follow
 [semantic versioning].
 
+## [Unreleased]
+### Changed
+
+- The NIDAS NetcdfRPCChannel and NetcdfRPCOutput classes, being nc_server
+  clients themselves, are now compiled and installed alongside the nc_server
+  client library.  NIDAS programs which need those modules load them
+  dynamically at runtime, so NIDAS itself does not have to be built against
+  the nc_server client library.
+
 ## [2.0] - 2022-12-07
 
 ### Changed
@@ -52,6 +61,7 @@ The format is based on [Keep a Changelog], the versions should follow
 [semantic versioning]: https://semver.org/spec/v2.0.0.html
 
 <!-- Versions -->
+[Unreleased]: https://github.com/ncareol/nc-server/compare/v2.0...HEAD
 [2.0]: https://github.com/ncareol/nc-server/compare/v1.4...v2.0
 [1.4]: https://github.com/ncareol/nc-server/compare/v1.3...v1.4
 [1.3]: https://github.com/ncareol/nc-server/compare/v1.2...v1.3
