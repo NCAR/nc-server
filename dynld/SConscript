@@ -3,6 +3,8 @@ from SCons.Script import Environment
 
 env = Environment(tools=["default", "nc_server_client"])
 
+env.Append(CXXFLAGS=['-std=c++11'])
+
 # Need additional nidas libraries that other nc_server clients do not.
 env.Append(LIBS=['nidas_dynld', 'nidas'])
 
