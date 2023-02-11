@@ -7,7 +7,21 @@
             "label": "build",
             "type": "shell",
             "command": "scons",
-            "problemMatcher": "$gcc"
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "install",
+            "type": "shell",
+            "command": "scons install",
+            "problemMatcher": "$gcc",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         }
     ]
 }
