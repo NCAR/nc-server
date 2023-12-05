@@ -40,6 +40,8 @@
 #include <list>
 #include <map>
 #include <set>
+#include <memory>
+#include <utility>
 #include <netcdf.hh>
 #include <netcdf.h>
 
@@ -409,6 +411,23 @@ public:
      * @throws NetCDFAccessFailed
      */
     long put_time(double);
+
+    std::unique_ptr<NcAtt>
+    get_att(const std::string& attname) const
+    {
+        std::unique_ptr<NcAtt> att(NcFile::get_att(attname.c_str()));
+        return att;
+    }
+
+    NcBool add_att(const std::string& attname, const std::string& v)
+    {
+        return NcFile::add_att(attname.c_str(), v.c_str());
+    }
+
+    NcBool add_att(const std::string& attname, int v)
+    {
+        return NcFile::add_att(attname.c_str(), v);
+    }
 
     /**
      * @throws NetCDFAccessFailed
@@ -814,23 +833,25 @@ public:
     {
         return _var->name();
     }
-    NcAtt *get_att(NcToken attname) const
+    std::unique_ptr<NcAtt>
+    get_att(const std::string& attname) const
     {
-        return _var->get_att(attname);
+        std::unique_ptr<NcAtt> att(_var->get_att(attname.c_str()));
+        return att;
     }
-    NcBool add_att(NcToken attname, const char *v) const
+    NcBool add_att(const std::string& attname, const std::string& v) const
     {
-        return _var->add_att(attname, v);
-    }
-
-    NcBool add_att(NcToken attname, int v) const
-    {
-        return _var->add_att(attname, v);
+        return _var->add_att(attname.c_str(), v.c_str());
     }
 
-    NcBool add_att(NcToken attname, float v) const
+    NcBool add_att(const std::string& attname, int v) const
     {
-        return _var->add_att(attname, v);
+        return _var->add_att(attname.c_str(), v);
+    }
+
+    NcBool add_att(const std::string& attname, float v) const
+    {
+        return _var->add_att(attname.c_str(), v);
     }
 
     /**

@@ -7,6 +7,13 @@ changes between package releases are listed in the packaging files,
 The format is based on [Keep a Changelog], the versions should follow
 [semantic versioning].
 
+## [Unreleased] - Unreleased
+
+Add an extra check against null pointer returns for attribute values.  The
+netCDF-C++ `NcAtt::as_string()` implementation does not check for null returns
+from `nc_values()`, which can happen if there is an error accessing the file,
+as indicated by occasional core dumps in production.
+
 ## [2.1] - 2022-02-10
 
 ### Changed
@@ -62,6 +69,7 @@ The format is based on [Keep a Changelog], the versions should follow
 [semantic versioning]: https://semver.org/spec/v2.0.0.html
 
 <!-- Versions -->
+[Unreleased]: https://github.com/ncareol/nc-server/
 [2.1]: https://github.com/ncareol/nc-server/compare/v2.0...v2.1
 [2.0]: https://github.com/ncareol/nc-server/compare/v1.4...v2.0
 [1.4]: https://github.com/ncareol/nc-server/compare/v1.3...v1.4

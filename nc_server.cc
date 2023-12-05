@@ -3,14 +3,6 @@
 /*
  ********************************************************************
  Copyright 2005 UCAR, NCAR, All Rights Reserved
-
- $LastChangedDate$
-
- $LastChangedRevision$
-
- $LastChangedBy$
-
- $HeadURL$
  ********************************************************************
  */
 
@@ -61,6 +53,47 @@ namespace local {
 #endif
 
 };
+
+
+/**
+ * @brief Return the attribute's value as a string, or else empty.
+ * 
+ * This is most useful for finding expected attributes by name, while this
+ * function takes care of memory allocation and error checking.
+ * 
+ * @param att 
+ * @return std::string 
+ */
+std::string
+att_as_string(NcAtt* att)
+{
+    // This is the NcAtt::as_string() implementation, but it fails to check
+    // for a null return value from values().  I don't know why values() might
+    // return a null, but that's the implication from the core dumps.
+    //
+    // NcValues* tmp = values();
+    // char* rval = tmp->as_string(n);
+    // delete tmp;
+    // return rval;
+
+    if (att->type() == ncChar && att->num_vals() > 0)
+    {
+        std::unique_ptr<NcValues> tmp(att->values());
+        std::unique_ptr<const char[]> attString;
+        if (tmp)
+            attString.reset(att->as_string(0));
+        if (attString)
+            return std::string(attString.get());
+    }
+    return "";
+}
+
+
+std::string
+att_as_string(std::unique_ptr<NcAtt>& att)
+{
+    return att_as_string(att.get());
+}
 
 
 unsigned long heap()
@@ -1483,25 +1516,22 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         }
     }
 
-    NcAtt *timeOffsetUnitsAtt;
-    if (!(timeOffsetUnitsAtt = _timeOffsetVar->get_att("units"))) {
+    auto timeOffsetUnitsAtt = _timeOffsetVar->get_att("units");
+    if (!timeOffsetUnitsAtt) {
         string since =
             nidas::util::UTime((time_t) _baseTime).format(true,
                     "seconds since %Y-%m-%d %H:%M:%S 00:00");
         if (!_timeOffsetVar->add_att("units", since.c_str()))
             throw NetCDFAccessFailed(getName(),
                     string("add_att units to ") + _timeOffsetVar->name(),get_error_string());
-    } else
-        delete timeOffsetUnitsAtt;
-
+    }
     if (_ttType == FIXED_DELTAT) {
-        NcAtt *intervalAtt;
-        if (!(intervalAtt = _timeOffsetVar->get_att("interval(sec)"))) {
-            if (!_timeOffsetVar->add_att("interval(sec)",_interval))
+        auto intervalAtt = _timeOffsetVar->get_att("interval(sec)");
+        if (!intervalAtt) {
+            if (!_timeOffsetVar->add_att("interval(sec)", _interval))
                 throw NetCDFAccessFailed(getName(),
                         string("add_att interval(sec) to ") +  _timeOffsetVar->name(),get_error_string());
-        } else
-            delete intervalAtt;
+        }
     }
 
     /* Write base time */
@@ -1520,7 +1550,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     // If you throw an exception between here and the end of the
     // constructor, remember to delete historyAtt first.
 
-    NcAtt *historyAtt;
+    auto historyAtt = get_att("history");
     //
     // If history doesn't exist, add a Created message.
     // Otherwise don't add an Updated message unless the user
@@ -1529,14 +1559,13 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     // frequently to add data, and we don't want a history record
     // every time.
     //
-    if (!(historyAtt = get_att("history"))) {
+    if (!historyAtt) {
         string tmphist =
             nidas::util::UTime(_lastAccess).format(true, "Created: %F %T %z\n");
         put_history(tmphist);
     } else {
         _historyHeader =
             nidas::util::UTime(_lastAccess).format(true, "Updated: %F %T %z\n");
-        delete historyAtt;
     }
 
     ILOG(("%s: %s", (openmode == Write ? "Opened" : "Created"),
@@ -1646,21 +1675,14 @@ bool NS_NcFile::checkCountsVariableName(const string& name,VariableGroup * vgrou
         }
         // check counts attributes of time series variables not in this group
         if (j == gvars.size()) {
-            local::auto_ptr<NcAtt> att(ncv->get_att("counts"));
-            if (att.get()) {
-                const char* attString = 0;
-                if (att->type() == ncChar && att->num_vals() > 0 &&
-                        (attString = att->as_string(0)) &&
-                        !strcmp(attString, name.c_str())) {
-                    delete [] attString;
+            auto att(ncv->get_att("counts"));
+            if (att && att_as_string(att) == name) {
 #ifdef WARN_ABOUT_THIS_TOO
-                    WLOG(("%s: %s: counts variable \"%s\" also used by variable %s",
-                        getName().c_str(),vgroup->getName().c_str(),
-                        name.c_str(),ncv->name()));
-                    // return false;   // string match, this is not a good counts name
+                WLOG(("%s: %s: counts variable \"%s\" also used by variable %s",
+                    getName().c_str(),vgroup->getName().c_str(),
+                    name.c_str(),ncv->name()));
+                // return false;   // string match, this is not a good counts name
 #endif
-                }
-                else delete [] attString;
             }
         }
     }
@@ -1748,18 +1770,14 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
                     ov->intFill(), ov->isCnts());
             vars[iv] = nsv;
 
-            NcAtt *att = nsv->get_att("counts");
+            auto att(nsv->get_att("counts"));
             if (att) {
                 // accumulate counts attributes of all variables in this group
                 // in this file
-                if (att->type() == ncChar && att->num_vals() > 0) {
-                    const char *cname = att->as_string(0);
-                    if (cname) {
-                        groupCntsNames.insert(cname);
-                        delete [] cname;
-                    }
+                auto cname = att_as_string(att);
+                if (cname.length() > 0) {
+                    groupCntsNames.insert(cname);
                 }
-                delete att;
             }
         }
     }
@@ -1852,8 +1870,8 @@ bool NS_NcFile::add_attrs(OutVariable* ov, NS_NcVar * var,const string& cntsName
 
     bool modified = false;
 
-    local::auto_ptr<NcAtt> nca(var->get_att("_FillValue"));
-    if (!nca.get()) {
+    auto nca(var->get_att("_FillValue"));
+    if (!nca) {
         modified = true;
         switch (ov->data_type()) {
         case NS_INT:
@@ -1922,16 +1940,9 @@ NcVar *NS_NcFile::find_var(OutVariable* ov)
         nameExists = true;
         // Check its short_name attribute
         if (shortName.length() > 0) {
-            NcAtt *att;
-            if ((att = var->get_att("short_name"))) {
-                char *attString = 0;
-                if (att->type() != ncChar || att->num_vals() == 0 ||
-                        !(attString = att->as_string(0)) ||
-                        ::strcmp(attString, shortName.c_str())) {
-                    var = 0;
-                }
-                delete [] attString;
-                delete att;
+            auto att(var->get_att("short_name"));
+            if (att && att_as_string(att) != shortName) {
+                var = 0;
             }
         }
     }
@@ -1943,23 +1954,17 @@ NcVar *NS_NcFile::find_var(OutVariable* ov)
     for (i = 0; !var && shortName.length() > 0 && i < num_vars(); i++) {
         var = get_var(i);
         // Check its short_name attribute
-        NcAtt *att;
-        if ((att = var->get_att("short_name"))) {
-            char* attString = 0;
+        auto att(var->get_att("short_name"));
+        if (att) {
             VLOG(("") << getName() << ": checking " << var->name()
                       << " for short_name==" << shortName);
-            if (att->type() == ncChar && att->num_vals() > 0 &&
-                    (attString = att->as_string(0)) &&
-                    !::strcmp(attString, shortName.c_str())) {
+            string attString = att_as_string(att);
+            if (attString == shortName) {
                 VLOG(("") << getName() << ": " << varName
                           << " matched short_name " << shortName
                           << ", att=" << attString);
-                delete att;
-                delete [] attString;
                 break;          // match
             }
-            delete att;
-            delete [] attString;
         }
         var = 0;
     }
@@ -2115,13 +2120,10 @@ void NS_NcFile::put_history(string val)
 
     string history;
 
-    NcAtt *historyAtt = get_att("history");
+    auto historyAtt(get_att("history"));
     if (historyAtt) {
-        char *htmp = historyAtt->as_string(0);
-        history = htmp;
-        delete [] htmp;
+        history = att_as_string(historyAtt);
         VLOG(("history=%.40s", history.c_str()));
-        delete historyAtt;
     }
 
     string::size_type i1, i2 = 0;
@@ -2154,17 +2156,12 @@ void NS_NcFile::write_global_attr(const string& name, const string& value)
 {
 
     bool needsUpdate = true;
-    NcAtt *att = get_att(name.c_str());
+    auto att(get_att(name));
     if (att) {
-        if (att->type() == ncChar) {
-            char *htmp = att->as_string(0);
-            needsUpdate = ::strcmp(htmp,value.c_str());
-            delete [] htmp;
-        }
-        delete att;
+        needsUpdate = att_as_string(att) != value;
     }
     if (needsUpdate) {
-        if (!add_att(name.c_str(), value.c_str()))
+        if (!add_att(name, value))
             throw NetCDFAccessFailed(getName(),string("add_att ") + name,get_error_string());
         _lastAccess = time(0);
         VLOG(("%s: NS_NcFile::write_global_attr %s, syncing",
@@ -2179,14 +2176,13 @@ void NS_NcFile::write_global_attr(const string& name, const string& value)
 void NS_NcFile::write_global_attr(const string& name, int value)
 {
     bool needsUpdate = true;
-    NcAtt *att = get_att(name.c_str());
+    auto att = get_att(name);
     if (att) {
         if (att->type() == ncInt && att->num_vals() == 1)
             needsUpdate = value != att->as_int(0);
-        delete att;
     }
     if (needsUpdate) {
-        if (!add_att(name.c_str(), value))
+        if (!add_att(name, value))
             throw NetCDFAccessFailed(getName(),string("add_att ") + name,get_error_string());
         _lastAccess = time(0);
         VLOG(("%s: NS_NcFile::write_global_attr %s, syncing",
@@ -2408,25 +2404,16 @@ NS_NcVar::~NS_NcVar()
 bool NS_NcVar::set_att(const string& aname, const string& aval)
 {
     bool modified = false;
-    const char* faval = 0;
-    local::auto_ptr<NcAtt> nca(get_att(aname.c_str()));
-    if (nca.get()) {
-        local::auto_ptr<NcValues> uvals(nca->values());
-        if (uvals.get() && nca->num_vals() >= 1 && nca->type() == ncChar) {
-            faval = uvals->as_string(0);
-            if (!faval || string(faval) != aval) {
-                modified = true;
-                delete [] faval;
-                if (!add_att(aname.c_str(), aval.c_str()))
-                    throw NetCDFAccessFailed(string("add_att ") +
-                            aname + " to " + name() + ": " + get_error_string());
-            }
-            else delete [] faval;
-        }
+    auto nca(get_att(aname));
+    if (nca && att_as_string(nca) != aval) {
+        modified = true;
+        if (!add_att(aname, aval))
+            throw NetCDFAccessFailed(string("add_att ") +
+                    aname + " to " + name() + ": " + get_error_string());
     }
     else {
         modified = true;
-        if (!add_att(aname.c_str(), aval.c_str()))
+        if (!add_att(aname, aval))
         throw NetCDFAccessFailed(string("add_att ") +
                 aname + " to " + name() + ": " + get_error_string());
     }
