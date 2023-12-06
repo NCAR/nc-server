@@ -333,6 +333,22 @@ protected:
     ~AllFiles(void);
 };
 
+
+/**
+ * Wrap the NcAtt pointer returned by netcdf in a unique_ptr.
+ * 
+ * This is a template since the implementation is the same for anything with a
+ * get_att() method, both NcTypedComponent and NS_NcVar, and it works whether
+ * the get_att() method returns NcAtt* or std::unique_ptr<NcAtt>.
+ */
+template <typename NCT>
+std::unique_ptr<NcAtt>
+get_att_unique(NCT* nct, const std::string& attname)
+{
+    return std::unique_ptr<NcAtt>{nct->get_att(attname.c_str())};
+}
+
+
 class NS_NcFile: public NcFile
 {
 public:
@@ -402,8 +418,7 @@ public:
     std::unique_ptr<NcAtt>
     get_att(const std::string& attname) const
     {
-        std::unique_ptr<NcAtt> att(NcFile::get_att(attname.c_str()));
-        return att;
+        return std::unique_ptr<NcAtt>{NcFile::get_att(attname.c_str())};
     }
 
     NcBool add_att(const std::string& attname, const std::string& v)
@@ -820,12 +835,14 @@ public:
     {
         return _var->name();
     }
+
     std::unique_ptr<NcAtt>
     get_att(const std::string& attname) const
     {
         std::unique_ptr<NcAtt> att(_var->get_att(attname.c_str()));
         return att;
     }
+
     NcBool add_att(const std::string& attname, const std::string& v) const
     {
         return _var->add_att(attname.c_str(), v.c_str());
@@ -933,8 +950,6 @@ protected:
 class OutVariable: public Variable
 {
 public:
-    OutVariable(const std::string& n, NS_datatype, float, int);
-
     OutVariable(const Variable&, NS_datatype, float, int);
 
     bool &isCnts()

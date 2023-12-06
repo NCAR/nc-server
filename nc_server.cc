@@ -79,7 +79,7 @@ namespace {
  * @return std::string 
  */
 std::string
-att_as_string(NcAtt* att)
+att_as_string_p(NcAtt* att)
 {
     // This is the NcAtt::as_string() implementation, but it fails to check
     // for a null return value from values().  I don't know why values() might
@@ -106,7 +106,7 @@ att_as_string(NcAtt* att)
 std::string
 att_as_string(std::unique_ptr<NcAtt>& att)
 {
-    return att_as_string(att.get());
+    return att_as_string_p(att.get());
 }
 
 
@@ -1530,7 +1530,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         }
     }
 
-    auto timeOffsetUnitsAtt = _timeOffsetVar->get_att("units");
+    auto timeOffsetUnitsAtt = get_att_unique(_timeOffsetVar, "units");
     if (!timeOffsetUnitsAtt) {
         string since =
             nidas::util::UTime((time_t) _baseTime).format(true,
@@ -1540,7 +1540,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
                     string("add_att units to ") + _timeOffsetVar->name(),get_error_string());
     }
     if (_ttType == FIXED_DELTAT) {
-        auto intervalAtt = _timeOffsetVar->get_att("interval(sec)");
+        auto intervalAtt = get_att_unique(_timeOffsetVar, "interval(sec)");
         if (!intervalAtt) {
             if (!_timeOffsetVar->add_att("interval(sec)", _interval))
                 throw NetCDFAccessFailed(getName(),
@@ -1564,7 +1564,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
     // If you throw an exception between here and the end of the
     // constructor, remember to delete historyAtt first.
 
-    auto historyAtt = get_att("history");
+    auto historyAtt = get_att_unique(this, "history");
     //
     // If history doesn't exist, add a Created message.
     // Otherwise don't add an Updated message unless the user
@@ -1689,7 +1689,7 @@ bool NS_NcFile::checkCountsVariableName(const string& name,VariableGroup * vgrou
         }
         // check counts attributes of time series variables not in this group
         if (j == gvars.size()) {
-            auto att(ncv->get_att("counts"));
+            auto att(get_att_unique(ncv, "counts"));
             if (att && att_as_string(att) == name) {
 #ifdef WARN_ABOUT_THIS_TOO
                 WLOG(("%s: %s: counts variable \"%s\" also used by variable %s",
@@ -1784,7 +1784,7 @@ const vector<NS_NcVar*>& NS_NcFile::get_vars(VariableGroup * vgroup)
                     ov->intFill(), ov->isCnts());
             vars[iv] = nsv;
 
-            auto att(nsv->get_att("counts"));
+            auto att(get_att_unique(nsv, "counts"));
             if (att) {
                 // accumulate counts attributes of all variables in this group
                 // in this file
@@ -1884,7 +1884,7 @@ bool NS_NcFile::add_attrs(OutVariable* ov, NS_NcVar * var,const string& cntsName
 
     bool modified = false;
 
-    auto nca(var->get_att("_FillValue"));
+    auto nca(get_att_unique(var, "_FillValue"));
     if (!nca) {
         modified = true;
         switch (ov->data_type()) {
@@ -1954,7 +1954,7 @@ NcVar *NS_NcFile::find_var(OutVariable* ov)
         nameExists = true;
         // Check its short_name attribute
         if (shortName.length() > 0) {
-            auto att(var->get_att("short_name"));
+            auto att(get_att_unique(var, "short_name"));
             if (att && att_as_string(att) != shortName) {
                 var = 0;
             }
@@ -1968,7 +1968,7 @@ NcVar *NS_NcFile::find_var(OutVariable* ov)
     for (i = 0; !var && shortName.length() > 0 && i < num_vars(); i++) {
         var = get_var(i);
         // Check its short_name attribute
-        auto att(var->get_att("short_name"));
+        auto att(get_att_unique(var, "short_name"));
         if (att) {
             VLOG(("") << getName() << ": checking " << var->name()
                       << " for short_name==" << shortName);
@@ -2134,7 +2134,7 @@ void NS_NcFile::put_history(string val)
 
     string history;
 
-    auto historyAtt(get_att("history"));
+    auto historyAtt{get_att_unique(this, "history")};
     if (historyAtt) {
         history = att_as_string(historyAtt);
         VLOG(("history=%.40s", history.c_str()));
@@ -2168,9 +2168,8 @@ void NS_NcFile::put_history(string val)
 
 void NS_NcFile::write_global_attr(const string& name, const string& value)
 {
-
     bool needsUpdate = true;
-    auto att(get_att(name));
+    auto att{get_att_unique(this, name)};
     if (att) {
         needsUpdate = att_as_string(att) != value;
     }
@@ -2190,7 +2189,7 @@ void NS_NcFile::write_global_attr(const string& name, const string& value)
 void NS_NcFile::write_global_attr(const string& name, int value)
 {
     bool needsUpdate = true;
-    auto att = get_att(name);
+    auto att = get_att_unique(this, name);
     if (att) {
         if (att->type() == ncInt && att->num_vals() == 1)
             needsUpdate = value != att->as_int(0);
@@ -2418,7 +2417,7 @@ NS_NcVar::~NS_NcVar()
 bool NS_NcVar::set_att(const string& aname, const string& aval)
 {
     bool modified = false;
-    auto nca(get_att(aname));
+    auto nca{get_att_unique(this, aname)};
     if (nca && att_as_string(nca) != aval) {
         modified = true;
         if (!add_att(aname, aval))

@@ -1,11 +1,14 @@
 
 
 #define BOOST_TEST_DYN_LINK 
-#define BOOST_TEST_MODULE xml config test
+#define BOOST_TEST_MODULE test nc_server
 #include <boost/test/unit_test.hpp>
 namespace utf = boost::unit_test;
 
 #include "nc_server.h"
+#include <memory>
+
+using std::unique_ptr;
 
 
 BOOST_AUTO_TEST_CASE(create_basic_netcdf_file)
@@ -15,8 +18,8 @@ BOOST_AUTO_TEST_CASE(create_basic_netcdf_file)
     auto length = 24 * 3600;
     auto interval = 300;
     double dtime = 1701874262;
-    NS_NcFile *ncfile = new NS_NcFile(fileName, openmode, interval,
-                                      length, dtime);
+    unique_ptr<NS_NcFile> ncfile;
+    ncfile.reset(new NS_NcFile(fileName, openmode, interval, length, dtime));
 
     BOOST_TEST(ncfile->is_valid());
     ncfile->sync();
@@ -26,5 +29,16 @@ BOOST_AUTO_TEST_CASE(create_basic_netcdf_file)
 
     BOOST_TEST(base_time->as_double(0) == 1701820800);
 
-    delete ncfile;
+#ifdef notdef
+    // Attempt at adding a variable, but add_var() is not public, and I'm not
+    // sure this is the right way to go about this, so defer until really
+    // needed.
+    Variable var("T.2.5m.north");
+    OutVariable tdry{var, NS_FLOAT, -999, -999};
+
+    bool modified{false};
+    unique_ptr<NS_NcVar> vtdry{ncfile->add_var(&tdry, modified)};
+#endif
+
+    ncfile->sync();
 }
