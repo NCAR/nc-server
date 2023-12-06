@@ -23,3 +23,5 @@ libnc_server_rpc.so.*
 rpms.txt
 /build/
 etc/ld.so.conf.d/nc_server.conf
+xtest.log
+test_nc_server

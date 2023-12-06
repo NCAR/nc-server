@@ -3,8 +3,8 @@
 # SConstruct for building nc_server RPC server program, shared library for
 # clients, and related utilities.
 
-# The server requires: nidas, netcdf, then svc, procs, and xdr generated from .x
-# interface definition.
+# The server requires: nidas, netcdf, then svc, procs, and xdr generated from
+# .x interface definition.
 #
 # The client library only requires: clnt and xdr.
 #
@@ -18,6 +18,10 @@
 # client_env, nc_env.
 
 import re
+
+from SCons.Script import Environment, Configure, PathVariable, EnumVariable
+from SCons.Script import Delete, SConscript, Export, Chmod
+
 import eol_scons
 
 eol_scons.RunScripts()
@@ -27,30 +31,27 @@ eol_scons.RunScripts()
 # installed into system directories outside of the PREFIX directory.
 eol_scons.EnableInstallAlias(False)
 
-from SCons.Script import Environment, Configure, PathVariable, EnumVariable
-from SCons.Script import Delete, SConscript
-
 env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
-    conf.env.Append(CPPDEFINES = ['HAS_CAPABILITY_H'])
+    conf.env.Append(CPPDEFINES=['HAS_CAPABILITY_H'])
 conf.CheckLib('cap')
 env = conf.Finish()
 
 opts = eol_scons.GlobalVariables('config.py')
-opts.AddVariables(PathVariable('PREFIX','installation path',
+opts.AddVariables(PathVariable('PREFIX', 'installation path',
                                '/opt/nc_server', PathVariable.PathAccept))
 opts.AddVariables(PathVariable('INSTALL_PREFIX',
                                'path to be prepended to all install paths',
                                '', PathVariable.PathAccept))
-opts.AddVariables(PathVariable('SYSCONFIGDIR','/etc installation path',
+opts.AddVariables(PathVariable('SYSCONFIGDIR', '/etc installation path',
                                '/etc', PathVariable.PathAccept))
 opts.AddVariables(PathVariable('PKGCONFIGDIR',
                                'system dir to install nc_server.pc',
                                '/usr/$ARCHLIBDIR/pkgconfig',
                                PathVariable.PathAccept))
-opts.AddVariables(PathVariable('UNITDIR','systemd unit install path',
+opts.AddVariables(PathVariable('UNITDIR', 'systemd unit install path',
                                '$SYSCONFIGDIR/systemd/system',
                                PathVariable.PathAccept))
 
@@ -65,9 +66,9 @@ opts.Add(EnumVariable('BUILDS',
          help='Build architecture: host, armbe, armel or armhf.',
          default='host',
          allowed_values=['host', 'armbe', 'armel', 'armhf']))
-opts.Add('ARCHLIBDIR', 
+opts.Add('ARCHLIBDIR',
          'Where to install nc_server libraries relative to $PREFIX')
-opts.Add('PKG_CONFIG_PATH', 
+opts.Add('PKG_CONFIG_PATH',
          'Path to pkg-config files, if you need other than the system default')
 opts.Update(env)
 
@@ -98,6 +99,7 @@ nc_env.Require('netcdfcxx')
 # -L: generated code sends rpc server errors to syslog
 env['RPCGENSERVICEFLAGS'] = ['-L']
 
+
 # Tool which adds build settings for RPC/XDR.
 def rpc(env):
     # As of Fedora 28, glibc does not include the deprecated Sun RPC
@@ -115,6 +117,7 @@ def rpc(env):
         env.PrintProgress("Using legacy rpc.")
         pass
 
+
 Export('rpc')
 # The rest of the environments to setup, server, lirbrary, and clients,
 # will need RPC/XDR.
@@ -129,12 +132,13 @@ env.Depends(xdr, header)
 
 # Build the client library
 lib_env = env.Clone()
-lib_env.Append(CCFLAGS = ['-Wno-unused', '-Wno-strict-aliasing'])
+lib_env.Append(CCFLAGS=['-Wno-unused', '-Wno-strict-aliasing'])
 libobjs = lib_env.SharedObject([xdr, clnt])
 tag = env.get('REPO_TAG')
 shlibversion = re.sub(r'^[vV]([0-9.]+)(-.*)?$', r'\1', tag)
 lib = lib_env.SharedLibrary('nc_server_rpc', libobjs,
                             SHLIBVERSION=shlibversion)
+
 
 # Define a tool to build against the nc_server client library.
 def nc_server_client(env):
@@ -150,6 +154,7 @@ def nc_server_client(env):
     env['LIBNC_SERVER_RPC'] = lib
     env.Append(LIBS=['nc_server_rpc', 'nidas_util'])
     env.Tool(rpc)
+
 
 Export('nc_server_client')
 
@@ -168,7 +173,9 @@ srcs = ["nc_server.cc", "nc_server_rpc_procs.cc", svc]
 
 env.PrintProgress("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
 
-nc_server = srv_env.Program('nc_server', srcs)
+server_lib = srv_env.StaticLibrary("nc_server", srcs)
+
+nc_server = srv_env.Program('nc_server', ["nc_server_main.cc"] + server_lib)
 
 nc_close = clnt_env.Program('nc_close', ['nc_close.cc'])
 
@@ -176,7 +183,9 @@ nc_sync = clnt_env.Program('nc_sync', ['nc_sync.cc'])
 
 nc_shutdown = clnt_env.Program('nc_shutdown', ['nc_shutdown.cc'])
 
-nc_check = nc_env.Program('nc_check','nc_check.c')
+nc_check = nc_env.Program('nc_check', 'nc_check.c')
+
+env.Default([nc_server, nc_close, nc_sync, nc_shutdown, nc_check])
 
 installs = []
 libdir = '$PREFIX/$ARCHLIBDIR'
@@ -191,12 +200,14 @@ env['SUBST_DICT'] = {'@NC_SERVER_HOME@': "$PREFIX",
                      '@PREFIX@': '$PREFIX',
                      '@ARCHLIBDIR@': '$ARCHLIBDIR',
                      '@REPO_TAG@': '$REPO_TAG',
-                     '@REQUIRES@': '$PCREQUIRES' }
+                     '@REQUIRES@': '$PCREQUIRES'}
 ncscheck = env.Substfile('scripts/nc_server.check.in')
 env.AddPostAction(ncscheck, Chmod(ncscheck[0], 0o775))
-installs += env.Install('${INSTALL_PREFIX}$PREFIX/bin', ['scripts/nc_ping', ncscheck])
+installs += env.Install('${INSTALL_PREFIX}$PREFIX/bin',
+                        ['scripts/nc_ping', ncscheck])
 logconf = env.Substfile('scripts/logrotate.conf.in')
-env.Alias('install.logs', env.Install('${INSTALL_PREFIX}$PREFIX/logs', logconf))
+env.Alias('install.logs',
+          env.Install('${INSTALL_PREFIX}$PREFIX/logs', logconf))
 
 # Create nc_server.pc, replacing @token@
 pc = env.Substfile('nc_server.pc.in')
@@ -226,13 +237,40 @@ for f in sysconfigfiles:
     # the target must be passed as a string and not a node, otherwise the
     # --install-sandbox node factory is not applied to generate the node under
     # the sandbox directory.
-    etcfile = env.InstallAs('${INSTALL_PREFIX}${SYSCONFIGDIR}/'f'{f}', f'etc/{f}')
+    etcfile = env.InstallAs('${INSTALL_PREFIX}${SYSCONFIGDIR}/'f'{f}',
+                            f'etc/{f}')
     env.Alias('install.root', etcfile)
 
-sdunit = env.Install("${INSTALL_PREFIX}${UNITDIR}", "systemd/system/nc_server.service")
+sdunit = env.Install("${INSTALL_PREFIX}${UNITDIR}",
+                     "systemd/system/nc_server.service")
 env.Alias('install.root', sdunit)
 
 SConscript('dynld/SConscript')
+
+test_env = srv_env.Clone()
+test_env.Require(['boost_test', 'testing'])
+testprog = test_env.Program(['test_nc_server.cc'] + server_lib)
+
+test_env['VALGRIND_OPTS'] = [
+    "--num-callers=30",
+    "--show-below-main=yes",
+    "--leak-check=yes",
+    "--error-exitcode=1",
+    "--errors-for-leak-kinds=definite,possible"]
+test_env['VALGRIND'] = "valgrind $VALGRIND_OPTS"
+# find shared rpc library in current directory and append LIBPATH to find
+# whatever was set by nidas pkg-config.
+test_env['ENV']['LD_LIBRARY_PATH'] = ([test_env.Dir('.').abspath] +
+                                      test_env.get('LIBPATH', []))
+
+cmd = "$VALGRIND ./$SOURCE.file --log_level=all"
+log = test_env.File("xtest.log")
+xtest = test_env.Command([log], testprog,
+                         test_env.LogAction([cmd], logpath=log.abspath,
+                                            patterns=None))
+
+test_env.Alias('test', xtest)
+test_env.AlwaysBuild(xtest)
 
 # This works, but it prints a message for every file and directory removed, so
 # resort to just executing the Delete action on the build directory:
