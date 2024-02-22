@@ -18,7 +18,7 @@ export TOPDIR=${TOPDIR:-$(rpmbuild --eval %_topdir)_$(hostname)}
 DEBIAN_REPOSITORY="${DEBIAN_REPOSITORY:-/net/ftp/pub/archive/software/debian}"
 YUM_REPOSITORY="${YUM_REPOSITORY:-/net/www/docs/software/rpms}"
 export DEBIAN_REPOSITORY YUM_REPOSITORY
-export GPGKEY="NCAR EOL Software <eol-prog@eol.ucar.edu>"
+export GPGKEY="NCAR EOL Software <eol-prog2@eol.ucar.edu>"
 
 echo WORKSPACE=$WORKSPACE
 echo TOPDIR=$TOPDIR
@@ -39,13 +39,6 @@ build_rpms()
 }
 
 
-# [RpmSignPlugin] - Starting signing RPMs ...
-# [nc-server-rhel7] $ gpg --fingerprint eol-prog@eol.ucar.edu
-# pub   2048R/3376B2DC 2014-08-29
-#       Key fingerprint = 80C3 C53F 0D89 4192 CF7B  77A5 DE26 CBC0 3376 B2DC
-# uid                  NCAR EOL Software <eol-prog@eol.ucar.edu>
-# sub   2048R/1857091F 2014-08-29
-
 sign_rpms()
 {
     (set -x; exec rpm --addsign --define="%_gpg_name ${GPGKEY}" `cat rpms.txt`)
@@ -65,7 +58,7 @@ update_local_packages()
     # These commands must be matched by a NOPWCMDS setting in /etc/sudoers.
     # Since centos7 does not support --refresh, we cannot use the more
     # convenient combined command.
-    yum="yum -y --disablerepo=* --enablerepo=eol-signed"
+    yum="yum -y --disablerepo=* --enablerepo=eol"
     pkgs="nc_server-lib nc_server-devel nc_server-clients nc_server"
     if false ; then
         sudo -n $yum --refresh -- update $pkgs
