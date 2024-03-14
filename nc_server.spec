@@ -29,9 +29,7 @@ Prefix: /opt/nc_server
 
 BuildRequires: netcdf-cxx-devel netcdf-devel
 BuildRequires: libcap-devel nidas-devel eol_scons
-%if 0%{?fedora} > 28
 BuildRequires: libtirpc-devel rpcgen
-%endif
 %{?systemd_requires}
 Vendor: UCAR
 Source: %{name}-%{version}.tar.gz

@@ -35,7 +35,7 @@ build_rpms()
         (set -x; rm -rf "$TOPDIR/RPMS"; rm -rf "$TOPDIR/SRPMS")
     fi
     # this conveniently creates a list of built rpm files in rpms.txt.
-    (set -x; scons build_rpm nc_server.spec build)
+    (set -x; scons build_rpm nc_server.spec "$@")
 }
 
 
@@ -75,7 +75,11 @@ shift
 case "$method" in
 
     build_rpms)
-        build_rpms "$@"
+        build_rpms build "$@"
+        ;;
+
+    snapshot)
+        build_rpms snapshot "$@"
         ;;
 
     sign_rpms)
