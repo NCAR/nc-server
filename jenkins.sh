@@ -26,6 +26,20 @@ echo DEBIAN_REPOSITORY=$DEBIAN_REPOSITORY
 echo YUM_REPOSITORY=$YUM_REPOSITORY
 
 
+compile()
+{
+    # cache configuration first, then compile with warnings as errors
+    (set -x; scons allow_warnings=off -j5)
+}
+
+
+runtests()
+{
+    compile
+    (set -x; scons allow_warnings=off test)
+}
+
+
 build_rpms()
 {
     # Only clean the rpmbuild space if it's Jenkins, since otherwise it can be
@@ -73,6 +87,14 @@ method="${1:-help}"
 shift
 
 case "$method" in
+
+    compile)
+        compile "$@"
+        ;;
+
+    test)
+        runtests "$@"
+        ;;
 
     build_rpms)
         build_rpms build "$@"
