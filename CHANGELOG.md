@@ -9,10 +9,23 @@ The format is based on [Keep a Changelog], the versions should follow
 
 ## [Unreleased] - Unreleased
 
-Add an extra check against null pointer returns for attribute values.  The
-netCDF-C++ `NcAtt::as_string()` implementation does not check for null returns
-from `nc_values()`, which can happen if there is an error accessing the file,
-as indicated by occasional core dumps in production.
+- Libraries are now installed into `PREFIX/lib` on all platforms, there is no
+  longer an architecture-specific library path.  Besides simplifying the
+  layout and installation, this allows nc-server to be installed easily from
+  source alongside an existing nidas source install:
+
+  ```sh
+  scons PREFIX=/opt/local/nidas PKG_CONFIG_PATH=/opt/local/nidas/lib/pkgconfig install
+  ```
+
+  Using `setup_nidas.sh` to add that NIDAS installation to the environment
+  automatically includes a binary-compatible nc-server installation, especially
+  critical for the NIDAS plugins `NetcdfRPCChannel` and `NetcdfRPCOutput`.
+
+- Add an extra check against null pointer returns for attribute values.  The
+  netCDF-C++ `NcAtt::as_string()` implementation does not check for null
+  returns from `nc_values()`, which can happen if there is an error accessing
+  the file, as indicated by occasional core dumps in production.
 
 ## [2.1] - 2022-02-10
 

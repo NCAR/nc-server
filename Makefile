@@ -8,14 +8,12 @@ BUILDS ?= "host"
 REPO_TAG ?= v1.1
 PREFIX=/opt/nc_server
 
-# Where we want them in the package
-ARCHLIBDIR = lib/$(DEB_HOST_GNU_TYPE)
-
 # Where to find pkg-configs of other software
 PKG_CONFIG_PATH := /usr/lib/$(DEB_HOST_GNU_TYPE)/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
 
 SCONS = $(SCONSPATH) BUILDS=$(BUILDS) REPO_TAG=$(REPO_TAG) \
-  ARCHLIBDIR=$(ARCHLIBDIR) PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) \
+  PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) \
+  PKGCONFIGDIR=/usr/lib/$(DEB_HOST_GNU_TYPE)/pkgconfig \
   LDCONFFILE=nc_server-$(DEB_HOST_GNU_TYPE).conf PREFIX=$(PREFIX)
 
 .PHONY : build clean install

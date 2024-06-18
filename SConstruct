@@ -49,7 +49,7 @@ opts.AddVariables(PathVariable('SYSCONFIGDIR', '/etc installation path',
                                '/etc', PathVariable.PathAccept))
 opts.AddVariables(PathVariable('PKGCONFIGDIR',
                                'system dir to install nc_server.pc',
-                               '/usr/$ARCHLIBDIR/pkgconfig',
+                               '/usr/lib64/pkgconfig',
                                PathVariable.PathAccept))
 opts.AddVariables(PathVariable('UNITDIR', 'systemd unit install path',
                                '$SYSCONFIGDIR/systemd/system',
@@ -66,8 +66,6 @@ opts.Add(EnumVariable('BUILDS',
          help='Build architecture: host, armbe, armel or armhf.',
          default='host',
          allowed_values=['host', 'armbe', 'armel', 'armhf']))
-opts.Add('ARCHLIBDIR',
-         'Where to install nc_server libraries relative to $PREFIX')
 opts.Add('PKG_CONFIG_PATH',
          'Path to pkg-config files, if you need other than the system default')
 opts.Update(env)
@@ -75,10 +73,6 @@ opts.Update(env)
 # Propagate path to the process environment for running pkg-config
 if 'PKG_CONFIG_PATH' in env:
     env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
-
-# use sharedlibrary tool to get ARCHLIBDIR, but not using the builders in
-# favor of the built-in scons shared library builders.
-env.Tool('sharedlibrary')
 
 BUILDS = env['BUILDS']
 if BUILDS == 'armel':
@@ -142,11 +136,10 @@ lib = lib_env.SharedLibrary('nc_server_rpc', libobjs,
 
 # Define a tool to build against the nc_server client library.
 def nc_server_client(env):
-    # dynld client environment needs INSTALL_PREFIX and ARCHLIBDIR
+    # dynld client environment needs INSTALL_PREFIX
     opts.Update(env)
     if 'PKG_CONFIG_PATH' in env:
         env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
-    env.Tool('sharedlibrary')
     env.AppendUnique(LIBPATH='#')
     # only need nidas_util, so get only the lib path for nidas and append
     # nidas_util ourselves
@@ -171,8 +164,6 @@ srv_env.Require(['netcdfcxx'])
 
 srcs = ["nc_server.cc", "nc_server_rpc_procs.cc", svc]
 
-env.PrintProgress("ARCHLIBDIR=%s" % env['ARCHLIBDIR'])
-
 server_lib = srv_env.StaticLibrary("nc_server", srcs)
 
 nc_server = srv_env.Program('nc_server', ["nc_server_main.cc"] + server_lib)
@@ -188,7 +179,7 @@ nc_check = nc_env.Program('nc_check', 'nc_check.c')
 env.Default([nc_server, nc_close, nc_sync, nc_shutdown, nc_check])
 
 installs = []
-libdir = '$PREFIX/$ARCHLIBDIR'
+libdir = '$PREFIX/lib'
 libtgt = env.InstallVersionedLib('${INSTALL_PREFIX}'f'{libdir}', lib)
 installs += libtgt
 installs += env.Install('${INSTALL_PREFIX}$PREFIX/bin',
@@ -198,7 +189,6 @@ installs += env.Install('${INSTALL_PREFIX}$PREFIX/include', 'nc_server_rpc.h')
 env['SUBST_DICT'] = {'@NC_SERVER_HOME@': "$PREFIX",
                      '@NC_SERVER_LIBDIR@': libdir,
                      '@PREFIX@': '$PREFIX',
-                     '@ARCHLIBDIR@': '$ARCHLIBDIR',
                      '@REPO_TAG@': '$REPO_TAG',
                      '@REQUIRES@': '$PCREQUIRES'}
 ncscheck = env.Substfile('scripts/nc_server.check.in')
@@ -213,7 +203,7 @@ env.Alias('install.logs',
 pc = env.Substfile('nc_server.pc.in')
 
 # pkgconfig file gets installed to two places
-installs += env.Install('${INSTALL_PREFIX}$PREFIX/$ARCHLIBDIR/pkgconfig', pc)
+installs += env.Install('${INSTALL_PREFIX}$PREFIX/lib/pkgconfig', pc)
 env.Alias('install.root', env.Install('${INSTALL_PREFIX}${PKGCONFIGDIR}', pc))
 
 # Install userspace systemd unit examples.

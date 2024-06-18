@@ -153,3 +153,29 @@ The test method is like a snapshot, except the source archive is generated
 from a copy of the current source tree rather than a git clone.  Since the
 source archive contains all the modifications currently in the source
 directory, the test method should not be used to create packages for release.
+
+## Debian Packaging
+
+Debian packages can be built with [build_dpkg.sh](build_dpkg.sh).  To test
+Debian packaging with a container, the container must first have NIDAS
+installed.  One way to accomplish this is to first build the NIDAS Debian
+packages using the NIDAS `cnidas.sh` script, then mount the built packages
+into the container so they can be installed.  The container must also have the
+`setcap` utility installed.
+
+```sh
+cd {nidas-source}/scripts
+./cnidas.sh amd64 build
+./cnidas.sh amd64 package
+cd {nc-server-source}
+podman run --rm --volume .:/nc-server:rw,Z --volume $HOME/.scons:/root/.scons:rw,Z --volume /tmp/cnidas/packages/ubuntu:/packages:rw,Z -i -t nidas-build-ubuntu-amd64 /bin/bash
+```
+
+Inside the container:
+
+```sh
+apt-get update
+apt install libcap2-bin /packages/nidas*.deb libnetcdf-cxx-legacy-dev
+cd /nc-server
+./build_dpkg.sh amd64
+```

@@ -39,7 +39,7 @@ env.Depends(liboutput + libchannel, env['LIBNC_SERVER_RPC'])
 
 # These are dynamically loaded shared libraries which are not linked into
 # anything, so there is not much point to versioning them.
-libdir = '${INSTALL_PREFIX}${PREFIX}/${ARCHLIBDIR}'
+libdir = '${INSTALL_PREFIX}${PREFIX}/lib'
 instlibs = env.InstallVersionedLib(libdir, liboutput)
 instlibs += env.InstallVersionedLib(libdir, libchannel)
 env.Alias('install', instlibs)
