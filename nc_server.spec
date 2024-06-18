@@ -96,20 +96,20 @@ exit 0
 
 %files lib
 %config %{_sysconfdir}/ld.so.conf.d/nc_server.conf
-%{prefix}/%{_lib}/libnc_server_rpc.so.%{version_major}.%{version_minor}
+%{prefix}/lib/libnc_server_rpc.so.%{version_major}.%{version_minor}
 # the version for these modules is tied to nidas, which is currently hardcoded
 # to expect .1.  Technically they are only used at runtime and not meant to be
 # linked against, so the version-less link is included here instead of devel
-%{prefix}/%{_lib}/libnidas_dynld_isff_NetcdfRPCChannel.so
-%{prefix}/%{_lib}/libnidas_dynld_isff_NetcdfRPCChannel.so.1
-%{prefix}/%{_lib}/libnidas_dynld_isff_NetcdfRPCOutput.so
-%{prefix}/%{_lib}/libnidas_dynld_isff_NetcdfRPCOutput.so.1
+%{prefix}/lib/libnidas_dynld_isff_NetcdfRPCChannel.so
+%{prefix}/lib/libnidas_dynld_isff_NetcdfRPCChannel.so.1
+%{prefix}/lib/libnidas_dynld_isff_NetcdfRPCOutput.so
+%{prefix}/lib/libnidas_dynld_isff_NetcdfRPCOutput.so.1
 
 %files devel
 %{prefix}/include/nc_server_rpc.h
-%{prefix}/%{_lib}/libnc_server_rpc.so.%{version_major}
-%{prefix}/%{_lib}/libnc_server_rpc.so
-%{prefix}/%{_lib}/pkgconfig/nc_server.pc
+%{prefix}/lib/libnc_server_rpc.so.%{version_major}
+%{prefix}/lib/libnc_server_rpc.so
+%{prefix}/lib/pkgconfig/nc_server.pc
 %config %{_libdir}/pkgconfig/nc_server.pc
 
 %files clients
