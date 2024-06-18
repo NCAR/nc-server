@@ -6,10 +6,6 @@
 #include "nc_server.h"
 #include <nidas/util/Logger.h>
 
-/*
-#define  DEBUG
-#define  RPC_SVC_FG
-*/
 
 int *open_connection_2_svc(connection * input, struct svc_req *)
 {
@@ -41,47 +37,34 @@ int *define_datarec_2_svc(datadef * ddef, struct svc_req *)
     }
 
     res = conn->add_var_group(ddef);
-
-#ifdef DEBUG
-    DLOG(("define_datarec_2_svc res=%d", res));
-#endif
-
+    VLOG(("define_datarec_2_svc res=%d", res));
     return &res;
 }
 
 int *write_datarec_float_2_svc(datarec_float * writereq, struct svc_req *)
 {
-
     static int res;
     Connection *conn;
     Connections *connections = Connections::Instance();
 
     res = -1;
 
-#ifdef DEBUG
-    DLOG(("writereq->connectionId=%d", writereq->connectionId));
-#endif
+    VLOG(("writereq->connectionId=%d", writereq->connectionId));
 
     if ((conn = (*connections)[writereq->connectionId]) == 0) {
         PLOG(("write_datarec_float: invalid connection ID: %d",
                     (writereq->connectionId & 0xffff)));
         return &res;
     }
-#ifdef DEBUG
-    DLOG(("writereq->connectionId=%d", writereq->connectionId));
-#endif
+    VLOG(("writereq->connectionId=%d", writereq->connectionId));
 
     res = conn->put_rec(writereq);
-
-#ifdef DEBUG
-    DLOG(("write_datarec_float_2_svc res=%d", res));
-#endif
+    VLOG(("write_datarec_float_2_svc res=%d", res));
     return &res;
 }
 
 int *write_datarec_int_2_svc(datarec_int * writereq, struct svc_req *)
 {
-
     static int res;
     Connection *conn;
     Connections *connections = Connections::Instance();
@@ -94,16 +77,13 @@ int *write_datarec_int_2_svc(datarec_int * writereq, struct svc_req *)
         return &res;
     }
     res = conn->put_rec(writereq);
-#ifdef DEBUG
-    DLOG(("write_datarec_int_2_svc res=%d", res));
-#endif
+    VLOG(("write_datarec_int_2_svc res=%d", res));
     return &res;
 }
 
 void *write_datarec_batch_float_2_svc(datarec_float * writereq,
                                     struct svc_req *)
 {
-
     Connections *connections = Connections::Instance();
     Connection *conn;
 
@@ -112,12 +92,9 @@ void *write_datarec_batch_float_2_svc(datarec_float * writereq,
                     (writereq->connectionId & 0xffff)));
         return (void *) 0;
     }
-    conn->put_rec(writereq);
-
+    int res = conn->put_rec(writereq);
     /* Batch mode, return NULL, so RPC does not reply */
-#ifdef DEBUG
-    DLOG(("write_datarec_batch_float_2_svc res=%d", res));
-#endif
+    VLOG(("write_datarec_batch_float_2_svc res=%d", res));
     return (void *) 0;
 }
 
@@ -132,11 +109,8 @@ void *write_datarec_batch_int_2_svc(datarec_int * writereq,
                     (writereq->connectionId & 0xffff)));
         return (void *) 0;
     }
-    conn->put_rec(writereq);
-#ifdef DEBUG
-    DLOG(("write_datarec_batch_int_2_svc res=%d", res));
-#endif
-
+    int res = conn->put_rec(writereq);
+    VLOG(("write_datarec_batch_int_2_svc res=%d", res));
     /* Batch mode, return NULL, so RPC does not reply */
     return (void *) 0;
 }
@@ -150,51 +124,35 @@ int *write_history_2_svc(history_attr * attr, struct svc_req *)
 
     res = -1;
 
-#ifdef DEBUG
-    DLOG(("write_history attr->connectionId=%d",
+    VLOG(("write_history attr->connectionId=%d",
           attr->connectionId));
-#endif
 
     if ((conn = (*connections)[attr->connectionId]) == 0) {
-#ifdef DEBUG
-        DLOG(("conn=%x", conn));
-#endif
+        VLOG(("conn=%x", conn));
         PLOG(("write_history: invalid connection ID: %d",
                     attr->connectionId));
         return &res;
     }
-#ifdef DEBUG
-    DLOG(("write_history attr->connectionId=%d",
+    VLOG(("write_history attr->connectionId=%d",
           attr->connectionId));
-#endif
-
     res = conn->put_history(attr->history);
-
     return &res;
 }
 
 void *write_history_batch_2_svc(history_attr * attr, struct svc_req *)
 {
-
     Connections *connections = Connections::Instance();
     Connection *conn;
 
-#ifdef DEBUG
-    DLOG(("attr->connectionId=%d", attr->connectionId));
-#endif
+    VLOG(("attr->connectionId=%d", attr->connectionId));
 
     if ((conn = (*connections)[attr->connectionId]) == 0) {
-#ifdef DEBUG
-        DLOG(("conn=%x", conn));
-#endif
+        VLOG(("conn=%x", conn));
         PLOG(("write_history_batch: invalid connection ID: %d",
                     (attr->connectionId & 0xffff)));
         return (void *) 0;
     }
-#ifdef DEBUG
-    DLOG(("attr->connectionId=%d", attr->connectionId));
-#endif
-
+    VLOG(("attr->connectionId=%d", attr->connectionId));
     conn->put_history(attr->history);
 
     /* Batch mode, return NULL, so RPC does not reply */
@@ -203,71 +161,52 @@ void *write_history_batch_2_svc(history_attr * attr, struct svc_req *)
 
 int *write_global_attr_2_svc(global_attr * attr, struct svc_req *)
 {
-
     Connections *connections = Connections::Instance();
     Connection *conn;
     static int res;
 
     res = -1;
 
-#ifdef DEBUG
-    DLOG(("write_global_attr: attr->connectionId=%d",
+    VLOG(("write_global_attr: attr->connectionId=%d",
           attr->connectionId));
-#endif
 
     if ((conn = (*connections)[attr->connectionId]) == 0) {
-#ifdef DEBUG
-        DLOG(("conn=%x", conn));
-#endif
+        VLOG(("conn=%x", conn));
         PLOG(("write_global_attr: invalid connection ID: %d",
                     attr->connectionId));
         return &res;
     }
-#ifdef DEBUG
-    DLOG(("write_global_attr: attr->connectionId=%d",
+    VLOG(("write_global_attr: attr->connectionId=%d",
           attr->connectionId));
-#endif
-
     res = conn->write_global_attr(attr->attr.name,attr->attr.value);
-
     return &res;
 }
 
 int *write_global_int_attr_2_svc(global_int_attr * attr, struct svc_req *)
 {
-
     Connections *connections = Connections::Instance();
     Connection *conn;
     static int res;
 
     res = -1;
 
-#ifdef DEBUG
-    DLOG(("write_global_int_attr: attr->connectionId=%d",
+    VLOG(("write_global_int_attr: attr->connectionId=%d",
           attr->connectionId));
-#endif
 
     if ((conn = (*connections)[attr->connectionId]) == 0) {
-#ifdef DEBUG
-        DLOG(("conn=%x", conn));
-#endif
+        VLOG(("conn=%x", conn));
         PLOG(("write_global_int_attr: invalid connection ID: %d",
                     attr->connectionId));
         return &res;
     }
-#ifdef DEBUG
-    DLOG(("write_global_int_attr: attr->connectionId=%d",
+    VLOG(("write_global_int_attr: attr->connectionId=%d",
           attr->connectionId));
-#endif
-
     res = conn->write_global_attr(attr->name,attr->value);
-
     return &res;
 }
 
 int *close_connection_2_svc(int *connectionId, struct svc_req *)
 {
-
     static int res;
     Connections *connections = Connections::Instance();
 

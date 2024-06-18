@@ -259,9 +259,9 @@ IOChannel* NetcdfRPCChannel::connect()
                  << " tagstation=" << tagStation);
             int vstn = var->getStation();
 
-            if (vstn < 0) n_u::Logger::getInstance()->log(LOG_WARNING,
-                "var %s is from station %d",
-                var->getName().c_str(),vstn);
+            if (vstn < 0)
+                WLOG(("var %s is from station %d", 
+                      var->getName().c_str(), vstn));
 
             if (tagStation < 0) tagStation = vstn;
             if (vstn > 0) stns.insert(vstn);
@@ -280,16 +280,15 @@ IOChannel* NetcdfRPCChannel::connect()
     // if we have data from stations with value > 0
     if (stns.size() > 0) {
         if (stns.size() != nstations)
-            n_u::Logger::getInstance()->log(LOG_WARNING,
-                "nstations=%d, stns.size()=%d",
-                nstations,stns.size());
+            WLOG(("nstations=%d, stns.size()=%d",
+                  nstations, stns.size()));
 
         ParameterT<int> stnDim;
         stnDim.setName("station");
         stnDim.setValue(nstations);
         dims.push_back(stnDim);
     }
-        
+
     si = tags.begin();
     for ( ; si != tags.end(); ++si) {
         const SampleTag* stag = *si;
@@ -485,16 +484,15 @@ void NetcdfRPCChannel::nonBatchWrite(datarec_float *rec)
             if (serious) 
                 throw n_u::IOException(getName(),"write", clnt_sperror(_clnt,""));
             if (_ntry > NTRY / 2) {
-                n_u::Logger::getInstance()->log(LOG_WARNING,
-                        "%s: %s, timeout=%d secs, ntry=%d",
-                    getName().c_str(),clnt_sperror(_clnt,"nc_server not responding"),
-                    _rpcWriteTimeout.tv_sec ,_ntry);
+                WLOG(("%s: %s, timeout=%d secs, ntry=%d",
+                      getName().c_str(),
+                      clnt_sperror(_clnt, "nc_server not responding"),
+                      _rpcWriteTimeout.tv_sec, _ntry));
             }
         }
         else {
             if (!result && _ntry > 0)
-                    n_u::Logger::getInstance()->log(LOG_WARNING,"%s: OK",
-                    getName().c_str());
+                WLOG(("") << getName() << ": OK");
             _ntry = 0;
             /* If result is non-zero, then an error occured on nc_server.
              * checkError() will retrieve the error string and throw the exception.
@@ -531,16 +529,15 @@ void NetcdfRPCChannel::writeGlobalAttr(const string& name, const string& value)
         if (serious) 
             throw n_u::IOException(getName(),"writeGlobalAttr", clnt_sperror(_clnt,""));
         if (_ntry > NTRY / 2) {
-            n_u::Logger::getInstance()->log(LOG_WARNING,
-                    "%s: %s, timeout=%d secs, ntry=%d",
-                getName().c_str(),clnt_sperror(_clnt,"nc_server not responding"),
-                _rpcWriteTimeout.tv_sec ,_ntry);
+            WLOG(("%s: %s, timeout=%d secs, ntry=%d",
+                  getName().c_str(),
+                  clnt_sperror(_clnt, "nc_server not responding"),
+                  _rpcWriteTimeout.tv_sec, _ntry));
         }
     }
     else {
         if (!result && _ntry > 0)
-            n_u::Logger::getInstance()->log(LOG_WARNING,"%s: OK",
-                getName().c_str());
+            WLOG(("") << getName() << ": OK");
         _ntry = 0;
         /* If result is non-zero, then an error occured on nc_server.
          * checkError() will retrieve the error string and throw the exception.
@@ -575,16 +572,15 @@ void NetcdfRPCChannel::writeGlobalAttr(const string& name, int value)
         if (serious) 
             throw n_u::IOException(getName(),"writeGlobalAttr", clnt_sperror(_clnt,""));
         if (_ntry > NTRY / 2) {
-            n_u::Logger::getInstance()->log(LOG_WARNING,
-                    "%s: %s, timeout=%d secs, ntry=%d",
-                getName().c_str(),clnt_sperror(_clnt,"nc_server not responding"),
-                _rpcWriteTimeout.tv_sec ,_ntry);
+            WLOG(("%s: %s, timeout=%d secs, ntry=%d",
+                  getName().c_str(),
+                  clnt_sperror(_clnt, "nc_server not responding"),
+                  _rpcWriteTimeout.tv_sec, _ntry));
         }
     }
     else {
         if (!result && _ntry > 0)
-            n_u::Logger::getInstance()->log(LOG_WARNING,"%s: OK",
-                getName().c_str());
+            WLOG(("") << getName() << ": OK");
         _ntry = 0;
         /* If result is non-zero, then an error occured on nc_server.
          * checkError() will retrieve the error string and throw the exception.
@@ -598,6 +594,7 @@ void NetcdfRPCChannel::writeGlobalAttr(const string& name, int value)
         _lastNonBatchWrite = time((time_t*)0);
     }
 }
+
 void NetcdfRPCChannel::checkError()
 {
     VLOG(("NetcdfRPRChannel::checkError ")
@@ -614,15 +611,14 @@ void NetcdfRPCChannel::checkError()
                 _ntry++ >= NTRY;
         if (serious)
             throw n_u::IOException(getName(),"checkError",clnt_sperror(_clnt,""));
-        n_u::Logger::getInstance()->log(LOG_WARNING,
-                "%s: %s, timeout=%d secs, ntry=%d",
-            getName().c_str(),clnt_sperror(_clnt,"nc_server not responding"),
-            _rpcWriteTimeout.tv_sec ,_ntry);
+        WLOG(("%s: %s, timeout=%d secs, ntry=%d",
+              getName().c_str(),
+              clnt_sperror(_clnt, "nc_server not responding"),
+              _rpcWriteTimeout.tv_sec, _ntry));
     }
     else {
         if (!errormsg[0] && _ntry > 0)
-            n_u::Logger::getInstance()->log(LOG_WARNING,"%s: OK",
-                getName().c_str());
+            WLOG(("") << getName() << ": OK");
         _ntry = 0;
         _lastNonBatchWrite = time((time_t*)0);
 
@@ -858,13 +854,12 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
               (xdrproc_t) xdr_int, (caddr_t) &result,
               conn->getRPCOtherTimeoutVal());
         if (clnt_stat == RPC_SUCCESS) break;
-        n_u::Logger::getInstance()->log(LOG_WARNING,
-              "nc_server DEFINE_DATAREC failed: %s, timeout=%d secs, ntry=%d",
-                      clnt_sperrno(clnt_stat),conn->getRPCTimeout(),ntry+1);
+        WLOG(("nc_server DEFINE_DATAREC failed: %s, timeout=%d secs, ntry=%d",
+              clnt_sperrno(clnt_stat), conn->getRPCTimeout(), ntry+1));
         if (clnt_stat != RPC_TIMEDOUT && clnt_stat != RPC_CANTRECV) break;
     }
-    if (ntry > 0 && clnt_stat == RPC_SUCCESS) 
-        n_u::Logger::getInstance()->log(LOG_WARNING,"nc_server OK");
+    if (ntry > 0 && clnt_stat == RPC_SUCCESS)
+        WLOG(("nc_server OK"));
 
     for (int i=0; i < nvars; i++) {
         struct variable& dvar = ddef.variables.variables_val[i];

@@ -27,6 +27,10 @@
 
 #include <nidas/util/Process.h>
 #include <nidas/util/Socket.h>
+#include <nidas/util/Logger.h>
+
+using nidas::util::LogContext;
+using nidas::util::UTime;
 
 extern "C"
 {
@@ -42,8 +46,8 @@ const int Connections::CONNECTIONTIMEOUT = 43200;
 const int FileGroup::FILEACCESSTIMEOUT = 900;
 const int FileGroup::MAX_FILES_OPEN = 16;
 
-namespace local {
-    int defaultLogLevel = nidas::util::LOGGER_NOTICE;
+namespace {
+    const char* defaultLogConfig{ "notice" };
 
 #if __cplusplus >= 201103L
     template <typename T>
@@ -141,6 +145,32 @@ void nc_shutdown(int i)
         ILOG(("nc_server normal exit", i));
     exit(i);
 }
+
+
+inline int NS_NcFile::StartTimeLE(double time) const
+{
+    VLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
+            ", end=" << nidas::util::UTime(_endTime) <<
+            ", current=" << nidas::util::UTime(time));
+    return (_startTime <= time);
+};
+
+inline int NS_NcFile::EndTimeLE(double time) const
+{
+    VLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
+            ", end=" << nidas::util::UTime(_endTime) <<
+            ", current=" << nidas::util::UTime(time));
+    return (_endTime <= time);
+}
+
+inline int NS_NcFile::EndTimeGT(double time) const
+{
+    VLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
+            ", end=" << nidas::util::UTime(_endTime) <<
+            ", current=" << nidas::util::UTime(time));
+    return (_endTime > time);
+}
+
 
 Connections::Connections(void): _connections(),_connectionCntr(0)
 {
@@ -2495,7 +2525,7 @@ int NS_NcVar::put_len(const long *counts)
 NcServerApp::NcServerApp(): 
     _username(), _userid(0),_groupname(),_groupid(0),
     _suppGroupNames(),_suppGroupIds(),
-    _daemon(true),_logLevel(local::defaultLogLevel),
+    _daemon(true),_logConfig(defaultLogConfig),
     _rpcport(DEFAULT_RPC_PORT),
     _standalone(false),
     _transp(0)
@@ -2521,8 +2551,8 @@ void NcServerApp::usage(const char *argv0)
         -d: debug, run in foreground and send messages to stderr with log level of debug\n\
         Otherwise run in the background, cd to /, and log messages to syslog\n\
         Specify a -l option after -d to change the log level from debug\n\
-        -l loglevel: set logging level, 7=debug,6=info,5=notice,4=warning,3=err,...\n\
-        The default level if no -d option is " << local::defaultLogLevel << "\n\
+        -l config: 7=debug,6=info,5=notice,4=warning,3=err,...\n\
+        The default config if no -d option is " << defaultLogConfig << "\n\
         -p port: port number, default " << DEFAULT_RPC_PORT << "\n\
         -s: standalone instance, do not register, print port number to stdout\n\
         -u name: change user id of the process to given user name and their default group\n\
@@ -2542,7 +2572,7 @@ int NcServerApp::parseRunstring(int argc, char **argv)
         case 'd':
             daemonOrforeground = 0;
             _daemon = false;
-            _logLevel = nidas::util::LOGGER_DEBUG;
+            _logConfig = "debug";
             break;
         case 'g':
             {
@@ -2565,7 +2595,7 @@ int NcServerApp::parseRunstring(int argc, char **argv)
             }
             break;
         case 'l':
-            _logLevel = atoi(optarg);
+            _logConfig = optarg;
             break;
         case 'p':
             _rpcport = atoi(optarg);
@@ -2631,9 +2661,8 @@ void NcServerApp::setup()
 {
     nidas::util::Logger * logger = 0;
     nidas::util::LogScheme logscheme("nc_server");
-
     nidas::util::LogConfig lc;
-    lc.level = _logLevel;
+    lc.parse(_logConfig);
 
     if (_daemon) {
         // fork to background
@@ -2800,9 +2829,7 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
 
     /* Check if last file is still current */
     if (!(f && (f->StartTimeLE(dtime) && f->EndTimeGT(dtime)))) {
-#ifdef DEBUG
-        DLOG(("time not contained in current file: %s",(f ? f->getName().c_str():"none")));
-#endif
+        VLOG(("time not contained in current file: %s",(f ? f->getName().c_str():"none")));
         if (f)
             f->sync();
         try {
@@ -2817,10 +2844,7 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
             else throw e;
         }
     }
-#ifdef DEBUG
-    DLOG(("Writing Record, groupid=%d,f=%s", groupid, f->getName().c_str()));
-#endif
-
+    VLOG(("Writing Record, groupid=%d,f=%s", groupid, f->getName().c_str()));
     f->put_rec<REC_T,DATA_T>(writerec, _vargroups[groupid], dtime);
     return f;
 }
@@ -2840,16 +2864,16 @@ void NS_NcFile::put_rec(const REC_T * writerec,
     int ndims_req = vgroup->num_dims();
 
     // this will add variables if necessary
-#ifdef DEBUG
-    DLOG(("calling get_vars"));
-#endif
+    VLOG(("calling get_vars"));
 
     const std::vector<NS_NcVar*>& vars = get_vars(vgroup);
 
-#ifdef DEBUG
-    DLOG(("called get_vars"));
     nidas::util::UTime debugUT(dtime);
-#endif
+    static LogContext vlog(LOG_VERBOSE);
+    if (vlog.active())
+    {
+        vlog.log("called get_vars");
+    }
 
     dtime -= _baseTime;
     if (_ttType == FIXED_DELTAT) {
@@ -2888,12 +2912,8 @@ void NS_NcFile::put_rec(const REC_T * writerec,
             if (_timesAreMidpoints) _timeOffset = -_interval * .5;
             else _timeOffset = -_interval;
 
-            // #define DEBUG
-#ifdef DEBUG
-            DLOG(("dtime=") << dtime << " groupInt=" << groupInt <<
-                    " timesAreMidpoints=" << _timesAreMidpoints);
-#endif
-            // #undef DEBUG
+            VLOG(("dtime=") << dtime << " groupInt=" << groupInt
+                 << " timesAreMidpoints=" << _timesAreMidpoints);
         }
         if (vgroup->num_samples() > 1) {
             if (_timesAreMidpoints) {
@@ -2905,17 +2925,16 @@ void NS_NcFile::put_rec(const REC_T * writerec,
                 tdiff = nsample * groupInt;
             }
 
-#ifdef DEBUG
-            DLOG(("dtime=") << dtime << " nsample=" << nsample <<
+            VLOG(("dtime=") << dtime << " nsample=" << nsample <<
                     " tdiff=" << tdiff);
-#endif
             dtime -= tdiff;
         }
     }
-#ifdef DEBUG
-    DLOG(("NS_NcFile::put_rec, ut=") <<
-            debugUT.format(true,"%Y %m %d %H:%M:%S.%3f"));
-#endif
+    if (vlog.active())
+    {
+        vlog.log() << "NS_NcFile::put_rec, ut="
+                   << debugUT.format(true,"%Y %m %d %H:%M:%S.%3f");
+    }
 
     nrec = put_time(dtime);
 
@@ -2934,20 +2953,20 @@ void NS_NcFile::put_rec(const REC_T * writerec,
         ost << vars[0]->name() << ": has incorrect start or count length";
         throw NetCDFAccessFailed(getName(),"put_rec",ost.str());
     }
-#ifdef DEBUG
-    DLOG(("nstart=%d,ncount=%d", nstart, ncount));
-    for (i = 0; i < ncount; i++)
-        DLOG(("count[%d]=%d", i, count[i]));
-#endif
+    static LogContext lp(LOG_VERBOSE);
+    if (lp.active())
+    {
+        lp.log() << "nstart=" << nstart << ",ncount=" << ncount;
+        for (i = 0; i < ncount; i++)
+            lp.log() << "count[" << i << "]=" << count[i];
+    }
 
     for (iv = 0; iv < nv; iv++) {
         var = vars[iv];
         var->set_cur(nrec, nsample, start);
         if (var->isCnts()) {
             if (writerec->cnts.cnts_len > 0) {
-#ifdef DEBUG
-                DLOG(("put counts"));
-#endif
+                VLOG(("put counts"));
                 if (!var->put((const int *) writerec->cnts.cnts_val, count))
                     throw NetCDFAccessFailed(getName(),std::string("put_var ") + var->name(),get_error_string());
             }
@@ -2960,9 +2979,7 @@ void NS_NcFile::put_rec(const REC_T * writerec,
             else {
                 if (!(i = var->put(d, count)))
                     throw NetCDFAccessFailed(getName(),std::string("put_var ") + var->name(),get_error_string());
-#ifdef DEBUG
-                DLOG(("var->put of %s, i=%d", var->name(), i));
-#endif
+                VLOG(("var->put of %s, i=%d", var->name(), i));
                 d += i;
             }
         }

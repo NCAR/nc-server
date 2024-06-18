@@ -145,7 +145,7 @@ private:
 
     int _daemon;
 
-    int _logLevel;
+    std::string _logConfig;
 
     int _rpcport;
 
@@ -376,33 +376,11 @@ public:
         return x._startTime < y._startTime;
     }
 
-    inline int StartTimeLE(double time) const
-    {
-#ifdef DEBUG
-        DLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
-                ", end=" << nidas::util::UTime(_endTime) <<
-                ", current=" nidas::util::UTime(time));
-#endif
-        return (_startTime <= time);
-    };
-    inline int EndTimeLE(double time) const
-    {
-#ifdef DEBUG
-        DLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
-                ", end=" << nidas::util::UTime(_endTime) <<
-                ", current=" nidas::util::UTime(time));
-#endif
-        return (_endTime <= time);
-    }
-    inline int EndTimeGT(double time) const
-    {
-#ifdef DEBUG
-        DLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
-                ", end=" << nidas::util::UTime(_endTime) <<
-                ", current=" nidas::util::UTime(time));
-#endif
-        return (_endTime > time);
-    }
+    inline int StartTimeLE(double time) const;
+
+    inline int EndTimeLE(double time) const;
+
+    inline int EndTimeGT(double time) const;
 
     /**
      * @throws NetCDFAccessFailed
