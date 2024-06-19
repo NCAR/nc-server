@@ -7,19 +7,35 @@ namespace utf = boost::unit_test;
 
 #include "nc_server.h"
 #include <memory>
+#include <stdlib.h> // system()
 
+using std::string;
 using std::unique_ptr;
+
+using nidas::util::UTime;
 
 
 BOOST_AUTO_TEST_CASE(create_basic_netcdf_file)
 {
-    std::string fileName{"/tmp/test_nc_server_datafile.nc"};
-    auto openmode{NcFile::Replace};
-    auto length = 24 * 3600;
-    auto interval = 300;
-    double dtime = 1701874262;
-    unique_ptr<NS_NcFile> ncfile;
-    ncfile.reset(new NS_NcFile(fileName, openmode, interval, length, dtime));
+    string xfile = "./testing_isfs_20231206_000000.nc";
+    system((string("/bin/rm -f ") + xfile).c_str());
+
+    // std::string fileName{"/tmp/test_nc_server_datafile.nc"};
+    // auto openmode{NcFile::Replace};
+    double length = 24 * 3600;
+    double interval = 300;
+    char filename[] = "testing_isfs_%Y%m%d_%H%M%S.nc";
+    char filedir[] = ".";
+    char cdlfile[] = "";
+    double dtime = UTime(true, 2023, 12, 6, 0, 0, 0).toDoubleSecs();
+    NS_NcFile* ncfile;
+
+    connection con{
+        length, interval, filename, filedir, cdlfile
+    };
+    FileGroup filegroup(&con);
+
+    ncfile = filegroup.get_file(dtime);
 
     BOOST_TEST(ncfile->is_valid());
     ncfile->sync();
@@ -28,6 +44,8 @@ BOOST_AUTO_TEST_CASE(create_basic_netcdf_file)
     BOOST_TEST(base_time);
 
     BOOST_TEST(base_time->as_double(0) == 1701820800);
+
+    BOOST_TEST(ncfile->getName() == xfile);
 
 #ifdef notdef
     // Attempt at adding a variable, but add_var() is not public, and I'm not

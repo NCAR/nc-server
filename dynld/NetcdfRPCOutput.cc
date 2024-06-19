@@ -95,7 +95,7 @@ bool NetcdfRPCOutput::receive(const Sample* samp)
 
     // cerr << "NetcdfRPCOutput::receive, samp=" << samp->getDSMId() << ',' << samp->getSpSId() << endl;
     try {
-	_ncChannel->write(samp);
+        _ncChannel->write(samp);
     }
     catch (const n_u::IOException& e) {
         PLOG(("%s", e.what()));

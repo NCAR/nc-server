@@ -352,6 +352,8 @@ get_att_unique(NCT* nct, const std::string& attname)
 class NS_NcFile: public NcFile
 {
 public:
+    using UTime = nidas::util::UTime;
+
     /**
      * if _interval is less than minInterval (most likely 0)
      * then the ttType is VARIABLE_DELTAT.
@@ -361,7 +363,9 @@ public:
     /**
      * @throws NetCDFAccessFailed
      */
-    NS_NcFile(const std::string &, enum FileMode, double, double, double);
+    NS_NcFile(const std::string &, enum FileMode,
+              double interval, double filelength,
+              const UTime& basetime, const UTime& endtime);
 
     ~NS_NcFile(void);
 
@@ -551,6 +555,7 @@ private:
 class FileGroup
 {
 public:
+    using UTime = nidas::util::UTime;
 
     /**
      * @brief Construct a new FileGroup object
@@ -619,8 +624,8 @@ public:
     time_t oldest_file();
 
     std::string build_name(const std::string & outputDir,
-            const std::string & nameFormat, double dtime,
-            double fileLength) const;
+            const std::string & nameFormat,
+            double fileLength, const UTime& basetime) const;
     int check_file(const std::string &) const;
     int ncgen_file(const std::string &, const std::string &) const;
 
@@ -642,6 +647,21 @@ public:
     std::string toString() const {
         return _outputDir + '/' + _fileNameFormat;
     }
+
+    /**
+     * Given a data time, find the file times which bound it.  The file times
+     * depend on file length and config bounds.  A monthly interval is
+     * specified as 31 days, in which case file times are bounded by the first
+     * day of the month.
+     **/
+    void
+    get_time_bounds(double dtime, UTime& basetime, UTime& endtime) const;
+
+    /**
+     * Set @p begin and @p end from the isfs_config_begin and isfs_config_end
+     * global attributes, if present, otherwise return false.
+     */
+    bool get_config_bounds(UTime& begin, UTime& end) const;
 
 private:
 

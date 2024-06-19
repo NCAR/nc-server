@@ -813,8 +813,14 @@ NS_NcFile *FileGroup::open_file(double dtime)
 {
     int fileExists = 0;
 
+    // given a data time, find the name of the file which would contain it and
+    // the times which bound it.
+    UTime basetime{UTime::ZERO};
+    UTime endtime{UTime::ZERO};
+    get_time_bounds(dtime, basetime, endtime);
+
     string fileName =
-        build_name(_outputDir, _fileNameFormat, _fileLength, dtime);
+        build_name(_outputDir, _fileNameFormat, _fileLength, basetime);
 
     struct stat statBuf;
     if (!access(fileName.c_str(), F_OK)) {
@@ -864,7 +870,7 @@ NS_NcFile *FileGroup::open_file(double dtime)
         openmode = NcFile::Replace;
 
     NS_NcFile *ncfile = new NS_NcFile(fileName, openmode, _interval,
-            _fileLength, dtime);
+                                      _fileLength, basetime, endtime);
 
     // write global attributes to file
     map<string,string>::const_iterator ai =  _globalAttrs.begin();
@@ -878,31 +884,120 @@ NS_NcFile *FileGroup::open_file(double dtime)
     return ncfile;
 }
 
-string FileGroup::build_name(const string & outputDir,
-        const string & nameFormat, double fileLength,
-        double dtime) const
-{
 
-    // If file length is 31 days, then align file times on months.
-    int monthLong = fileLength == 31 * 86400;
+namespace {
 
-    if (monthLong) {
+    bool parse_time(const std::string& name, const std::string& value,
+                    UTime& ut)
+    {
+        try {
+            ut = UTime::parse(true, value, "%Y-%m-%dT%H:%M:%SZ");
+            return true;
+        }
+        catch (nidas::util::ParseException& ex) {
+            NLOG(("failed to parse config time ") << name << " with value "
+                 << value << ", expected format: %Y-%m-%dT%H:%M:%SZ");
+        }
+        return false;
+    }
+
+    UTime floor_month(const UTime& ut)
+    {
         struct tm tm;
-        nidas::util::UTime(dtime).toTm(true, &tm);
+        ut.toTm(true, &tm);
 
         tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
         tm.tm_mday = 1;         // first day of month
         tm.tm_yday = 0;
 
-        nidas::util::UTime ut(true, &tm);
-        dtime = ut.toDoubleSecs();
-    } else if (fileLength > 0)
-        dtime = ::floor(dtime / fileLength) * fileLength;
+        return UTime(true, &tm);
+    }
 
-    nidas::util::UTime utime(dtime);
-
-    return outputDir + '/' + utime.format(true, nameFormat);
 }
+
+
+bool FileGroup::get_config_bounds(UTime& begin, UTime& end) const
+{
+    int count{0};
+    for (const auto& att: _globalAttrs)
+    {
+        const std::string& name{att.first}, value{att.second};
+
+        if (name == "isfs_config_begin")
+            count += parse_time(name, value, begin);
+        else if (name == "isfs_config_end")
+            count += parse_time(name, value, end);
+    }
+    return count == 2;
+}
+
+
+void
+FileGroup::get_time_bounds(double dtime, UTime& basetime, UTime& endtime) const
+{
+    // If file length is 31 days, then align file times on months.
+    int monthLong = _fileLength == 31 * 86400;
+    UTime utdata(dtime);
+
+    if (monthLong) {
+        dtime = floor_month(utdata).toDoubleSecs();
+    }
+    else if (_fileLength > 0) {
+        dtime = ::floor(dtime / _fileLength) * _fileLength;
+    }
+
+    // At this point dtime is on an even file length interval, at or preceding
+    // the data time.  While we've got the interval floor time established,
+    // derive the end time from it.
+    UTime floortime(dtime);
+
+    if (monthLong) {
+        endtime = floor_month(floortime + 32 * USECS_PER_DAY);
+    }
+    else if (_fileLength > 0) {
+        endtime = floortime + (_fileLength * USECS_PER_SEC);
+    }
+    else {
+        // Somewhat far off in the future
+        endtime = floortime + 10 * 365 * USECS_PER_DAY;
+    }
+
+    // If this file group has been passed config time bounds in the global
+    // attributes, then use those to clamp the file basetime and endtime.
+    basetime = floortime;
+
+    if (_fileLength > 0)
+    {
+        UTime begin, end;
+        if (get_config_bounds(begin, end))
+        {
+            if (basetime < begin)
+            {
+                basetime = begin;
+                DLOG(("clamping basetime to config begin time: ") << basetime);
+                if (utdata < begin)
+                {
+                    NLOG(("Invalid data time ") << utdata << "; "
+                        << "it is less than config begin " << begin << "!");
+                }
+            }
+            if (endtime > end)
+            {
+                endtime = end;
+                DLOG(("clamping endtime to config end time: ") << endtime);
+            }
+        }
+    }
+}
+
+
+string FileGroup::build_name(const string & outputDir,
+        const string & nameFormat, double fileLength,
+        const UTime& basetime) const
+{
+    return outputDir + '/' + basetime.format(true, nameFormat);
+}
+
 
 int FileGroup::check_file(const string & fileName) const
 {
@@ -1430,7 +1525,7 @@ const double NS_NcFile::minInterval = 1.e-5;
 
 NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
         double interval, double fileLength,
-        double dtime):
+        const UTime& basetime, const UTime& endtime):
     NcFile(fileName.c_str(), openmode),
     _fileName(fileName), _startTime(0.0),_endTime(0.0),
     _interval(interval), _lengthSecs(fileLength),
@@ -1450,22 +1545,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
 
     // If file length is 31 days, then align file times on months.
     _monthLong = _lengthSecs == 31 * 86400;
-
-    if (_monthLong) {
-        struct tm tm;
-        nidas::util::UTime(dtime).toTm(true, &tm);
-
-        tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
-        tm.tm_mday = 1;         // first day of month
-        tm.tm_yday = 0;
-
-        nidas::util::UTime ut(true, &tm);
-        _baseTime = ut.toSecs();
-    } else if (_lengthSecs > 0)
-        _baseTime = (int) (::floor(dtime / _lengthSecs) * _lengthSecs);
-    else 
-        _baseTime = (int) (::floor(dtime / 86400.0) * 86400);
-
+    _baseTime = basetime.toSecs();
     _timeOffset = -_interval * .5;      // _interval may be 0
     _nrecs = 0;
 
@@ -1616,23 +1696,7 @@ NS_NcFile::NS_NcFile(const string & fileName, enum FileMode openmode,
                 _fileName.c_str()));
 
     _startTime = _baseTime;
-
-    if (_monthLong) {
-        _endTime = _baseTime + 32 * 86400;
-
-        struct tm tm;
-        nidas::util::UTime(_endTime).toTm(true, &tm);
-
-        tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
-        tm.tm_mday = 1;         // first day of month
-        tm.tm_yday = 0;
-
-        nidas::util::UTime ut(true, &tm);
-        _endTime = ut.toDoubleSecs();
-    } else if (_lengthSecs > 0)
-        _endTime = _baseTime + _lengthSecs;
-    else
-        _endTime = 1.e37;       // Somewhat far off in the future
+    _endTime = endtime.toDoubleSecs();
 }
 
 NS_NcFile::~NS_NcFile(void)

@@ -39,6 +39,8 @@
 #include <nidas/util/Process.h>
 #include <nidas/util/util.h>
 
+#include <stdlib.h>
+
 using namespace nidas::dynld::isff;
 using namespace std;
 using namespace nidas::core;
@@ -310,18 +312,38 @@ IOChannel* NetcdfRPCChannel::connect()
 
     writeGlobalAttr("NIDAS_version", Version::getSoftwareVersion());
 
-    string configName = Project::getInstance()->getConfigName();
+    // previously project_config had the form <config>=<version>, where
+    // <config> was the expanded xml file path and <version> was generated
+    // from svn status.  these are now separate.  project_config is now just a
+    // project config specifier, as specific as possible, naming not just the
+    // xml file but the config name in a multi-config project.
+    // project_version is whatever is passed in the environment, so it's up to
+    // the caller to have generated it.  the isfs_config_begin and
+    // isfs_config_end are more useful context for the global attributes, but
+    // they are also used when a netcdf file is opened to clamp a filename to
+    // the beginning of a config which otherwise would be clamped to the
+    // interval.
+
+    string configName;
+    const char* env = getenv("ISFS_CONFIG_SPECIFIER");
+    configName = env ? env : "";
+    if (configName.empty())
+        configName = Project::getInstance()->getConfigName();
     if (configName.length() > 0) {
-        try {
-            configName = Project::getInstance()->expandString(configName);
-            string svnstr = nidas::util::svnStatus(configName);
-            if (svnstr.length() > 0) configName += '=' + svnstr;
-            configName += ';';
-            writeGlobalAttr("project_config", configName);
-        }
-        catch(const n_u::IOException& e) {
-            WLOG(("Error svnStatus %s: %s",configName.c_str(),e.what()));
-        }
+        writeGlobalAttr("project_config", configName);
+    }
+
+    if ((env = getenv("ISFS_CONFIG_VERSION")))
+    {
+        writeGlobalAttr("project_version", env);
+    }
+    if ((env = getenv("ISFS_CONFIG_BEGIN")))
+    {
+        writeGlobalAttr("isfs_config_begin", env);
+    }
+    if ((env = getenv("ISFS_CONFIG_END")))
+    {
+        writeGlobalAttr("isfs_config_end", env);
     }
 
     const Dataset& dataset = Project::getInstance()->getDataset();
@@ -366,14 +388,6 @@ IOChannel* NetcdfRPCChannel::connect()
     const vector<string>& calpaths = nidas::core::CalFile::getAllPaths();
     for (vector<string>::const_iterator pi = calpaths.begin(); pi != calpaths.end(); ++pi) {
         string cpath = Project::getInstance()->expandString(*pi);
-        try {
-            string svnstr = nidas::util::svnStatus(cpath);
-            if (svnstr.length() > 0) cpath += ",version=" + svnstr;
-        }
-        catch(const n_u::IOException& e) {
-            WLOG(("Error in svnStatus %s: %s",pi->c_str(),e.what()));
-        }
-
         if (cpstr.length() > 0) cpstr += ':';
         cpstr += cpath;
     }

@@ -25,3 +25,4 @@ rpms.txt
 etc/ld.so.conf.d/nc_server.conf
 xtest.log
 test_nc_server
+testing_isfs_20231206_000000.nc
