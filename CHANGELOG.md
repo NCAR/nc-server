@@ -9,6 +9,28 @@ The format is based on [Keep a Changelog], the versions should follow
 
 ## [Unreleased] - Unreleased
 
+- NetCDF output files can be split within a time interval by passing the time
+  period in environment variables `ISFS_CONFIG_BEGIN` and `ISFS_CONFIG_END`.
+  The `NetcdfRPCChannel` detects these variables and passes them to the
+  `nc_server` as special global attributes `isfs_config_begin` and
+  `isfs_config_end`.  Those settings are used to clamp the begin and end time
+  of a file whose samples fall after or before those times and within the same
+  file interval (eg, hour).  This allows changes within the same time interval
+  which must necessarily be in different netcdf files, such as because of
+  attributes changes (sensor metadata) or dimension changes (sensor rates).
+
+- Similarly, project configuration version information can be set in the
+  environment variable `ISFS_CONFIG_VERSION`.  The value of that variable is
+  passed to the server as global attribute `project_version`.
+
+- By default, netcdf output files write the global attribute `project_config`
+  using `getConfigName()` on the `Project` instance, where that name is
+  typically the XML file path.  However, that path alone is insufficient to
+  identify the project config.  The `ISFS_CONFIG_SPECIFIER` environment
+  variable can be set to override the default config name with a more complete
+  config specifier, and the value of that variable will be written to the
+  `project_config` global attribute.
+
 - Libraries are now installed into `PREFIX/lib` on all platforms, there is no
   longer an architecture-specific library path.  Besides simplifying the
   layout and installation, this allows nc-server to be installed easily from
