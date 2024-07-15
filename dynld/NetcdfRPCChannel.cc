@@ -26,6 +26,7 @@
 
 #include "NetcdfRPCChannel.h"
 #include "nc_server_client.h"
+#include "CStringCache.h"
 
 #include <nidas/core/DSMConfig.h>
 #include <nidas/core/Site.h>
@@ -773,8 +774,9 @@ NcVarGroupFloat::~NcVarGroupFloat()
     delete [] _rec.data.data_val;
 }
 
-void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
+void NcVarGroupFloat::connect(NetcdfRPCChannel* conn, float _fillValue)
 {
+    CStringCache strings;
     datadef ddef; 
     ddef.connectionId = conn->getConnectionId(); 
     ddef.rectype = NS_TIMESERIES;
@@ -792,8 +794,9 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
         ddef.dimensions.dimensions_val = new dimension[ndims];
         for(int i = 0; i < ndims; i++) {
             ddef.dimensions.dimensions_val[i].name =
-                    (char *)_dimensions[i].getName().c_str();
-            ddef.dimensions.dimensions_val[i].size = _dimensions[i].getValue(0);
+                strings.cache(_dimensions[i].getName());
+            ddef.dimensions.dimensions_val[i].size =
+                _dimensions[i].getValue(0);
         }
     }
     _weightsIndex = -1;
@@ -820,7 +823,7 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
 
     ddef.variables.variables_val = new variable[nvars];
     ddef.variables.variables_len = nvars;
-   
+
     vi = _sampleTag.getVariableIterator();
     for (int i = 0; vi.hasNext(); ) {
         const Variable* var = vi.next();
@@ -828,19 +831,36 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
 
         if (var->getType() == Variable::WEIGHT) continue;
         if (ndims > 0) 
-            dvar.name = (char *) var->getNameWithoutSite().c_str();
+            dvar.name = strings.cache(var->getNameWithoutSite());
         else
-            dvar.name = (char *) var->getName().c_str();
+            dvar.name = strings.cache(var->getName());
 
         if (var->getConverter())
-            dvar.units = (char *) var->getConverter()->getUnits().c_str();
+            dvar.units = strings.cache(var->getConverter()->getUnits());
         else
-            dvar.units = (char *) var->getUnits().c_str();
+            dvar.units = strings.cache(var->getUnits());
 
         int nattrs = 0;
         if (_weightsIndex >= 0) nattrs++;
         if (var->getLongName().length() > 0) nattrs++;
 
+        // Find this original Variable in the Project to get to any attributes
+        // which were added to it during processing.
+        VariableIterator vit(Project::getInstance());
+        const Variable* origin_var{ nullptr };
+        while (!origin_var && vit.hasNext())
+        {
+            const Variable* vp = vit.next();
+            if (vp->getName() == var->getName())
+                origin_var = vp;
+        }
+
+        std::vector<Parameter> attributes;
+        if (origin_var)
+        {
+            attributes = origin_var->getAttributes();
+            nattrs += attributes.size();
+        }
         dvar.attrs.attrs_len = nattrs;
         dvar.attrs.attrs_val = 0;
 
@@ -850,13 +870,25 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
             int iattr = 0;
             if (_weightsIndex >= 0) {
                 str_attr *s = dvar.attrs.attrs_val + iattr++;
-                s->name = (char *)"counts";
-                s->value = (char *)weightsName.c_str();
+                s->name = strings.cache("counts");
+                s->value = strings.cache(weightsName);
             }
             if (var->getLongName().length() > 0) {
                 str_attr *s = dvar.attrs.attrs_val + iattr++;
-                s->name = (char *)"long_name";
-                s->value = (char *)var->getLongName().c_str();
+                s->name = strings.cache("long_name");
+                s->value = strings.cache(var->getLongName());
+            }
+            // this is not ideal, but the current RPC is limited to string
+            // attributes, so just use the string value for all the Variable
+            // attributes even if the underlying type is not string.  at least
+            // the values will be human-readable.
+            for (auto& p: attributes)
+            {
+                DLOG(("adding attribute to var ") << var->getName()
+                      << ": " << p.getName() << "=" << p.getStringValue());
+                str_attr *s = dvar.attrs.attrs_val + iattr++;
+                s->name = strings.cache(p.getName());
+                s->value = strings.cache(p.getStringValue());
             }
         }
         i++;
