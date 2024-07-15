@@ -400,15 +400,15 @@ NcVarGroupFloat* NetcdfRPCChannel::getNcVarGroupFloat(
         const vector<ParameterT<int> >&dims,
         const SampleTag* stag)
 {
-    list<NcVarGroupFloat*>::const_iterator gi;
-    for (gi = _groups.begin(); gi != _groups.end(); ++gi) {
-        NcVarGroupFloat* grp = *gi;
+    for (auto& grp: _groups)
+    {
+        const auto& dimensions = grp->getDimensions();
+        if (dimensions.size() != dims.size()) continue;
 
-        if (grp->getDimensions().size() != dims.size()) continue;
-        vector<ParameterT<int> >::const_iterator di1;
-        vector<ParameterT<int> >::const_iterator di2;
-        for (di1 = grp->getDimensions().begin(),di2=dims.begin();
-                di1 != grp->getDimensions().end(); ++di1,++di2) {
+        auto di1 = dimensions.begin();
+        auto di2 = dims.begin();
+        for ( ; di1 != dimensions.end(); ++di1, ++di2)
+        {
             const ParameterT<int>& p1 = *di1;
             const ParameterT<int>& p2 = *di2;
             if (p1.getName() != p2.getName()) break;
@@ -416,21 +416,25 @@ NcVarGroupFloat* NetcdfRPCChannel::getNcVarGroupFloat(
             if (p1.getLength() != p2.getLength()) break;
             if (p1.getValue(0) != p2.getValue(0)) break;
         }
-        if (di1 != grp->getDimensions().end()) continue;
+        if (di1 != dimensions.end())
+            continue;
 
-        if (grp->getVariables().size() !=
-                stag->getVariables().size()) continue;
-        vector<const Variable*>::const_iterator vi1;
-        vector<const Variable*>::const_iterator vi2;
-        for (vi1 = grp->getVariables().begin(),
-                vi2=stag->getVariables().begin();
-                vi1 != grp->getVariables().end(); ++vi1,++vi2) {
+        const auto& grp_variables = grp->getVariables();
+        const auto& tag_variables = stag->getVariables();
+        if (grp_variables.size() != tag_variables.size())
+            continue;
+        auto vi1 = grp_variables.begin();
+        auto vi2 = tag_variables.begin();
+        for ( ; vi1 != grp_variables.end(); ++vi1, ++vi2)
+        {
             const Variable* v1 = *vi1;
             const Variable* v2 = *vi2;
             if (!(*v1 == *v2)) break;
         }
-        if (grp->getInterval() != stag->getPeriod()) continue;
-        if (vi1 == grp->getVariables().end()) return grp;
+        if (grp->getInterval() != stag->getPeriod())
+            continue;
+        if (vi1 == grp_variables.end())
+            return grp;
     }
     return 0;
 }

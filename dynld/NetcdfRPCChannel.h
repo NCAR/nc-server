@@ -302,7 +302,7 @@ public:
 
     ~NcVarGroupFloat();
 
-    const std::vector<const nidas::core::Variable*>& getVariables() const
+    const std::vector<const nidas::core::Variable*> getVariables() const
     {
         return _sampleTag.getVariables();
     }
