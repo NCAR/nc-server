@@ -31,7 +31,8 @@ eol_scons.RunScripts()
 # installed into system directories outside of the PREFIX directory.
 eol_scons.EnableInstallAlias(False)
 
-env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
+env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'],
+                  GLOBAL_TOOLS=['buildmode'])
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
