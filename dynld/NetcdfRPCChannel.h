@@ -76,7 +76,10 @@ public:
     void requestConnection(IOChannelRequester* rqstr);
 
     /**
-     * 
+     * Start the connection to the rpc server by sending OPEN_CONNECT.
+     * However, no global attributes or variable definitions are sent yet,
+     * those are deferred until the first data are written, when defineData()
+     * is called.
      */
     IOChannel* connect();
 
@@ -111,11 +114,6 @@ public:
      * Send a data record to the RPC server.
     */
     void write(const nidas::core::Sample*);
-
-    /**
-     * Send a data record to the RPC server.
-    */
-    void write(datarec_float*);
 
     void close();
 
@@ -235,6 +233,14 @@ protected:
     	const std::vector<ParameterT<int> >& dims,
 		const SampleTag* stag);
 
+    void
+    defineData();
+
+    /**
+     * Send a data record to the RPC server.
+    */
+    void write(datarec_float*);
+
 private:
 
     std::string _name;
@@ -289,6 +295,8 @@ private:
      * Deltat in seconds of the time variable in the NetCDF file.
      */
     int _timeInterval;
+
+    bool _data_defined{false};
 
     /** Assignment not supported. */
     NetcdfRPCChannel& operator=(const NetcdfRPCChannel&);

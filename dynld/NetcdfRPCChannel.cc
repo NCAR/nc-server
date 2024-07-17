@@ -236,6 +236,12 @@ IOChannel* NetcdfRPCChannel::connect()
 
     _lastNonBatchWrite = time((time_t *)0);
 
+    return this;
+}
+
+
+void NetcdfRPCChannel::defineData()
+{
     Project* project = Project::getInstance();
 
     unsigned int nstations = 0;
@@ -385,6 +391,9 @@ IOChannel* NetcdfRPCChannel::connect()
     // Write file length as a global attribute
     writeGlobalAttr("file_length_seconds", getFileLength());
 
+    // really this needs to be deprecated because it is ambiguous and not
+    // helpful, and it will be obsolete once specific calfile paths are added
+    // to specific variables as attributes.
     string cpstr;
     const vector<string>& calpaths = nidas::core::CalFile::getAllPaths();
     for (vector<string>::const_iterator pi = calpaths.begin(); pi != calpaths.end(); ++pi) {
@@ -392,9 +401,8 @@ IOChannel* NetcdfRPCChannel::connect()
         if (cpstr.length() > 0) cpstr += ':';
         cpstr += cpath;
     }
-    if (cpstr.length() > 0) writeGlobalAttr("calibration_file_path", cpstr);
-
-    return this;
+    if (cpstr.length() > 0)
+        writeGlobalAttr("calibration_file_path", cpstr);
 }
 
 NcVarGroupFloat* NetcdfRPCChannel::getNcVarGroupFloat(
@@ -442,6 +450,11 @@ NcVarGroupFloat* NetcdfRPCChannel::getNcVarGroupFloat(
 
 void NetcdfRPCChannel::write(const Sample* samp) 
 {
+    if (!_data_defined)
+    {
+        defineData();
+        _data_defined = true;
+    }
     dsm_sample_id_t sampid = samp->getId();
 
     map<dsm_sample_id_t,NcVarGroupFloat*>::const_iterator gi =
