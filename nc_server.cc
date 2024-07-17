@@ -1471,16 +1471,21 @@ void Variable::set_name(const string& n)
 vector<string> Variable::get_attr_names() const
 {
     vector<string> names;
-    map<string,string>::const_iterator mi = _strAttrs.begin();
-    for ( ; mi != _strAttrs.end(); ++mi) names.push_back(mi->first);
+    for (auto& p: _strAttrs)
+        names.emplace_back(p.first);
     return names;
 }
 
 void Variable::add_att(const string& name, const string& val)
 {
-    map<string,string>::iterator mi = _strAttrs.find(name);
-    if (val.length() > 0) _strAttrs[name] = val;
-    else if (mi != _strAttrs.end()) _strAttrs.erase(mi);
+    auto it = find_if(begin(_strAttrs), end(_strAttrs),
+        [&name](pair<string, string>& p){ return p.first == name; });
+    if (it != _strAttrs.end() && val.empty())
+        _strAttrs.erase(it);
+    else if (it != _strAttrs.end())
+        it->second = val;
+    else if (!val.empty())
+        _strAttrs.emplace_back(name, val);
 }
 
 const string& Variable::att_val(const string& name) const
@@ -1488,8 +1493,10 @@ const string& Variable::att_val(const string& name) const
     // could just do _return _strAttrs[name], and make
     // this a non-const method, or make _strAttrs mutable.
     static string empty;
-    map<string,string>::const_iterator mi = _strAttrs.find(name);
-    if (mi != _strAttrs.end()) return mi->second;
+    auto it = find_if(_strAttrs.begin(), _strAttrs.end(),
+        [&name](const pair<string, string>& p){ return p.first == name; });
+    if (it != _strAttrs.end())
+        return it->second;
     return empty;
 }
 

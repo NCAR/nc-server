@@ -935,7 +935,7 @@ public:
 protected:
     std::string _name;
 
-    std::map <std::string, std::string> _strAttrs;
+    std::vector<std::pair<std::string, std::string> > _strAttrs;
 
     Variable & operator=(const Variable &);     // prevent assignment
 
