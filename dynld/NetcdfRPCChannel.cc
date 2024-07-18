@@ -360,6 +360,14 @@ void NetcdfRPCChannel::defineData()
         if (dataset.getDescription().length() > 0)
             writeGlobalAttr("dataset_description", dataset.getDescription());
     }
+    else if ((env = getenv("DATASET")))
+    {
+        // fall back to the name in the environment, assuming it must be the
+        // active settings.  however, the description is not available.
+        writeGlobalAttr("dataset", env);
+        if ((env = getenv("DATASET_DESCRIPTION")))
+            writeGlobalAttr("dataset_description", env);
+    }
 
     // Write some string project parameters as NetCDF global attributes
     const char* str_params[] = {"wind3d_horiz_coordinates", 0 };
