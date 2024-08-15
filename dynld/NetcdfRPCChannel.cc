@@ -383,7 +383,9 @@ void NetcdfRPCChannel::defineData()
     }
 
     // Write some integer project parameters as NetCDF global attributes
-    const char* int_params[] = {"wind3d_horiz_rotation","wind3d_tilt_correction",0 };
+    const char* int_params[] = {
+        "wind3d_horiz_rotation", "wind3d_tilt_correction", 0
+    };
     for (const char** pstr = int_params; *pstr; pstr++) {
         const Parameter* parm =
             Project::getInstance()->getParameter(*pstr);
@@ -396,12 +398,18 @@ void NetcdfRPCChannel::defineData()
         }
     }
 
+    // these two attributes, file_length_seconds and calibration_file_path,
+    // seem to be redundant or ambiguous.  the actual calibration path is
+    // different for every sensor, and the global attribute should be
+    // superceded by the calfiles added to specific variables as attributes.
+    // the file length of course is redundant to general users of the data,
+    // because the actual length can be determined directly from the time
+    // variable.  however, these are both used by the isfs R package, so they
+    // remain.
+
     // Write file length as a global attribute
     writeGlobalAttr("file_length_seconds", getFileLength());
 
-    // really this needs to be deprecated because it is ambiguous and not
-    // helpful, and it will be obsolete once specific calfile paths are added
-    // to specific variables as attributes.
     string cpstr;
     const vector<string>& calpaths = nidas::core::CalFile::getAllPaths();
     for (vector<string>::const_iterator pi = calpaths.begin(); pi != calpaths.end(); ++pi) {
