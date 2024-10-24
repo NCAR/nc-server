@@ -907,17 +907,24 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn, float _fillValue)
                 s->name = strings.cache("long_name");
                 s->value = strings.cache(var->getLongName());
             }
-            // this is not ideal, but the current RPC is limited to string
-            // attributes, so just use the string value for all the Variable
-            // attributes even if the underlying type is not string.  at least
-            // the values will be human-readable.
+            // The current RPC is limited to string attributes for variables,
+            // so send the type as a special prefix in the string value,
+            // float: or int:.  For bool, keep to the precedent established by
+            // the global attributes and use int values 0 and 1.
             for (auto& p: attributes)
             {
-                DLOG(("adding attribute to var ") << var->getName()
-                      << ": " << p.getName() << "=" << p.getStringValue());
+                string type_prefix;
+                if (p.getType() == Parameter::FLOAT_PARAM)
+                    type_prefix = "float:";
+                else if (p.getType() == Parameter::INT_PARAM)
+                    type_prefix = "int:";
+                else if (p.getType() == Parameter::BOOL_PARAM)
+                    type_prefix = "int:";
                 str_attr *s = dvar.attrs.attrs_val + iattr++;
                 s->name = strings.cache(p.getName());
-                s->value = strings.cache(p.getStringValue());
+                s->value = strings.cache(type_prefix + p.getStringValue());
+                DLOG(("adding attribute to var ") << var->getName()
+                      << ": " << s->name << "=" << s->value);
             }
         }
         i++;

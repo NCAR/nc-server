@@ -2002,11 +2002,6 @@ bool NS_NcFile::add_attrs(OutVariable* ov, NS_NcVar * var,const string& cntsName
     nca.reset();
 
     try {
-#ifdef DO_UNITS_SEPARATELY
-        if (ov->units().length() > 0) {
-            if (var->set_att("units",ov->units())) modified = true;
-        }
-#endif
         // all string attributes
         vector<string> attrNames = ov->get_attr_names();
         for (unsigned int i = 0; i < attrNames.size(); i++) {
@@ -2515,19 +2510,41 @@ NS_NcVar::~NS_NcVar()
     delete [] _count;
 }
 
+
 bool NS_NcVar::set_att(const string& aname, const string& aval)
 {
     bool modified = false;
+    bool ok = true;
     auto nca{get_att_unique(this, aname)};
-    if (nca && att_as_string(nca) != aval) {
-        modified = true;
-        if (!add_att(aname, aval))
-            throw NetCDFAccessFailed(string("add_att ") +
-                    aname + " to " + name() + ": " + get_error_string());
+    // either the att exists with the same type and value, or else it needs to
+    // be rewritten.
+    float f;
+    int i;
+    if (att_as_type("float:", aval, f))
+    {
+        if (!nca || nca->type() != ncFloat || nca->num_vals() != 1 ||
+            nca->as_float(0) != f)
+        {
+            modified = true;
+            ok = add_att(aname, f);
+        }
     }
-    else {
+    else if (att_as_type("int:", aval, i))
+    {
+        if (!nca || nca->type() != ncInt || nca->num_vals() != 1 ||
+            nca->as_int(0) != i)
+        {
+            modified = true;
+            ok = add_att(aname, i);
+        }
+    }
+    else if (!nca || att_as_string(nca) != aval)
+    {
         modified = true;
-        if (!add_att(aname, aval))
+        ok = add_att(aname, aval);
+    }
+    if (!ok)
+    {
         throw NetCDFAccessFailed(string("add_att ") +
                 aname + " to " + name() + ": " + get_error_string());
     }
