@@ -334,10 +334,23 @@ void Connection::unset_last_file()
     _lastf = 0;
 }
 
+
+template <typename T>
+void log_rec(const T* writerec)
+{
+    DLOG(("first record: connid=") << writerec->connectionId
+         << ", datarecid=" << writerec->datarecId
+         << ", time="
+         << UTime(writerec->time).format(true,"%Y-%m-%d_%H:%M:%S.%3f"));
+}
+
+
 int Connection::put_rec(const datarec_float * writerec) throw()
 {
     if (_state != CONN_OK) return -1;
     _lastRequest = time(0);
+    if (!_first_rec_received && (_first_rec_received = true))
+        log_rec(writerec);
     try {
         _lastf = _filegroup->put_rec<datarec_float,float>(writerec, _lastf);
         _state = CONN_OK;
@@ -355,6 +368,8 @@ int Connection::put_rec(const datarec_int * writerec) throw()
 {
     if (_state != CONN_OK) return -1;
     _lastRequest = time(0);
+    if (!_first_rec_received && (_first_rec_received = true))
+        log_rec(writerec);
     try {
         _lastf = _filegroup->put_rec<datarec_int,int>(writerec, _lastf);
         _state = CONN_OK;
@@ -2908,7 +2923,8 @@ NS_NcFile *FileGroup::put_rec(const REC_T * writerec,
             else throw e;
         }
     }
-    VLOG(("Writing Record, groupid=%d,f=%s", groupid, f->getName().c_str()));
+    VLOG(("Writing Record, groupid=") << groupid << ",f=" << f->getName()
+          << ",time=" << UTime(dtime).format(true,"%Y-%m-%d_%H:%M:%S.%3f"));
     f->put_rec<REC_T,DATA_T>(writerec, _vargroups[groupid], dtime);
     return f;
 }

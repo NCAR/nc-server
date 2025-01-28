@@ -36,6 +36,8 @@ using namespace std;
 
 namespace n_u = nidas::util;
 
+using nidas::util::UTime;
+
 NIDAS_CREATOR_FUNCTION_NS(isff,NetcdfRPCOutput)
 
 NetcdfRPCOutput::NetcdfRPCOutput():
@@ -93,7 +95,14 @@ bool NetcdfRPCOutput::receive(const Sample* samp)
     if (SampleOutputBase::receive(samp))
         return true;
 
-    // cerr << "NetcdfRPCOutput::receive, samp=" << samp->getDSMId() << ',' << samp->getSpSId() << endl;
+    if (!_first_written && (_first_written = true))
+    {
+        VLOG(("first write, samp=")
+             << samp->getDSMId() << ',' << samp->getSpSId()
+             << ", time="
+             << UTime(samp->getTimeTag()).format(true,
+                      "%Y-%m-%dT%H:%M:%S.%3f"));
+    }
     try {
         _ncChannel->write(samp);
     }

@@ -304,6 +304,8 @@ private:
     Connection(const Connection&);
     Connection& operator=(const Connection&);
 
+    bool _first_rec_received{false};
+
 };
 
 class AllFiles

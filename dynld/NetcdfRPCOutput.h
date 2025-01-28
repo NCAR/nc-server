@@ -116,6 +116,8 @@ private:
      */
     NetcdfRPCOutput& operator=(const NetcdfRPCOutput&);
 
+    bool _first_written{false};
+
 };
 
 }}}	// namespace nidas namespace dynld namespace isff
