@@ -1,5 +1,5 @@
 Name: nc_server
-Version: 2.1
+Version: 2.2
 Release: %{releasenum}%{?dist}
 Summary: Server for NetCDF file writing.
 License: GPL
@@ -117,6 +117,9 @@ exit 0
 %{prefix}/bin/nc_sync
 
 %changelog
+* Mon Feb 03 2025 Gary Granger <granger@ucar.edu> - 2.2-1
+- build v2.2
+
 * Fri Feb 10 2023 Gary Granger <granger@ucar.edu> - 2.1
 - update package release to source release v2.1
 
