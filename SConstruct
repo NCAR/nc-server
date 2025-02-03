@@ -220,8 +220,6 @@ env.Substfile('etc/ld.so.conf.d/$LDCONFFILE',
 # Install sysconfig files.
 sysconfigfiles = env.Split("""
 ld.so.conf.d/$LDCONFFILE
-profile.d/nc_server.sh
-profile.d/nc_server.csh
 default/nc_server
 """)
 for f in sysconfigfiles:

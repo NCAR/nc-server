@@ -116,8 +116,6 @@ exit 0
 %{prefix}/bin/nc_ping
 %{prefix}/bin/nc_close
 %{prefix}/bin/nc_sync
-%config(noreplace) %{_sysconfdir}/profile.d/nc_server.sh
-%config(noreplace) %{_sysconfdir}/profile.d/nc_server.csh
 
 %changelog
 * Fri Feb 10 2023 Gary Granger <granger@ucar.edu> - 2.1
