@@ -37,6 +37,7 @@
 #include <signal.h>
 #include <vector>
 #include <string>
+#include <sstream>
 #include <list>
 #include <map>
 #include <set>
@@ -348,6 +349,18 @@ std::unique_ptr<NcAtt>
 get_att_unique(NCT* nct, const std::string& attname)
 {
     return std::unique_ptr<NcAtt>{nct->get_att(attname.c_str())};
+}
+
+
+template <typename T>
+bool
+att_as_type(const char* prefix, const std::string& val, T& tval)
+{
+    if (val.find(prefix) != 0)
+        return false;
+    std::istringstream ist(val.substr(strlen(prefix)));
+    ist >> tval;
+    return !ist.fail();
 }
 
 
@@ -937,7 +950,7 @@ public:
 protected:
     std::string _name;
 
-    std::map <std::string, std::string> _strAttrs;
+    std::vector<std::pair<std::string, std::string> > _strAttrs;
 
     Variable & operator=(const Variable &);     // prevent assignment
 

@@ -60,3 +60,17 @@ BOOST_AUTO_TEST_CASE(create_basic_netcdf_file)
 
     ncfile->sync();
 }
+
+
+BOOST_AUTO_TEST_CASE(test_att_as_type)
+{
+    int ival;
+    double dval;
+    BOOST_TEST(att_as_type("int:", "int:123", ival));
+    BOOST_TEST(ival == 123);
+    BOOST_TEST(att_as_type("float:", "float:123.456", dval));
+    BOOST_TEST(dval == 123.456);
+    BOOST_TEST(!att_as_type("int:", "int:", ival));
+    BOOST_TEST(!att_as_type("int:", "int", ival));
+    BOOST_TEST(!att_as_type("float:", "float", dval));
+}

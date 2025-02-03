@@ -1486,16 +1486,21 @@ void Variable::set_name(const string& n)
 vector<string> Variable::get_attr_names() const
 {
     vector<string> names;
-    map<string,string>::const_iterator mi = _strAttrs.begin();
-    for ( ; mi != _strAttrs.end(); ++mi) names.push_back(mi->first);
+    for (auto& p: _strAttrs)
+        names.emplace_back(p.first);
     return names;
 }
 
 void Variable::add_att(const string& name, const string& val)
 {
-    map<string,string>::iterator mi = _strAttrs.find(name);
-    if (val.length() > 0) _strAttrs[name] = val;
-    else if (mi != _strAttrs.end()) _strAttrs.erase(mi);
+    auto it = find_if(begin(_strAttrs), end(_strAttrs),
+        [&name](pair<string, string>& p){ return p.first == name; });
+    if (it != _strAttrs.end() && val.empty())
+        _strAttrs.erase(it);
+    else if (it != _strAttrs.end())
+        it->second = val;
+    else if (!val.empty())
+        _strAttrs.emplace_back(name, val);
 }
 
 const string& Variable::att_val(const string& name) const
@@ -1503,8 +1508,10 @@ const string& Variable::att_val(const string& name) const
     // could just do _return _strAttrs[name], and make
     // this a non-const method, or make _strAttrs mutable.
     static string empty;
-    map<string,string>::const_iterator mi = _strAttrs.find(name);
-    if (mi != _strAttrs.end()) return mi->second;
+    auto it = find_if(_strAttrs.begin(), _strAttrs.end(),
+        [&name](const pair<string, string>& p){ return p.first == name; });
+    if (it != _strAttrs.end())
+        return it->second;
     return empty;
 }
 
@@ -2010,11 +2017,6 @@ bool NS_NcFile::add_attrs(OutVariable* ov, NS_NcVar * var,const string& cntsName
     nca.reset();
 
     try {
-#ifdef DO_UNITS_SEPARATELY
-        if (ov->units().length() > 0) {
-            if (var->set_att("units",ov->units())) modified = true;
-        }
-#endif
         // all string attributes
         vector<string> attrNames = ov->get_attr_names();
         for (unsigned int i = 0; i < attrNames.size(); i++) {
@@ -2523,19 +2525,41 @@ NS_NcVar::~NS_NcVar()
     delete [] _count;
 }
 
+
 bool NS_NcVar::set_att(const string& aname, const string& aval)
 {
     bool modified = false;
+    bool ok = true;
     auto nca{get_att_unique(this, aname)};
-    if (nca && att_as_string(nca) != aval) {
-        modified = true;
-        if (!add_att(aname, aval))
-            throw NetCDFAccessFailed(string("add_att ") +
-                    aname + " to " + name() + ": " + get_error_string());
+    // either the att exists with the same type and value, or else it needs to
+    // be rewritten.
+    float f;
+    int i;
+    if (att_as_type("float:", aval, f))
+    {
+        if (!nca || nca->type() != ncFloat || nca->num_vals() != 1 ||
+            nca->as_float(0) != f)
+        {
+            modified = true;
+            ok = add_att(aname, f);
+        }
     }
-    else {
+    else if (att_as_type("int:", aval, i))
+    {
+        if (!nca || nca->type() != ncInt || nca->num_vals() != 1 ||
+            nca->as_int(0) != i)
+        {
+            modified = true;
+            ok = add_att(aname, i);
+        }
+    }
+    else if (!nca || att_as_string(nca) != aval)
+    {
         modified = true;
-        if (!add_att(aname, aval))
+        ok = add_att(aname, aval);
+    }
+    if (!ok)
+    {
         throw NetCDFAccessFailed(string("add_att ") +
                 aname + " to " + name() + ": " + get_error_string());
     }

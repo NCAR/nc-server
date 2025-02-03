@@ -26,6 +26,7 @@
 
 #include "NetcdfRPCChannel.h"
 #include "nc_server_client.h"
+#include "CStringCache.h"
 
 #include <nidas/core/DSMConfig.h>
 #include <nidas/core/Site.h>
@@ -235,6 +236,12 @@ IOChannel* NetcdfRPCChannel::connect()
 
     _lastNonBatchWrite = time((time_t *)0);
 
+    return this;
+}
+
+
+void NetcdfRPCChannel::defineData()
+{
     Project* project = Project::getInstance();
 
     unsigned int nstations = 0;
@@ -353,6 +360,14 @@ IOChannel* NetcdfRPCChannel::connect()
         if (dataset.getDescription().length() > 0)
             writeGlobalAttr("dataset_description", dataset.getDescription());
     }
+    else if ((env = getenv("DATASET")))
+    {
+        // fall back to the name in the environment, assuming it must be the
+        // active settings.  however, the description is not available.
+        writeGlobalAttr("dataset", env);
+        if ((env = getenv("DATASET_DESCRIPTION")))
+            writeGlobalAttr("dataset_description", env);
+    }
 
     // Write some string project parameters as NetCDF global attributes
     const char* str_params[] = {"wind3d_horiz_coordinates", 0 };
@@ -368,7 +383,9 @@ IOChannel* NetcdfRPCChannel::connect()
     }
 
     // Write some integer project parameters as NetCDF global attributes
-    const char* int_params[] = {"wind3d_horiz_rotation","wind3d_tilt_correction",0 };
+    const char* int_params[] = {
+        "wind3d_horiz_rotation", "wind3d_tilt_correction", 0
+    };
     for (const char** pstr = int_params; *pstr; pstr++) {
         const Parameter* parm =
             Project::getInstance()->getParameter(*pstr);
@@ -381,6 +398,15 @@ IOChannel* NetcdfRPCChannel::connect()
         }
     }
 
+    // these two attributes, file_length_seconds and calibration_file_path,
+    // seem to be redundant or ambiguous.  the actual calibration path is
+    // different for every sensor, and the global attribute should be
+    // superceded by the calfiles added to specific variables as attributes.
+    // the file length of course is redundant to general users of the data,
+    // because the actual length can be determined directly from the time
+    // variable.  however, these are both used by the isfs R package, so they
+    // remain.
+
     // Write file length as a global attribute
     writeGlobalAttr("file_length_seconds", getFileLength());
 
@@ -391,9 +417,8 @@ IOChannel* NetcdfRPCChannel::connect()
         if (cpstr.length() > 0) cpstr += ':';
         cpstr += cpath;
     }
-    if (cpstr.length() > 0) writeGlobalAttr("calibration_file_path", cpstr);
-
-    return this;
+    if (cpstr.length() > 0)
+        writeGlobalAttr("calibration_file_path", cpstr);
 }
 
 NcVarGroupFloat* NetcdfRPCChannel::getNcVarGroupFloat(
@@ -441,6 +466,11 @@ NcVarGroupFloat* NetcdfRPCChannel::getNcVarGroupFloat(
 
 void NetcdfRPCChannel::write(const Sample* samp) 
 {
+    if (!_data_defined)
+    {
+        defineData();
+        _data_defined = true;
+    }
     dsm_sample_id_t sampid = samp->getId();
 
     map<dsm_sample_id_t,NcVarGroupFloat*>::const_iterator gi =
@@ -773,8 +803,9 @@ NcVarGroupFloat::~NcVarGroupFloat()
     delete [] _rec.data.data_val;
 }
 
-void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
+void NcVarGroupFloat::connect(NetcdfRPCChannel* conn, float _fillValue)
 {
+    CStringCache strings;
     datadef ddef; 
     ddef.connectionId = conn->getConnectionId(); 
     ddef.rectype = NS_TIMESERIES;
@@ -792,8 +823,9 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
         ddef.dimensions.dimensions_val = new dimension[ndims];
         for(int i = 0; i < ndims; i++) {
             ddef.dimensions.dimensions_val[i].name =
-                    (char *)_dimensions[i].getName().c_str();
-            ddef.dimensions.dimensions_val[i].size = _dimensions[i].getValue(0);
+                strings.cache(_dimensions[i].getName());
+            ddef.dimensions.dimensions_val[i].size =
+                _dimensions[i].getValue(0);
         }
     }
     _weightsIndex = -1;
@@ -820,7 +852,7 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
 
     ddef.variables.variables_val = new variable[nvars];
     ddef.variables.variables_len = nvars;
-   
+
     vi = _sampleTag.getVariableIterator();
     for (int i = 0; vi.hasNext(); ) {
         const Variable* var = vi.next();
@@ -828,19 +860,36 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
 
         if (var->getType() == Variable::WEIGHT) continue;
         if (ndims > 0) 
-            dvar.name = (char *) var->getNameWithoutSite().c_str();
+            dvar.name = strings.cache(var->getNameWithoutSite());
         else
-            dvar.name = (char *) var->getName().c_str();
+            dvar.name = strings.cache(var->getName());
 
         if (var->getConverter())
-            dvar.units = (char *) var->getConverter()->getUnits().c_str();
+            dvar.units = strings.cache(var->getConverter()->getUnits());
         else
-            dvar.units = (char *) var->getUnits().c_str();
+            dvar.units = strings.cache(var->getUnits());
 
         int nattrs = 0;
         if (_weightsIndex >= 0) nattrs++;
         if (var->getLongName().length() > 0) nattrs++;
 
+        // Find this original Variable in the Project to get to any attributes
+        // which were added to it during processing.
+        VariableIterator vit(Project::getInstance());
+        const Variable* origin_var{ nullptr };
+        while (!origin_var && vit.hasNext())
+        {
+            const Variable* vp = vit.next();
+            if (vp->getName() == var->getName())
+                origin_var = vp;
+        }
+
+        std::vector<Parameter> attributes;
+        if (origin_var)
+        {
+            attributes = origin_var->getAttributes();
+            nattrs += attributes.size();
+        }
         dvar.attrs.attrs_len = nattrs;
         dvar.attrs.attrs_val = 0;
 
@@ -850,13 +899,32 @@ void NcVarGroupFloat::connect(NetcdfRPCChannel* conn,float _fillValue)
             int iattr = 0;
             if (_weightsIndex >= 0) {
                 str_attr *s = dvar.attrs.attrs_val + iattr++;
-                s->name = (char *)"counts";
-                s->value = (char *)weightsName.c_str();
+                s->name = strings.cache("counts");
+                s->value = strings.cache(weightsName);
             }
             if (var->getLongName().length() > 0) {
                 str_attr *s = dvar.attrs.attrs_val + iattr++;
-                s->name = (char *)"long_name";
-                s->value = (char *)var->getLongName().c_str();
+                s->name = strings.cache("long_name");
+                s->value = strings.cache(var->getLongName());
+            }
+            // The current RPC is limited to string attributes for variables,
+            // so send the type as a special prefix in the string value,
+            // float: or int:.  For bool, keep to the precedent established by
+            // the global attributes and use int values 0 and 1.
+            for (auto& p: attributes)
+            {
+                string type_prefix;
+                if (p.getType() == Parameter::FLOAT_PARAM)
+                    type_prefix = "float:";
+                else if (p.getType() == Parameter::INT_PARAM)
+                    type_prefix = "int:";
+                else if (p.getType() == Parameter::BOOL_PARAM)
+                    type_prefix = "int:";
+                str_attr *s = dvar.attrs.attrs_val + iattr++;
+                s->name = strings.cache(p.getName());
+                s->value = strings.cache(type_prefix + p.getStringValue());
+                DLOG(("adding attribute to var ") << var->getName()
+                      << ": " << s->name << "=" << s->value);
             }
         }
         i++;
