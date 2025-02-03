@@ -5,9 +5,7 @@ Summary: Server for NetCDF file writing.
 License: GPL
 Group: Applications/Engineering
 URL: https://github.com/ncareol/nc-server
-# Allow this package to be relocatable to other places than /opt/nc_server
-# rpm --relocate /opt/nc_server=/usr
-Prefix: /opt/nc_server
+Prefix: /opt/nidas
 
 # Because we know the shared library version numbers are derived from the
 # source version, just replicate that here.  Technically the shared library
@@ -28,8 +26,9 @@ Prefix: /opt/nc_server
 # The rpm build fails if _unitdir macro is not defined.
 
 BuildRequires: netcdf-cxx-devel netcdf-devel
-BuildRequires: libcap-devel nidas-devel eol_scons
+BuildRequires: libcap-devel eol_scons
 BuildRequires: libtirpc-devel rpcgen
+BuildRequires: nidas-devel >= 1.2.5
 %{?systemd_requires}
 Vendor: UCAR
 Source: %{name}-%{version}.tar.gz
@@ -91,7 +90,7 @@ exit 0
 %{prefix}/bin/nc_server.check
 %{prefix}/bin/nc_check
 %config(noreplace) %{_sysconfdir}/default/nc_server
-/opt/nc_server/etc/systemd/user
+%{prefix}/etc/systemd/user
 %{_unitdir}/nc_server.service
 
 %files lib

@@ -5,7 +5,7 @@ Requires=rpcbind.service
 
 [Service]
 Type=forking
-Environment=LANG=C PATH=/usr/bin:/opt/nc_server/bin
+Environment=LANG=C PATH=/usr/bin:/opt/nidas/bin
 EnvironmentFile=/etc/default/nc_server
 
 # Setting User and Group to env vars doesn't work.
@@ -13,7 +13,7 @@ EnvironmentFile=/etc/default/nc_server
 # User=${NC_USER}
 # Group=${NC_GROUP}
 
-ExecStart=/opt/nc_server/bin/nc_server -z -u ${NC_USER} -g ${NC_GROUP} -p ${NC_PORT} -l ${NC_LOGLEVEL}
+ExecStart=/opt/nidas/bin/nc_server -z -u ${NC_USER} -g ${NC_GROUP} -p ${NC_PORT} -l ${NC_LOGLEVEL}
 
 TimeoutStartSec=5
 TimeoutStopSec=10

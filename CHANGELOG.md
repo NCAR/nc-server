@@ -9,6 +9,35 @@ The format is based on [Keep a Changelog], the versions should follow
 
 ## [Unreleased] - Unreleased
 
+## [2.2] - 2025-02-03
+
+- This release requires at least version 1.2.5 of NIDAS due to changes to the
+  `SampleTag::getVariables()` API.  Also, NIDAS 1.2.5 added new syntax to
+  netCDF attribute values to support different attribute types, and
+  `nc-server` 2.2 is required to support that syntax.  Earlier versions of
+  `nc-server` will not build against NIDAS versions before 1.2.5 because of
+  the removal of the `svnStatus()` function.
+
+- Given the binary compatibility requirements with NIDAS shared libraries,
+  `nc_server` now defaults to installing into the NIDAS directory against
+  which it is built, for installs from source and also RPM packages.  (Debian
+  packages have not changed.)  If `PREFIX` is not set, then it defaults to the
+  prefix variable from the NIDAS `pkg-config` file, and otherwise
+  `/opt/nidas`.  Libraries are installed into `PREFIX/lib` on all platforms;
+  same as for NIDAS, there is no longer an architecture-specific library path.
+  Besides simplifying the layout and installation, nc-server can be installed
+  from source into an existing NIDAS install by specifying the NIDAS prefix,
+  as below.  The `PREFIX` is inserted automatically to the front of
+  `PKG_CONFIG_PATH`.
+
+  ```sh
+  scons PREFIX=/opt/local/nidas install
+  ```
+
+  Using `setup_nidas.sh` to add that NIDAS installation to the environment
+  automatically includes a binary-compatible nc-server installation, especially
+  critical for the NIDAS plugins `NetcdfRPCChannel` and `NetcdfRPCOutput`.
+
 - NetCDF output files can be split within a time interval by passing the time
   period in environment variables `ISFS_CONFIG_BEGIN` and `ISFS_CONFIG_END`.
   The `NetcdfRPCChannel` detects these variables and passes them to the
@@ -30,19 +59,6 @@ The format is based on [Keep a Changelog], the versions should follow
   variable can be set to override the default config name with a more complete
   config specifier, and the value of that variable will be written to the
   `project_config` global attribute.
-
-- Libraries are now installed into `PREFIX/lib` on all platforms, there is no
-  longer an architecture-specific library path.  Besides simplifying the
-  layout and installation, this allows nc-server to be installed easily from
-  source alongside an existing nidas source install:
-
-  ```sh
-  scons PREFIX=/opt/local/nidas PKG_CONFIG_PATH=/opt/local/nidas/lib/pkgconfig install
-  ```
-
-  Using `setup_nidas.sh` to add that NIDAS installation to the environment
-  automatically includes a binary-compatible nc-server installation, especially
-  critical for the NIDAS plugins `NetcdfRPCChannel` and `NetcdfRPCOutput`.
 
 - Add an extra check against null pointer returns for attribute values.  The
   netCDF-C++ `NcAtt::as_string()` implementation does not check for null
@@ -105,6 +121,7 @@ The format is based on [Keep a Changelog], the versions should follow
 
 <!-- Versions -->
 [Unreleased]: https://github.com/ncareol/nc-server/
+[2.2]: https://github.com/ncareol/nc-server/compare/v2.1...v2.2
 [2.1]: https://github.com/ncareol/nc-server/compare/v2.0...v2.1
 [2.0]: https://github.com/ncareol/nc-server/compare/v1.4...v2.0
 [1.4]: https://github.com/ncareol/nc-server/compare/v1.3...v1.4

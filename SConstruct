@@ -18,6 +18,7 @@
 # client_env, nc_env.
 
 import re
+import subprocess as sp
 
 from SCons.Script import Environment, Configure, PathVariable, EnumVariable
 from SCons.Script import Delete, SConscript, Export, Chmod
@@ -41,8 +42,9 @@ conf.CheckLib('cap')
 env = conf.Finish()
 
 opts = eol_scons.GlobalVariables('config.py')
-opts.AddVariables(PathVariable('PREFIX', 'installation path',
-                               '/opt/nc_server', PathVariable.PathAccept))
+opts.AddVariables(PathVariable('PREFIX',
+                               'install path, defaults to NIDAS prefix',
+                               None, PathVariable.PathAccept))
 opts.AddVariables(PathVariable('INSTALL_PREFIX',
                                'path to be prepended to all install paths',
                                '', PathVariable.PathAccept))
@@ -68,12 +70,42 @@ opts.Add(EnumVariable('BUILDS',
          default='host',
          allowed_values=['host', 'armbe', 'armel', 'armhf']))
 opts.Add('PKG_CONFIG_PATH',
-         'Path to pkg-config files, if you need other than the system default')
+         'Paths to search for pkg-config files, besides defaults.  '
+         'PREFIX is added automatically if set, so if NIDAS is installed '
+         'there, nc_server will build against that NIDAS and install there.')
 opts.Update(env)
 
-# Propagate path to the process environment for running pkg-config
-if 'PKG_CONFIG_PATH' in env:
+PREFIX = env.get('PREFIX')
+
+if PREFIX:
+    env.PrintProgress(f"Using PREFIX override: {PREFIX}")
+
+# If PREFIX is not set yet, then set it from NIDAS.
+if not PREFIX:
+    PREFIX = sp.check_output(['pkg-config', 'nidas', '--variable=prefix'],
+                             universal_newlines=True).strip()
+    env.PrintProgress(f"Using PREFIX from nidas package: {PREFIX}")
+
+if not PREFIX:
+    PREFIX = '/opt/nidas'
+    env.PrintProgress(f"Using default PREFIX: {PREFIX}")
+
+
+def nc_server_prefix(env: Environment):
+    "Update global PREFIX in this Environment."
+    opts.Update(env)
+    env['PREFIX'] = PREFIX
+    pkgpath = f'{PREFIX}/lib/pkgconfig'
+    if env.get('PKG_CONFIG_PATH'):
+        pkgpath += ':' + env['PKG_CONFIG_PATH']
+    env['PKG_CONFIG_PATH'] = pkgpath
+    # Propagate path to the process environment for running pkg-config
     env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
+
+
+env.RequireGlobal(nc_server_prefix)
+env.PrintProgress("PKG_CONFIG_PATH: " + env.get('PKG_CONFIG_PATH', ''))
+
 
 BUILDS = env['BUILDS']
 if BUILDS == 'armel':
@@ -138,9 +170,6 @@ lib = lib_env.SharedLibrary('nc_server_rpc', libobjs,
 # Define a tool to build against the nc_server client library.
 def nc_server_client(env):
     # dynld client environment needs INSTALL_PREFIX
-    opts.Update(env)
-    if 'PKG_CONFIG_PATH' in env:
-        env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
     env.AppendUnique(LIBPATH='#')
     # only need nidas_util, so get only the lib path for nidas and append
     # nidas_util ourselves

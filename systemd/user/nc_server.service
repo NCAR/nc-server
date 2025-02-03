@@ -3,9 +3,9 @@ Description=RPC server for writing to NetCDF files
 
 [Service]
 Type=forking
-Environment=LANG=C PATH=/usr/bin:/opt/nc_server/bin
+Environment=LANG=C PATH=/usr/bin:/opt/nidas/bin
 
-ExecStart=/opt/nc_server/bin/nc_server -z
+ExecStart=/opt/nidas/bin/nc_server -z
 
 TimeoutStartSec=5
 TimeoutStopSec=10

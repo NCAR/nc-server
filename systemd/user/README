@@ -8,13 +8,13 @@
     If installed from the nc_server RPM, these capabiltiies will be enabled on
     the executable file. To check:
 
-        getcap /opt/nc_server/bin/nc_server
+        getcap /opt/nidas/bin/nc_server
         nc_server = cap_setgid,cap_net_bind_service+p
 
     If the executable file has been over-written, or the ownership changed,
     you will have to add the capabilities:
 
-        sudo setcap cap_setgid,cap_net_bind_service+p /opt/nc_server/bin/nc_server
+        sudo setcap cap_setgid,cap_net_bind_service+p /opt/nidas/bin/nc_server
 
 ** Systemd
 
@@ -45,7 +45,7 @@
         # copy nc_server.service file to $HOME/.local/share/systemd/user
         # where systemd can find it.
         mkdir -p $HOME/.local/share/systemd/user 
-        cp /opt/nc_server/systemd/user/nc_server.service \
+        cp /opt/nidas/systemd/user/nc_server.service \
             $HOME/.local/share/systemd/user 
 
     Customize $HOME/.local/share/systemd/user/nc_server.service

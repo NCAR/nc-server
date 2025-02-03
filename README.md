@@ -50,13 +50,11 @@ or with the `nidas-devel` package.
 Run `scons -h` to see available build variables.  There are three install
 aliases:
 
-- `install`: Install all files under the `PREFIX` directory, `/opt/nc_server`
-  by default.  Use this to install to a non-root directory for use by a single
-  user or for testing.
+- `install`: Install all files under the `PREFIX` directory.  Use this to
+  install to a non-root directory for use by a single user or for testing.
 - `install.root`: Install files for a system installation, including a systemd
-  system unit, shell resource files for profile.d, and a ld.so config file.
-  The destinations for the system files are controlled by variables
-  `SYSCONFIGDIR`, `UNITDIR`, and `PKGCONFIGDIR`.
+  system unit, and a ld.so config file.  The destinations for the system files
+  are controlled by variables `SYSCONFIGDIR`, `UNITDIR`, and `PKGCONFIGDIR`.
 - `install.logs`: Create a logs directory under `PREFIX` and install
   `logrotate.conf` there.  The `nc_server.check` script provides example
   crontab entries to write log files to that directory and rotate them
