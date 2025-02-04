@@ -22,7 +22,7 @@ pipeline {
   }
 
   stages {
-    stage('Build NIDAS on all targets') {
+    stage('Build nc-server on all targets') {
 
       parallel {
 
