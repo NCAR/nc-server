@@ -9,6 +9,15 @@ The format is based on [Keep a Changelog], the versions should follow
 
 ## [Unreleased] - Unreleased
 
+- `nc_server` still uses the legacy netCDF C++ interface, and that library is
+  not always current or even available as a system package.  So if the library
+  is found under `PREFIX`, then `nc_server` automatically builds against that
+  installation instead of expecting a system installation.  For easy
+  reference, the legacy source is available on this [Unidata downloads
+  page](https://downloads.unidata.ucar.edu/netcdf/):
+
+  - [netcdf-cxx-4.2.tar.gz](https://downloads.unidata.ucar.edu/netcdf-cxx/4.2/netcdf-cxx-4.2.tar.gz)
+
 ## [2.2] - 2025-02-03
 
 - This release requires at least version 1.2.5 of NIDAS due to changes to the

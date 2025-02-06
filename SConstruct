@@ -119,9 +119,26 @@ env['CXXFLAGS'] = ['-std=c++11', '-Weffc++']
 
 env.GitInfo("version.h", "#")
 
+
+def netcdfcxx(env):
+    "Build against netcdf_c++ in PREFIX if found there."
+    slib = env.File('$PREFIX/lib/libnetcdf_c++.a')
+    dlib = env.File('$PREFIX/lib/libnetcdf_c++.so')
+    if slib.exists():
+        env.Append(LIBS=[slib])
+    elif dlib.exists():
+        env.Append(LIBS=[dlib])
+    else:
+        env.Require('netcdfcxx')
+        return
+    env.Append(CPPPATH=["$PREFIX/include"])
+    env.Append(LIBPATH=["$PREFIX/lib"])
+    env.Require('netcdf')
+
+
 # Clone the netcdf environment before adding the RPC/XDR settings.
 nc_env = env.Clone()
-nc_env.Require('netcdfcxx')
+nc_env.Require(netcdfcxx)
 
 # -L: generated code sends rpc server errors to syslog
 env['RPCGENSERVICEFLAGS'] = ['-L']
@@ -190,7 +207,7 @@ clnt_env.Tool(nc_server_client)
 # pkg-config.  This might be able to use the nidas tool instead, but that
 # has not been tried yet.
 srv_env = clnt_env.Clone()
-srv_env.Require(['netcdfcxx'])
+srv_env.Require(netcdfcxx)
 
 srcs = ["nc_server.cc", "nc_server_rpc_procs.cc", svc]
 
