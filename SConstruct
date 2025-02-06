@@ -84,7 +84,7 @@ if PREFIX:
 # If PREFIX is not set yet, then set it from NIDAS.
 if not PREFIX:
     cp = sp.run(['pkg-config', 'nidas', '--variable=prefix'],
-                capture_output=True, text=True)
+                stdout=sp.PIPE, universal_newlines=True, check=False)
     if cp.returncode != 0:
         raise StopError("PREFIX not specified and NIDAS prefix not "
                         f"found from pkg-config: {cp.stderr}")
