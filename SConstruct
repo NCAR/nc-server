@@ -22,6 +22,7 @@ import subprocess as sp
 
 from SCons.Script import Environment, Configure, PathVariable, EnumVariable
 from SCons.Script import Delete, SConscript, Export, Chmod
+from SCons.Errors import StopError
 
 import eol_scons
 
@@ -82,8 +83,12 @@ if PREFIX:
 
 # If PREFIX is not set yet, then set it from NIDAS.
 if not PREFIX:
-    PREFIX = sp.check_output(['pkg-config', 'nidas', '--variable=prefix'],
-                             universal_newlines=True).strip()
+    cp = sp.run(['pkg-config', 'nidas', '--variable=prefix'],
+                capture_output=True, text=True)
+    if cp.returncode != 0:
+        raise StopError("PREFIX not specified and NIDAS prefix not "
+                        f"found from pkg-config: {cp.stderr}")
+    PREFIX = cp.stdout.strip()
     env.PrintProgress(f"Using PREFIX from nidas package: {PREFIX}")
 
 if not PREFIX:
