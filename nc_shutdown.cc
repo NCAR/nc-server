@@ -19,12 +19,13 @@ int main(int argc, char *argv[])
     CLIENT *clnt;
 
     if (argc < 2) {
-        fprintf(stderr,"\
-******************************************************************\n\
-nc_shutdown sends a shutdown command to the nc_server program on a host via RPC.\n\
-This will cause the nc_server program to close all NetCDF files that it is\n\
-currently writing to and exit.  nc_shutdown is part of the nc_server-auxprogs package\n\
-******************************************************************\n\n");
+        fprintf(stderr,
+R"(******************************************************************
+nc_shutdown sends a shutdown command to the nc_server program on a host via RPC.
+This will cause the nc_server program to close all NetCDF files that it is
+currently writing to and exit.
+******************************************************************
+)");
         fprintf(stderr,"usage:  %s server_host\n", argv[0]);
         exit(1);
     }

@@ -222,6 +222,7 @@ int *close_files_2_svc(void *, struct svc_req *)
     allfiles->close();
     Connections *connections = Connections::Instance();
     connections->closeOldConnections();
+    ILOG(("%d current connections", connections->num()));
     return &res;
 }
 
@@ -237,11 +238,7 @@ int *sync_files_2_svc(void *, struct svc_req *)
 
 void *shutdown_2_svc(void *, struct svc_req *)
 {
-    AllFiles *allfiles = AllFiles::Instance();
-    allfiles->close();
-    Connections *connections = Connections::Instance();
-    connections->closeOldConnections();
-    nc_shutdown(0);
+    request_shutdown();
     return (void *) 0;
 }
 
