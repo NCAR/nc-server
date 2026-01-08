@@ -2955,10 +2955,17 @@ int NcServerApp::run(void)
             ILOG(("nc_server interrupted, shutting down."));
             break;
         }
+        // It could happen that a very busy server has lots of fds open, all
+        // of which are sending lots of data to be written, and any one of
+        // those writes could delay a shutdown request by a noticeable amount
+        // of time.  This might be mitigated by handling the fds one at a
+        // time, in successive calls to svc_getreqset(), checking for
+        // interruptions in between service handlers.  However, it is really
+        // unlikely to be a problem worth fixing.
         svc_getreqset(&rfds);
         // If an RPC handler set the interrupted flag, then this is a
         // requested shutdown.  Since the interrupt signals are blocked
-        // outside the pselect(), this cannot be a signal interrupt.
+        // outside the pselect(), this cannot be caused by a signal interrupt.
         if (interrupted) {
             break;
         }
