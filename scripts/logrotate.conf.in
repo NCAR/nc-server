@@ -1,6 +1,6 @@
 
 @NC_SERVER_HOME@/logs/nc_server.log {
-    rotate 1
+    rotate 5
     copytruncate
     weekly
     nocompress
