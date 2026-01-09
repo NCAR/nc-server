@@ -137,16 +137,6 @@ unsigned long heap()
 
 NcError ncerror(NcError::silent_nonfatal);
 
-void nc_shutdown(int i)
-{
-    if (i)
-        PLOG(("nc_server exiting abnormally: exit(%d)", i));
-    else
-        ILOG(("nc_server normal exit", i));
-    exit(i);
-}
-
-
 inline int NS_NcFile::StartTimeLE(double time) const
 {
     VLOG(("") << "start=" << nidas::util::UTime(_startTime) <<
@@ -431,9 +421,6 @@ int Connection::write_global_attr(const string& name, int value) throw()
 
 AllFiles::AllFiles(void): _filegroups()
 {
-    (void) signal(SIGHUP, hangup);
-    (void) signal(SIGTERM, shutdown);
-    (void) signal(SIGINT, shutdown);
 }
 
 AllFiles::~AllFiles()
@@ -450,32 +437,6 @@ AllFiles *AllFiles::Instance()
     if (_instance == 0)
         _instance = new AllFiles;
     return _instance;
-}
-
-// Close all open files
-void AllFiles::hangup(int sig)
-{
-    ILOG(("Hangup signal received, closing all open files and old connections."));
-
-    AllFiles *allfiles = AllFiles::Instance();
-    allfiles->close();
-
-    Connections *connections = Connections::Instance();
-    connections->closeOldConnections();
-    ILOG(("%d current connections", connections->num()));
-
-    (void) signal(SIGHUP, hangup);
-}
-
-void AllFiles::shutdown(int sig)
-{
-    ILOG(("Signal %d received, shutting down.",sig));
-
-    AllFiles *allfiles = AllFiles::Instance();
-    allfiles->close();
-    Connections *connections = Connections::Instance();
-    connections->closeOldConnections();
-    nc_shutdown(0);
 }
 
 //
@@ -2784,6 +2745,62 @@ void NcServerApp::setup()
     logger->setScheme(logscheme);
 }
 
+
+void shutdown()
+{
+    AllFiles *allfiles = AllFiles::Instance();
+    int nfiles = allfiles->num_files();
+    allfiles->close();
+    Connections *connections = Connections::Instance();
+    int nconns = connections->num();
+    connections->closeOldConnections();
+    ILOG(("nc_server shutdown complete: closed %d files, %d connections",
+          nfiles, nconns));
+}
+
+
+bool interrupted = false;
+
+
+void request_shutdown()
+{
+    ILOG(("nc_server shutdown requested"));
+    interrupted = true;
+}
+
+
+// This is the asynchronous signal handler for SIGINT and SIGTERM. Do not call
+// non-reentrant functions from here, just set a flag to indicate that
+// shutdown has been requested.
+void shutdown_handler(int sig)
+{
+    interrupted = true;
+}
+
+
+/**
+ * Block SIGINT and SIGTERM signals, then set up handlers for them, so they
+ * can be unblocked and handled in the main loop inside pselect().
+ */
+void setup_signals()
+{
+    sigset_t blockset;
+
+    sigemptyset(&blockset);
+    sigaddset(&blockset, SIGINT);
+    sigaddset(&blockset, SIGTERM);
+    sigprocmask(SIG_BLOCK, &blockset, NULL);
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = shutdown_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+}
+
+
 int NcServerApp::run(void)
 {
     ILOG(("nc_server starting"));
@@ -2909,10 +2926,52 @@ int NcServerApp::run(void)
     // create files with group write
     umask(S_IWOTH);
 
-    svc_run();
-    PLOG(("svc_run returned: %m"));
-    return 1;
-    /* NOTREACHED */
+    // Setup signal handlers but leave them blocked until pselect().  There is
+    // no point to handling interrupt signals before this point because no
+    // files have been opened yet.
+    setup_signals();
+
+    // Replace svc_run() with a pselect() loop so shutdowns can be handled
+    // synchronously and called from only one place.
+    DLOG(("entering main loop..."));
+    int status = 0;
+    while (true) {
+        fd_set rfds = svc_fdset;
+        int maxfd = 0;
+        for (int fd = 0; fd < FD_SETSIZE; ++fd) {
+            maxfd = FD_ISSET(fd, &rfds) ? fd : maxfd;
+        }
+
+        sigset_t emptyset;
+        sigemptyset(&emptyset);
+        int nsel = pselect(maxfd + 1, &rfds, nullptr, nullptr, nullptr,
+                           &emptyset);
+        if (nsel < 0 && errno != EINTR) {
+            PLOG(("pselect failed: %m"));
+            status = 1;
+            break;
+        }
+        if (interrupted) {
+            ILOG(("nc_server interrupted, shutting down."));
+            break;
+        }
+        // It could happen that a very busy server has lots of fds open, all
+        // of which are sending lots of data to be written, and any one of
+        // those writes could delay a shutdown request by a noticeable amount
+        // of time.  This might be mitigated by handling the fds one at a
+        // time, in successive calls to svc_getreqset(), checking for
+        // interruptions in between service handlers.  However, it is really
+        // unlikely to be a problem worth fixing.
+        svc_getreqset(&rfds);
+        // If an RPC handler set the interrupted flag, then this is a
+        // requested shutdown.  Since the interrupt signals are blocked
+        // outside the pselect(), this cannot be caused by a signal interrupt.
+        if (interrupted) {
+            break;
+        }
+    }
+    shutdown();
+    return status;
 }
 
 
@@ -3101,4 +3160,3 @@ void NS_NcFile::put_rec(const REC_T * writerec,
     }
     _lastAccess = tnow;
 }
-

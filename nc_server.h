@@ -58,7 +58,8 @@
 
 extern NcError ncerror;
 
-void nc_shutdown(int);
+// RPC handlers call this to tell the main server loop to shutdown and exit.
+void request_shutdown();
 
 class Connection;
 class FileGroup;
@@ -324,8 +325,6 @@ public:
     void close_oldest_file(void) throw();
     int num_files(void) const;
 
-    static void hangup(int sig);
-    static void shutdown(int sig);
 private:
     std::vector < FileGroup*> _filegroups;
     AllFiles(const AllFiles &); // prevent copying

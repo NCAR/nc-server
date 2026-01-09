@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog], the versions should follow
 
 ## [Unreleased] - Unreleased
 
+- Fix a bug where `nc_server` could crash or hang after an interrupt signal
+  trying to close netCDF files from an asynchronous signal handler.
+
 - `nc_server` still uses the legacy netCDF C++ interface, and that library is
   not always current or even available as a system package.  So if the library
   is found under `PREFIX`, then `nc_server` automatically builds against that
