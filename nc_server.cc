@@ -28,6 +28,7 @@
 #include <nidas/util/Process.h>
 #include <nidas/util/Socket.h>
 #include <nidas/util/Logger.h>
+#include <nidas/util/ParseException.h>
 
 using nidas::util::LogContext;
 using nidas::util::UTime;
