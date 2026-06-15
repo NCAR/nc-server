@@ -53,33 +53,28 @@ build_rpms()
 }
 
 
-sign_rpms()
-{
-    (set -x; exec rpm --addsign --define="%_gpg_name ${GPGKEY}" --define='_gpg_digest_algo sha256' `cat rpms.txt`)
-}
-
-
-push_eol_repo()
-{
-    source $YUM_REPOSITORY/scripts/repo_funcs.sh
-    move_rpms_to_eol_repo `cat rpms.txt`
-    update_eol_repo $YUM_REPOSITORY
-}
-
-
 update_local_packages()
 {
+    # convert rpm files to package names, and leave package names alone.
+    # technically the rpm files might include SRPMS, but that shouldn't matter
+    # as long as the name matches an installed package.
+    package_names=""
+    for pkg in "$@" ; do
+        case "$pkg" in
+            *.rpm)
+                pkg=$(rpm -q --qf "%{name}\n" -p "$pkg")
+                ;;
+        esac
+        package_names="$package_names $pkg"
+    done
+
     # These commands must be matched by a NOPWCMDS setting in /etc/sudoers.
-    # Since centos7 does not support --refresh, we cannot use the more
-    # convenient combined command.
-    yum="yum -y --disablerepo=* --enablerepo=eol"
-    pkgs="nc_server-lib nc_server-devel nc_server-clients nc_server"
-    if false ; then
-        sudo -n $yum --refresh -- update $pkgs
-    else
-        sudo -n $yum -- clean expire-cache
-        sudo -n $yum -- update $pkgs
-    fi
+    # Use install to either install a new package or update an existing one.
+    # As of CentOS 8, dnf supports --refresh.  This could also use --repo=eol
+    # in place of the usage below, but this is the usage that matches the
+    # NOPWCMDS setting.
+    dnf="dnf -y --disablerepo=* --enablerepo=eol --refresh --"
+    (set -x; sudo -n $dnf install $package_names)
 }
 
 
@@ -104,23 +99,19 @@ case "$method" in
         build_rpms snapshot "$@"
         ;;
 
-    sign_rpms)
-        sign_rpms
-        ;;
-
     push_rpms)
-        push_eol_repo
+        $HOME/eol-repo/scripts/upload_packages.sh upload `cat rpms.txt`
         ;;
 
     update_rpms)
-        update_local_packages
+        update_local_packages `cat rpms.txt`
         ;;
 
     *)
         if [ "$method" != "help" ]; then
             echo Unknown command "$1".
         fi
-        echo Available commands: build_rpms, sign_rpms, push_rpms, update_rpms.
+        echo Available commands: build_rpms, push_rpms, update_rpms.
         exit 1
         ;;
 
