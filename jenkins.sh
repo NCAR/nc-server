@@ -49,7 +49,7 @@ build_rpms()
         (set -x; rm -rf "$TOPDIR/RPMS"; rm -rf "$TOPDIR/SRPMS")
     fi
     # this conveniently creates a list of built rpm files in rpms.txt.
-    (set -x; scons build_rpm nc_server.spec "$@")
+    (set -x; $HOME/eol-repo/scripts/build_rpm.sh nc_server.spec "$@")
 }
 
 
